@@ -57,7 +57,7 @@ Accurate as of the planning commit:
 | Settings model (`config.Settings`) | Done, startup wiring pending — FND-2 |
 | Test harness and offline guard | Done — FND-3 |
 | Docs link check in CI | Done — FND-5 |
-| CI workflow (lint, types, tests) | Written, first run pending — FND-4 |
+| CI workflow (lint, types, tests, docs links) | Done — FND-4 |
 | Domain models | Not started — M1 |
 | Vector store and embeddings | Not started — M1 |
 | Ingestion pipeline | Not started — M2 |

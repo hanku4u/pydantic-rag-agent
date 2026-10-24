@@ -33,7 +33,7 @@ stay the canonical list.
 
 | Milestone | Done | In progress |
 | --- | --- | --- |
-| M0 Foundation | FND-1, FND-3, FND-5 | FND-2, FND-4 |
+| M0 Foundation | FND-1, FND-3, FND-4, FND-5 | FND-2 |
 | M1 Domain and storage | — | — |
 | M2 Ingestion | — | — |
 | M3 Retrieval | — | — |
@@ -42,8 +42,8 @@ stay the canonical list.
 | M6 Hardening | — | — |
 
 FND-2 is partially landed: `config.Settings` and its validation tests exist; loading
-it at startup arrives with the API (API-1). FND-4's workflow is written but has not yet
-completed a run on GitHub.
+it at startup arrives with the API (API-1). FND-6 (licence) needs a decision rather
+than work — MIT, Apache-2.0, or something else.
 
 ---
 
