@@ -65,6 +65,40 @@ The first six are exactly what CI runs, so a green local run means a green pull 
 The evaluation script is a **measurement, not a gate**: it needs a paid API, so CI does
 not run it. See [docs/development/evaluation.md](docs/development/evaluation.md).
 
+## Where to pick up
+
+State at the last handoff: **M0–M5 complete**, M6 started (EVAL-1 and SEC-1 done).
+
+Next three tasks, in order — the reasoning for the order is in the M6 table and in
+[docs/decisions/0008-prompt-injection-defence.md](docs/decisions/0008-prompt-injection-defence.md):
+
+1. **OPS-2 — cost visibility.** `AgentTurn` carries no usage. Add input/output tokens,
+   request count and cost (from `result.usage`), surface them in the SSE `done` event and
+   as a dim footer under the CLI's answer panel. See
+   [docs/features/README.md](docs/features/README.md) and
+   [docs/design/agent.md](docs/design/agent.md).
+2. **OPS-1 — instrumentation.** Prefer the framework's `Instrumentation` capability to a
+   hand-rolled logger. Adopting `pydantic-ai-harness` — needed for that and for
+   `PromptInjectionDefender` — requires a decision record first; ADR 0008 explains why it
+   was deferred.
+3. **TST-1 — coverage.** Loaders, chunker, stores and the agent loop. The suite must stay
+   offline: `tests/conftest.py` sets `ALLOW_MODEL_REQUESTS = False` so a forgotten fake
+   fails rather than spends.
+
+Known debts, each small: **IMG-5** (the caption cache is keyed by image hash alone, so
+changing `PRAGENT_CAPTION_MODEL` serves stale captions), no `delete` command in the CLI,
+`help` in `chat` is sent to the model, `documents` prints content-addressed storage paths,
+and `PRAGENT_API_URL` in `.env` is not read by the CLI (only the shell environment).
+
+Practical notes:
+
+- **Tests need no API key.** Live checks do: `OPENROUTER_API_KEY` in `.env`, which is
+  gitignored and present on the development machine only.
+- `./data/` may hold a local index from a smoke run. It is gitignored and safe to delete;
+  an empty or mismatched index is caught by the startup guard rather than silently used.
+- Run the gates under "Commands" before committing. `ruff format --check` also formats
+  Python blocks inside Markdown, which has caught a long doc example before.
+
 ## Current state
 
 M6 hardening has started with SEC-1: retrieved text is framed as quoted data in the tool
