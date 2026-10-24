@@ -11,6 +11,7 @@ The loop orchestration lives here too, because it is made of framework types
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from pydantic_ai import Agent, BinaryContent, RunContext
@@ -21,9 +22,12 @@ from pydantic_ai.models import Model
 from pydantic_ai.usage import UsageLimits
 
 from pydantic_rag_agent.adapters.image_store import sniff_media_type
+from pydantic_rag_agent.application.citations import CitationAudit, audit_citations
 from pydantic_rag_agent.application.retrieval import RetrievalService, SearchResult
 from pydantic_rag_agent.domain.models import Citation
 from pydantic_rag_agent.domain.ports import ImageStore
+
+_logger = logging.getLogger(__name__)
 
 NO_RESULTS_MESSAGE = "No relevant documents were found for that query."
 
@@ -140,6 +144,7 @@ class AgentTurn:
     text: str
     citations: tuple[Citation, ...]
     messages: list[ModelMessage]
+    citation_audit: CitationAudit
     budget_exhausted: bool = False
 
 
@@ -168,17 +173,32 @@ async def ask(
         # `run` raises rather than returning a partial answer, so the honest
         # outcome is a clear message and a flag, not a half-finished sentence
         # pretending to be an answer.
+        message = BUDGET_EXHAUSTED_MESSAGE.format(limit=request_limit)
         return AgentTurn(
-            text=BUDGET_EXHAUSTED_MESSAGE.format(limit=request_limit),
+            text=message,
             citations=(),
             messages=list(history or []),
+            citation_audit=audit_citations(message, available=0),
             budget_exhausted=True,
+        )
+
+    citations = dedupe_citations(deps.citations)
+    audit = audit_citations(result.output, available=len(citations))
+    if audit.out_of_range:
+        # Logged rather than raised: a hallucinated reference is a quality signal,
+        # not a reason to throw away an otherwise useful answer. Whoever is
+        # watching can count these and act.
+        _logger.warning(
+            "answer cited %s but only %d passage(s) were retrieved",
+            ", ".join(f"[{marker}]" for marker in audit.out_of_range),
+            len(citations),
         )
 
     return AgentTurn(
         text=result.output,
-        citations=dedupe_citations(deps.citations),
+        citations=citations,
         messages=result.all_messages(),
+        citation_audit=audit,
     )
 
 

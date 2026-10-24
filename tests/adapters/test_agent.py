@@ -6,6 +6,7 @@ simulates a runaway loop, and the store is the in-memory one. No API key, no net
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -287,6 +288,38 @@ async def ask_should_use_fresh_citations_per_turn(tmp_path: Path) -> None:
 
     # then: evidence is not carried over from the previous answer
     assert len(second.citations) == len(first.citations)
+
+
+async def ask_with_a_hallucinated_citation_should_flag_and_log_it(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # given: an answer citing a passage that was never retrieved
+    store = build_store()
+    await seed_backups(store)
+    deps = build_deps(tmp_path, store)
+    agent = build_agent(TestModel(call_tools="all", custom_output_text="It runs at 02:00 [7]."))
+
+    # when: the turn is run
+    with caplog.at_level(logging.WARNING):
+        turn = await ask(agent, deps, "When do backups run?")
+
+    # then: the impossible reference is reported, without discarding the answer
+    assert turn.citation_audit.out_of_range == (7,)
+    assert turn.text == "It runs at 02:00 [7]."
+    assert any("only 1 passage" in record.getMessage() for record in caplog.records)
+
+
+async def ask_with_a_correctly_cited_answer_should_report_a_clean_audit(tmp_path: Path) -> None:
+    # given: an answer citing the one passage that was retrieved
+    store = build_store()
+    await seed_backups(store)
+    deps = build_deps(tmp_path, store)
+    agent = build_agent(TestModel(call_tools="all", custom_output_text="It runs at 02:00 [1]."))
+
+    # when / then: nothing is flagged and the citation is recognised
+    turn = await ask(agent, deps, "When do backups run?")
+    assert turn.citation_audit.is_clean is True
+    assert turn.citation_audit.cited == (1,)
 
 
 def build_agent_should_reject_nothing_and_construct_offline() -> None:

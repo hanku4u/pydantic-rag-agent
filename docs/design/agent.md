@@ -107,6 +107,12 @@ The instruction text must establish, at minimum:
    `SystemPromptPart` operator authority; populating it from a document hands an
    attacker the instruction channel.
 
+Citations are audited after every turn. Markers found in the answer are compared with the
+passages actually retrieved, and any out-of-range reference is logged. A citation to a
+passage that was never retrieved reads as authoritative and is unverifiable, and nothing
+else in the pipeline notices — the prose is fluent, the marker is well-formed, and the
+citations we return are correct. The check is about fifteen lines and touches no prompt.
+
 Logging records tool calls, token counts, and latency per run. It never logs document
 contents or credentials.
 
