@@ -166,6 +166,23 @@ def question_panel_should_show_the_text_exactly_as_typed() -> None:
     assert "[bold]" in buffer.getvalue()
 
 
+def erase_typed_line_should_clear_every_wrapped_line() -> None:
+    # given: a console 40 columns wide, and 102 characters typed at a "› " prompt
+    from io import StringIO
+
+    from rich.console import Console
+
+    buffer = StringIO()
+    console = Console(file=buffer, force_terminal=True, width=40)
+
+    # when: the echoed input is erased
+    cli._erase_typed_line(console, "› ", "x" * 100)
+
+    # then: three wrapped lines are stepped back over and cleared, so the panel is the
+    # only copy of what the user typed
+    assert buffer.getvalue() == "\x1b[1A\x1b[2K" * 3
+
+
 def stream_answer_on_a_terminal_should_drive_the_live_region() -> None:
     # given: a console that believes it is a terminal, so the Live path is taken
     from io import StringIO

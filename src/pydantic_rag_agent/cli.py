@@ -12,6 +12,7 @@ interpreted as style; and nothing here blocks on a spinner while a stream is run
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Annotated, Any, cast
@@ -27,6 +28,11 @@ from rich.text import Text
 from pydantic_rag_agent.client import UPLOAD_SUFFIXES, ClientError, RagClient
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
+
+# The prompt is needed twice: once for `console.input`, once — plain — to work out how
+# many columns the echoed line occupied.
+PROMPT = "[bold cyan]›[/bold cyan] "
+PROMPT_PLAIN = "› "
 
 # What the agent is doing, in words a user would use. Unknown tools fall back to their
 # identifier with underscores removed, which is still more useful than silence.
@@ -130,12 +136,16 @@ def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
             )
             while True:
                 try:
-                    question = console.input("[bold cyan]›[/bold cyan] ")
+                    question = console.input(PROMPT)
                 except (EOFError, KeyboardInterrupt):
                     console.print()
                     return
                 if question.strip().lower() in {"exit", "quit", ""}:
                     return
+                if console.is_terminal:
+                    # The terminal echoed what was just typed. Clear it, so the turn
+                    # appears once — in the panel — rather than twice.
+                    _erase_typed_line(console, PROMPT_PLAIN, question)
                 _stream_answer(console, client, conversation_id, question, echo_question=True)
     except ClientError as exc:
         console.print(f"[red]{exc}[/red]")
@@ -274,6 +284,21 @@ def _stream_answer(
     if citations:
         _render_citations(console, citations)
     return payload
+
+
+def _erase_typed_line(console: Console, prompt_plain: str, typed: str) -> None:
+    """Blank the line the user just typed, including any wrapped continuation.
+
+    The shell echoes input; a library cannot suppress that, so the line is cleared after
+    the fact and the panel becomes the only copy of the turn. Only called on a real
+    terminal, and only for single-line input, which is what ``input()`` gives us.
+    """
+    width = max(console.width, 20)
+    lines = max(1, math.ceil((len(prompt_plain) + len(typed)) / width))
+    # After Enter the cursor is on the line below; step back and clear each one.
+    for _ in range(lines):
+        console.file.write("\x1b[1A\x1b[2K")
+    console.file.flush()
 
 
 def _question_panel(question: str) -> Panel:

@@ -161,6 +161,11 @@ the agent's in green, with tool activity as dim lines inside the agent's panel â
 `search_knowledge_base` reads as "searching the knowledge base", because a function name is
 not something to show a person.
 
+Interactive input is echoed by the terminal, which a library cannot suppress. The echoed
+line is cleared with a cursor-up sequence before the panel is drawn, so a turn appears
+once; this runs only on a real terminal, and only for the single-line input `input()`
+provides.
+
 **Known friction:** the CLI needs the API running, so a first run is two terminals.
 The accepted mitigation is a `dev` command that starts the API and the UI together;
 until it exists, [Setup](../development/setup.md) documents the two-terminal flow
