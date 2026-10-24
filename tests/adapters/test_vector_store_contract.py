@@ -164,6 +164,39 @@ async def has_document_with_unknown_document_should_be_false(store: VectorStore)
     assert await store.has_document("doc-1") is False
 
 
+async def delete_by_source_path_should_remove_only_that_files_chunks(
+    store: VectorStore,
+) -> None:
+    # given: two chunks from one file, and one from another
+    await store.add(
+        [
+            *two_chunks(),
+            build_embedded(
+                build_chunk(chunk_id="c3", document_id="doc-2", source_path="other.md"),
+                [0.0, 0.0, 1.0, 0.0],
+            ),
+        ]
+    )
+
+    # when: the first file is cleared, as re-ingesting a changed file would
+    deleted = await store.delete_by_source_path("test.md")
+
+    # then: only its chunks go, and the caller learns how many
+    assert deleted == 2
+    assert await store.count() == 1
+
+
+async def delete_by_source_path_with_unknown_path_should_return_zero(
+    store: VectorStore,
+) -> None:
+    # given: a populated index
+    await store.add(two_chunks())
+
+    # when / then: clearing a path that was never indexed is a no-op, not an error
+    assert await store.delete_by_source_path("never-seen.md") == 0
+    assert await store.count() == 2
+
+
 async def stats_should_report_embedding_identity(store: VectorStore) -> None:
     # given: a populated index
     await store.add(two_chunks())

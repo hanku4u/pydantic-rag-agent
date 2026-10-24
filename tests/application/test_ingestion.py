@@ -90,6 +90,48 @@ async def ingest_paths_with_the_same_file_twice_should_skip_the_second_time(
     assert embedder.calls == calls_after_first
 
 
+async def ingest_paths_with_an_edited_file_should_replace_its_previous_chunks(
+    tmp_path: Path,
+) -> None:
+    # given: a two-section document that has already been indexed
+    path = tmp_path / "notes.md"
+    path.write_text(
+        "# Notes\n\n## A\n\n" + "alpha " * 20 + "\n\n## B\n\n" + "beta " * 20,
+        encoding="utf-8",
+    )
+    store = build_store()
+    service, _ = build_service()
+    first = await ingest_single(path, store=store, service=service)
+    old_document_id = first.results[0].document_id
+    old_chunks = await store.count()
+    assert old_chunks == 2
+
+    # when: the file is edited and ingested again
+    path.write_text("# Notes\n\n## A\n\nreplacement content", encoding="utf-8")
+    second = await ingest_single(path, store=store, service=service)
+
+    # then: the previous version is gone, not sitting beside the new one
+    assert second.results[0].status == "indexed"
+    assert second.results[0].replaced == old_chunks
+    assert await store.count() == second.chunks
+    assert await store.has_document(old_document_id or "") is False
+
+
+async def ingest_paths_with_an_unchanged_file_should_delete_nothing(tmp_path: Path) -> None:
+    # given: a document already indexed
+    path = write_file(tmp_path, "stable.md", "# Stable\n\nunchanged content")
+    store = build_store()
+    service, _ = build_service()
+    await ingest_single(path, store=store, service=service)
+
+    # when: it is ingested again with identical bytes
+    report = await ingest_single(path, store=store, service=service)
+
+    # then: the cheap skip happens before any deletion, so nothing is rewritten
+    assert report.results[0].status == "skipped"
+    assert report.results[0].replaced == 0
+
+
 async def ingest_paths_with_a_directory_should_ingest_supported_files_only(
     tmp_path: Path,
 ) -> None:

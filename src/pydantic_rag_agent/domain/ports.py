@@ -44,6 +44,9 @@ class VectorStore(Protocol):
       An empty index is a normal outcome, not an error.
     * ``delete_by_document`` removes every chunk of one document and returns how
       many were removed.
+    * ``delete_by_source_path`` does the same for every chunk loaded from one path,
+      which is how a changed file replaces its previous version instead of
+      accumulating beside it.
     """
 
     async def add(self, records: Sequence[EmbeddedChunk]) -> None: ...
@@ -57,6 +60,8 @@ class VectorStore(Protocol):
     ) -> list[RetrievedChunk]: ...
 
     async def delete_by_document(self, document_id: str) -> int: ...
+
+    async def delete_by_source_path(self, source_path: str) -> int: ...
 
     async def has_document(self, document_id: str) -> bool: ...
 

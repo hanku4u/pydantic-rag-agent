@@ -143,6 +143,9 @@ class ChromaVectorStore:
     async def has_document(self, document_id: str) -> bool:
         return await asyncio.to_thread(self._has_document_sync, document_id)
 
+    async def delete_by_source_path(self, source_path: str) -> int:
+        return await asyncio.to_thread(self._delete_by_source_path_sync, source_path)
+
     async def count(self) -> int:
         return await asyncio.to_thread(self._collection.count)
 
@@ -221,6 +224,10 @@ class ChromaVectorStore:
     def _has_document_sync(self, document_id: str) -> bool:
         found = self._collection.get(where={"document_id": document_id}, limit=1)
         return bool(found["ids"])
+
+    def _delete_by_source_path_sync(self, source_path: str) -> int:
+        result = self._collection.delete(where={"source_path": source_path})
+        return int(result.get("deleted", 0))
 
     def _require_width(self, records: Sequence[EmbeddedChunk]) -> None:
         for record in records:

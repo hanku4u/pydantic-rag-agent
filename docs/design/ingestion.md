@@ -128,9 +128,15 @@ unchanged document is a no-op rather than a duplicate.
   field for it, so the model runs unconditioned. It performs well in that mode; this is a
   quality difference that is invisible to tests. See
   [ADR 0005](../decisions/0005-embedding-model-qwen3.md).
-- **Idempotency:** `document_id` is the SHA-256 of the file bytes. Ingesting the
-  same file again replaces its chunks (`delete_by_document` then add) instead of
-  duplicating them.
+- **Idempotency:** `document_id` is the SHA-256 of the file bytes, so an unchanged file
+  is skipped before any work is done — no re-embedding, no rewrite.
+- **Replacement on change:** an *edited* file has a new hash, so the hash comparison
+  cannot catch it. The pipeline therefore clears the chunks recorded at that source path
+  before writing the new version. Without that step the previous text stays in the index
+  beside the current one and search happily returns both.
+- **Known limitation:** clearing is by source path. Renaming a file, or ingesting it
+  under a different path spelling, leaves the old chunks behind. Treat a rename as a
+  delete plus an ingest.
 - The store records `document_id`, `source_path`, `title`, `content_hash`,
   `page`/`slide`, `heading_path`, `kind` (`text` | `image`), and `image_id` where
   applicable. These are what make citations possible later, so they are not
@@ -146,6 +152,7 @@ Ingestion of a folder is a batch operation and its result must be inspectable:
 | `source_path` | Where it came from |
 | `status` | `indexed`, `skipped`, or `failed` |
 | `chunks` | Number of chunks written |
+| `replaced` | Chunks of a previous version of this file removed before writing |
 | `images` | Number of images extracted and captioned |
 | `warnings` | Non-fatal problems — no text layer, uncaptioned image |
 | `error` | Present only when `status == failed` |

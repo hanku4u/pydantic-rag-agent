@@ -93,6 +93,16 @@ class InMemoryVectorStore:
     async def has_document(self, document_id: str) -> bool:
         return any(record.chunk.document_id == document_id for record in self._records.values())
 
+    async def delete_by_source_path(self, source_path: str) -> int:
+        doomed = [
+            chunk_id
+            for chunk_id, record in self._records.items()
+            if record.chunk.source_path == source_path
+        ]
+        for chunk_id in doomed:
+            del self._records[chunk_id]
+        return len(doomed)
+
     async def count(self) -> int:
         return len(self._records)
 

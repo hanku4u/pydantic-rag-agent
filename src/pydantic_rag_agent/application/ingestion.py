@@ -34,7 +34,9 @@ class IngestResult(BaseModel):
     status: IngestStatus
     document_id: str | None = None
     chunks: int = 0
-    # Reserved: populated once image extraction lands (IMG-1).
+    # How many chunks of a previous version of this file were removed first.
+    replaced: int = 0
+    # Reserved: populated once image extraction lands (IMG-2).
     images: int = 0
     warnings: tuple[str, ...] = ()
     error: str | None = None
@@ -146,6 +148,11 @@ async def _ingest_one(
                 warnings=("no extractable text",),
             )
 
+        # A changed file has a new content hash, so the skip above does not catch
+        # it. Clearing by path first stops the index accumulating superseded
+        # versions that would keep matching searches next to the current one.
+        replaced = await store.delete_by_source_path(str(path))
+
         chunks = chunk_document(
             document,
             chunk_size=chunk_size,
@@ -156,6 +163,7 @@ async def _ingest_one(
                 source_path=str(path),
                 document_id=document_id,
                 status="skipped",
+                replaced=replaced,
                 warnings=("no chunks produced",),
             )
 
@@ -176,6 +184,7 @@ async def _ingest_one(
             document_id=document_id,
             status="indexed",
             chunks=len(chunks),
+            replaced=replaced,
         )
 
     except Exception as exc:  # noqa: BLE001 - containment is the requirement here
