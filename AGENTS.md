@@ -4,38 +4,49 @@ Orientation for automated coding assistants and for anyone joining the project.
 
 ## Reading order
 
-1. **[docs/overview.md](docs/overview.md)** — what this is, goals, non-goals, glossary.
-2. **[docs/architecture.md](docs/architecture.md)** — layers, boundaries, dependency rules.
-3. The page for the area you are changing (see the index in **[docs/README.md](docs/README.md)**).
-4. **[docs/decisions/](docs/decisions/README.md)** before proposing anything architectural.
+1. **[docs/overview.md](docs/overview.md)** — purpose, goals, non-goals, glossary.
+2. **[docs/architecture.md](docs/architecture.md)** — layers, boundaries, injection seams.
+3. **[docs/features/README.md](docs/features/README.md)** — the backlog you should be working from.
+4. The design page for the area you are changing:
+   [ingestion](docs/design/ingestion.md), [retrieval](docs/design/retrieval.md),
+   [agent](docs/design/agent.md), [interfaces](docs/design/interfaces.md).
+5. **[docs/decisions/](docs/decisions/README.md)** before proposing anything architectural.
 
 ## Rules that override your instincts
 
-- **Check the status marker** at the top of any doc before trusting it. `stable` is
-  agreed, `draft` is in flux, `stub` means **no decision has been made** — ask, do
-  not infer. Much of `docs/` is deliberately still stub.
-- **Do not invent requirements.** If a design question is listed under "Open
-  questions", it is open. Do not silently resolve it in code.
-- **`pydantic_rag_agent/__init__.py` stays empty of logic.** No import-time side
-  effects.
+- **Check the status marker** at the top of any doc. `stable` is agreed, `draft` means
+  confirm before building on it, `stub` means **no decision has been made** — ask.
+- **Do not invent requirements.** If it is not in the backlog, it is not in scope.
+- **Work from a feature ID.** Reference it in the commit, e.g.
+  `feat(ingest): add pdf loader (ING-5)`.
+- **`pydantic-ai` is v2.** It is `instructions=`, not `system_prompt=`; `result.output`,
+  not `result.data`. Most examples online are v0.x and will not run.
+- **Do not re-abstract what the framework already abstracts.** Embedding providers come
+  from `pydantic_ai.Embedder`. Do not introduce our own embedding interface.
+- **Do abstract the vector store.** All access goes through the `VectorStore` protocol
+  in `domain/ports.py`. Never import `chromadb` outside its adapter.
+- **`__init__.py` stays empty of logic.** No import-time side effects.
 - **Typed boundaries.** Values crossing into or out of the core are Pydantic models.
-- **Keep docs in sync.** If your change alters behaviour on a `stable` page, update
-  that page in the same commit.
-- **`uv.lock` is committed.** Add or remove dependencies with `uv add` / `uv remove`,
-  never by hand-editing `pyproject.toml`.
+- **Retrieved content is untrusted data, never instructions.** Never place it in a
+  system prompt, and never let it reach `SystemPromptPart`.
+- **Keep docs in sync.** If your change alters documented behaviour, update the page in
+  the same commit.
+- **`uv.lock` is committed.** Change dependencies with `uv add` / `uv remove` only.
 
 ## Commands
 
 ```bash
-uv sync                 # create/refresh the environment
-uv run pydantic-rag-agent   # run the CLI
+uv sync                        # create/refresh the environment
+uv run pydantic-rag-agent --help   # CLI
 ```
 
-There is no test runner or CI installed yet. See
-**[docs/development/setup.md](docs/development/setup.md)**.
+There is no test runner or CI installed yet — FND-3 and FND-4 in
+[docs/features/README.md](docs/features/README.md).
 
 ## Current state
 
-Scaffold only. No runtime dependencies, no retrieval pipeline, no agent loop, no
-tests. The authoritative accounting is in
-**[docs/roadmap.md](docs/roadmap.md)**.
+Planning is complete; implementation has not started. Dependencies are declared in the
+backlog but **not installed**. The package contains a placeholder CLI that prints a
+greeting. The authoritative accounting is in
+[docs/overview.md](docs/overview.md#current-state) and
+[docs/roadmap.md](docs/roadmap.md).

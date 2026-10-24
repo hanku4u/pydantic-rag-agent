@@ -1,86 +1,116 @@
 # Architecture
 
-**Status:** stub — the dependency rules below are decided; the layer breakdown is
-a proposal awaiting the design discussion.
+**Status:** draft — the layering, dependency direction, and injection boundaries are
+decided. Module names will firm up during implementation.
 
-How the code is organised, which parts may depend on which, and where the seams
-are. Read [Overview](overview.md) first for vocabulary.
+How the code is organised, what may depend on what, and where the seams are.
 
 ## Decided constraints
 
-These hold today and should be treated as rules, not suggestions:
+1. **`src/` layout.** Imported from an installed build, never incidentally from the
+   working directory. See [ADR 0001](decisions/0001-project-scaffold.md).
+2. **No logic in `__init__.py`.** Importing a package must not build clients, read
+   credentials, or touch disk.
+3. **`pydantic-ai` owns the agent loop**, and its `Embedder` owns embedding
+   providers. We do not re-abstract either. See
+   [ADR 0002](decisions/0002-agent-framework.md).
+4. **We own the vector store abstraction**, because the framework has no opinion and
+   we intend to swap Chroma for `pgvector`. See
+   [ADR 0003](decisions/0003-vector-store-and-embeddings.md).
+5. **The CLI and the UI are HTTP clients.** They contain no retrieval or agent logic.
+6. **Domain and application layers do not import adapters.** Wiring happens at the
+   edge — the API's dependency injection.
+7. **Boundaries are Pydantic models**, validated on the way in.
 
-1. **`src/` layout.** The package lives at `src/pydantic_rag_agent/` and is
-   imported from an installed build, never incidentally from the working
-   directory. This is what makes `uv run` and a real install behave identically.
-   See [ADR 0001](decisions/0001-project-scaffold.md).
-2. **No logic in `__init__.py`.** Importing a package must not construct clients,
-   read credentials, or touch the filesystem. Side effects at import time make
-   tests order-dependent and make a dependency cycle impossible to diagnose.
-3. **The CLI is wiring, not logic.** `cli.py` parses arguments and calls into the
-   application. Anything a test would want to call directly does not belong there.
-4. **Business logic stays framework-agnostic.** Domain and application modules
-   must not import the CLI, and should not need to import an HTTP or vector-store
-   client library directly.
+## Layers
 
-## Proposed layers
-
-**Proposal — not agreed.** The intent is to keep the domain independent of
-infrastructure, so the vector store, the LLM provider, and the embedding model are
-all replaceable without touching the rules that decide what a good answer is.
-
-| Layer | Responsibility | May depend on |
+| Layer | Contains | May depend on |
 | --- | --- | --- |
-| **Domain** | Models and rules: documents, chunks, queries, answers. Pure Python + Pydantic. | Nothing but Pydantic |
-| **Application** | Use cases: ingest a corpus, answer a question, run the agent loop. | Domain |
-| **Adapters** | Concrete implementations: embedders, vector stores, LLM clients, loaders. | Domain, third-party libraries |
-| **Interfaces** | CLI, and any future HTTP surface. | Application |
+| **Domain** | `Document`, `Chunk`, `RetrievedChunk`, `Citation`, `IngestReport`. Pure Python + Pydantic. | Pydantic only |
+| **Application** | Use cases: ingest a document, answer a question, run a turn. Protocols for what it needs. | Domain |
+| **Adapters** | Loaders, `ChromaVectorStore`, captioner, image store, `pydantic-ai` agent wiring. | Domain, third-party libraries |
+| **Interfaces** | FastAPI app, CLI, Streamlit. | Application, adapters (wiring only) |
 
-The rule that carries most of the value: **domain and application depend on
-abstractions they own, and adapters implement those abstractions.** In practice
-that means the application layer declares what it needs, and the wiring layer —
-`cli.py` today — chooses the concrete implementation.
+The rule that carries the value: **application code depends on protocols it owns;
+adapters implement them; only the wiring layer knows which adapter is live.** That is
+what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 
 ## Module map
 
-**Proposal.** Names are indicative; the exact split follows from
-[Retrieval design](design/retrieval.md) and [Agent design](design/agent.md).
-
 ```text
 src/pydantic_rag_agent/
-├── __init__.py      # package docstring only
-├── cli.py           # argument parsing and wiring
-├── domain/          # Pydantic models, no I/O
-├── application/     # use cases / services
-└── adapters/        # embedders, stores, model clients, loaders
+├── __init__.py           # docstring only
+├── cli.py                # typer app — HTTP client
+├── config.py             # Settings (pydantic-settings)
+├── domain/
+│   ├── models.py         # Document, Chunk, RetrievedChunk, Citation
+│   └── ports.py          # VectorStore protocol
+├── application/
+│   ├── ingestion.py      # load → chunk → embed → index
+│   ├── retrieval.py      # query → search → rank
+│   └── conversations.py  # history ownership
+├── adapters/
+│   ├── loaders/          # pdf.py, docx.py, pptx.py, text.py
+│   ├── chroma_store.py
+│   ├── memory_store.py
+│   ├── captioning.py
+│   └── agent.py          # Agent, AgentDeps, tools
+├── api/
+│   ├── app.py            # FastAPI app and DI
+│   ├── routes/           # documents, conversations, health
+│   └── schemas.py        # wire models, separate from domain
+└── ui/
+    └── streamlit_app.py  # HTTP client
 ```
 
-## Boundary rules
+`api/schemas.py` is deliberately separate from `domain/models.py`. The wire contract
+and the domain model will diverge at the edges, and welding them together turns an
+internal refactor into a breaking API change.
 
-- Every value crossing a boundary is a Pydantic model: model output, tool
-  arguments, configuration, retrieved chunks, persisted records.
-- Validation happens **on the way in**, at the edge. Do not pass raw `dict`s into
-  the core and validate later — the whole point is to fail at the door.
-- Persistence and transport details (SQL, JSON, HTTP) do not leak upwards. The
-  domain should not know that a vector store exists.
+## Injection
+
+Two seams, and only two:
+
+- **`VectorStore`** — our protocol, async, with a Chroma adapter for production and
+  an in-memory adapter for tests.
+- **`Embedder` / model** — `pydantic-ai`'s own abstraction, injected as a value.
+  Overridden in tests with `TestEmbeddingModel` and `TestModel`.
+
+Everything else is constructed directly. Abstraction is not free, and a protocol with
+one implementation and no test double is a layer of indirection that only costs
+reading time.
+
+## Dependency direction
+
+```text
+interfaces ──▶ application ──▶ domain
+     │               ▲
+     └──▶ adapters ──┘   (adapters implement application/domain protocols)
+```
+
+If a domain module ever needs to import an adapter, the boundary is wrong and the
+protocol is in the wrong place.
+
+## Failure philosophy
+
+- Configuration errors fail at **startup**, with a readable message.
+- Per-document ingestion errors are **contained**: one bad PDF does not lose the
+  batch. See [Ingestion design](design/ingestion.md).
+- Provider errors surface as **categorised** HTTP errors, never tracebacks.
+- A budget-exhausted agent returns a **partial answer with a warning**, never a
+  silent truncation.
 
 ## Open questions
 
-For the design discussion — deliberately unanswered:
-
-1. Which abstractions exist up front, and which wait until there is a second
-   implementation? (Pragmatism beat us to an answer last time: avoid interfaces
-   with exactly one implementation *and* no test double.)
-2. Do we depend on an existing agent/RAG framework, or build the loop? This is the
-   highest-leverage decision in the project and it changes this page substantially.
-3. Where does conversation state live between turns — memory, disk, or nowhere?
-4. Is the pipeline synchronous, or is async the default for I/O-heavy calls?
-5. Which layer owns retries and rate limiting — adapters or application?
-6. How are retrieved chunks cited in an answer, and is citation a domain concept?
+1. Where does the image store live — filesystem only, or is it also a protocol?
+2. Does `application/conversations.py` own history, or is that infrastructure?
+3. Single-worker or multi-worker deployment? This decides whether in-memory history
+   and embedded Chroma are acceptable.
+4. Is background ingestion needed, or is a synchronous request sufficient?
 
 ## Related
 
-- [Overview](overview.md) — goals and non-goals that constrain this design.
-- [Retrieval design](design/retrieval.md) — the pipeline that becomes adapters.
-- [Agent design](design/agent.md) — the loop that becomes a use case.
-- [Conventions](development/conventions.md) — the coding rules that enforce this.
+- [Overview](overview.md) — goals and non-goals.
+- [Features](features/README.md) — the build order.
+- [Ingestion](design/ingestion.md), [Retrieval](design/retrieval.md),
+  [Agent](design/agent.md), [Interfaces](design/interfaces.md) — the designs.

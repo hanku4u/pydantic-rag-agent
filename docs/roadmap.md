@@ -1,66 +1,68 @@
 # Roadmap
 
-**Status:** stub — milestones are placeholders until the design discussion sets scope.
+**Status:** draft — milestone scope agreed; only M0 is actionable today.
 
-What gets built, in what order, and what "done" means for each step. Ordered by
-**dependency**, not by enthusiasm: each milestone should be usable and testable
-before the next begins.
+The order in which the backlog gets built, and what "done" means for each stage. The
+granular work is in [Features](features/README.md); this page is the narrative.
 
 ## Guiding rule
 
-Every milestone ends with something you can run and something that proves it
-works. A milestone that produces only interfaces and no working path is not a
-milestone, it is a bet.
+Every milestone ends with something you can **run** and something that **proves** it
+works. A milestone producing only interfaces and no working path is not a milestone,
+it is a bet.
 
 ## Milestones
 
-> **Not yet agreed.** The table below is an outline of the *shape* of the work,
-> filled in after the design discussion.
+| # | Milestone | Outcome | Features |
+| --- | --- | --- | --- |
+| 0 | Foundation | Dependencies, settings, test harness, CI | FND-1…FND-6 |
+| 1 | Domain and storage | Types exist; Chroma persists a vector and finds it again | DOM-1, STO-1…STO-3, EMB-1 |
+| 2 | Ingestion | Text files index end to end; then PDF, DOCX, PPTX, images | ING-1…ING-7, IMG-1…IMG-3 |
+| 3 | Retrieval | A query returns ranked, cited chunks — **no LLM involved** | RET-1…RET-4 |
+| 4 | Agent | A question over the index produces a cited answer | AGT-1…AGT-7 |
+| 5 | Interfaces | CLI and Streamlit both work over the API | API-1…API-5, CLI-1…CLI-2, UI-1…UI-3 |
+| 6 | Hardening | Evaluation, logging, cost visibility, security review | EVAL-1, TST-1, OPS-1…OPS-2, SEC-1 |
 
-| # | Milestone | Done when |
-| --- | --- | --- |
-| 0 | Project foundation | Repo, docs, CI, and a test harness exist. *Partially done — see below.* |
-| 1 | Domain models | Documents, chunks, and queries are modelled, validated, and covered by tests. |
-| 2 | Offline retrieval | A corpus can be chunked and searched end to end **without** calling an LLM. |
-| 3 | Embeddings + index | Chunks are embedded and persisted; search returns ranked results. |
-| 4 | Single-turn answering | A question plus retrieved context produces a cited answer. |
-| 5 | Agent loop | The agent chooses tools, including retrieval, and validates their arguments. |
-| 6 | Hardening | Error handling, rate limits, cost bounds, and an evaluation set. |
+## The two milestones that matter
 
-## Foundation status
+**M3 is the real checkpoint.** Retrieval can be built and tested entirely offline,
+with a fake embedder and the in-memory store. Once M3 passes, the hard part of RAG is
+done and the agent in M4 is comparatively mechanical. Teams that skip to the agent
+before retrieval is trustworthy end up debugging prompt wording to compensate for a
+broken index.
 
-Honest accounting of milestone 0, so nobody assumes more exists than does:
+**M2 grows one format at a time.** Text first (ING-1…ING-4), then PDF, DOCX, PPTX,
+then images. Each format is additive and independently testable, so a hostile `.pptx`
+never blocks progress on everything else.
 
-| Item | State |
-| --- | --- |
-| Git repository on GitHub (private) | Done |
-| uv project, locked dependencies | Done |
-| `src/` package and CLI entry point | Done |
-| `docs/` and decision records | Done |
-| Test framework installed | **No** |
-| CI workflow | **No** |
-| Licence | **No** |
-| Runtime dependencies | **None** |
+## First vertical slice
 
-## Suggested first step
+The fastest route to something demonstrable, worth targeting early:
 
-Install the test harness and add one CI workflow that runs
-`uv sync --locked` followed by the test command. Doing this before milestone 1 is
-cheap; doing it afterwards means the first tests are written against a moving
-target. The `--locked` flag is the important part — it fails the build when
-`pyproject.toml` and `uv.lock` disagree, which is the usual way a uv project
-silently drifts.
+```text
+ingest one .md file → retrieve a chunk → answer with a citation → see it in the terminal
+```
+
+That path needs FND-1…FND-3, M1, ING-1…ING-4, M3, AGT-1…AGT-3, and CLI-1…CLI-2. It
+deliberately skips PDFs, images, Streamlit, and streaming. Once it exists, every
+later feature adds a capability rather than unblocking the first one.
+
+## Explicitly after the prototype
+
+Deferred with triggers, not forgotten — see
+[the deferred table](features/README.md#deferred). `pgvector`, reranking, and
+persistent conversations are the three most likely to be pulled forward.
 
 ## Open questions
 
-1. Is there a deadline or demo that reorders the milestones?
-2. Does milestone 5 need to exist at all, or is single-turn retrieval (milestone 4)
-   sufficient for the first release?
-3. What does "good answer" mean, concretely, and how is it measured? Without this,
-   milestone 6 cannot be judged.
+1. Is there a demo date that reorders M5 ahead of some of M2?
+2. Does Streamlit need to ship before the CLI, or after? The API serves both, so the
+   order is a preference, not a dependency.
+3. What does "good answer" mean measurably? EVAL-1 cannot be judged without it, and
+   it is the one thing worth defining before M3.
 
 ## Related
 
+- [Features](features/README.md) — the backlog these milestones contain.
 - [Overview](overview.md) — goals and non-goals.
 - [Architecture](architecture.md) — the structure the milestones land in.
-- [Testing](development/testing.md) — the harness milestone 0 is missing.

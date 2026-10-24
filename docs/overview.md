@@ -1,87 +1,88 @@
 # Overview
 
-**Status:** draft — the problem statement is provisional; goals and non-goals are
-awaiting the design discussion.
+**Status:** draft — the use case and non-goals are agreed; success metrics are not.
 
-One page on what this project is, who it is for, and what it deliberately does
-not do. Written to be read before anything else.
+What this project is, who it is for, and what it deliberately does not do.
 
 ## What it is
 
-`pydantic-rag-agent` is a retrieval-augmented generation (RAG) agent written in
-Python. It is built around [Pydantic](https://docs.pydantic.dev/) for typed,
-validated boundaries between its own code and the outside world — model outputs,
-configuration, tool arguments, and retrieved documents.
+`pydantic-rag-agent` is a retrieval-augmented generation agent for your own
+documents. You point it at a pile of files — PDFs, Word documents, slide decks,
+plain text — and ask questions about them in a terminal or a browser.
 
-> **Not yet decided:** the concrete use case. "A RAG agent" describes an
-> architecture, not a product. Until a target domain and corpus are chosen, every
-> downstream design decision is guesswork. This is the first thing to settle.
+It ingests documents into a vector database, retrieves relevant passages when you
+ask something, and lets a `pydantic-ai` agent compose an answer with citations back
+to the source. Images are captioned at ingest so they become searchable too.
 
-## Why Pydantic at the centre
+Every boundary is a Pydantic model: tool arguments, retrieved chunks, API payloads,
+configuration. That is the project's organising idea, and the reason for its name.
 
-The claim worth defending, and the reason the project is named the way it is:
-LLM systems fail at their *edges* — a model returns prose where JSON was
-promised, a config key is missing, a tool receives an argument of the wrong type.
-Pydantic turns those edge failures into ordinary, testable validation errors
-instead of exceptions surfacing three layers deep in a prompt-parsing function.
+## Who it is for
 
-If a future decision makes this untrue, [Architecture](architecture.md) and this
-section should be revisited together.
-
-## Current state
-
-Accurate as of the initial scaffold:
-
-| Area | State |
-| --- | --- |
-| Repository, CI, licensing | Repository exists and is private. **No CI. No licence.** |
-| Dependency management | `uv`, with `uv.lock` committed. See [ADR 0001](decisions/0001-project-scaffold.md). |
-| Package layout | `src/pydantic_rag_agent/` with a `cli.py` entry point. |
-| Runtime dependencies | **None yet.** |
-| Retrieval pipeline | **Does not exist.** See [Retrieval design](design/retrieval.md). |
-| Agent loop | **Does not exist.** See [Agent design](design/agent.md). |
-| Tests | **None.** No test framework installed. See [Testing](development/testing.md). |
-
-The CLI currently prints a greeting and exits. Anything beyond that requires the
-design work in [Roadmap](roadmap.md) to land first.
+- Someone with a folder of documents who wants answers, not a search box.
+- A developer who wants a RAG pipeline that is readable and hackable rather than a
+  framework they must learn first.
 
 ## Goals
 
-To be agreed. Candidate shape, for discussion — not commitments:
-
-- A complete, hackable retrieval pipeline: ingest → chunk → embed → store → search.
-- An agent loop whose tool calls are typed and validated, not string-parsed.
-- Every external boundary expressed as a Pydantic model.
-- Configuration that fails loudly at startup rather than mysteriously at query time.
-- Reproducible environments (`uv.lock`) and a test suite that runs offline.
+- **Ingest the formats people actually have**: PDF, DOCX, PPTX, TXT, Markdown.
+- **Make images searchable** via vision-model captions, while keeping the originals
+  available for the agent to look at.
+- **Cite everything.** An answer without a source is a rumour.
+- **Be honest about emptiness.** When nothing relevant is retrieved, say so instead
+  of inventing an answer.
+- **Swap the storage layer.** Chroma today, `pgvector` when the basics work, behind
+  one protocol.
+- **Two interfaces, one core**: a terminal CLI and a Streamlit chat UI over a shared
+  HTTP API.
+- **Deterministic tests.** The suite runs offline; no test spends money.
 
 ## Non-goals
 
-To be agreed. Proposals to push back on now, while it is cheap:
+- **Not** a hosted or multi-tenant service. Localhost first.
+- **Not** a general-purpose agent framework. This is an application.
+- **Not** multi-user. One index, one operator, no permissions model in v1.
+- **Not** OCR. Scanned PDFs with no text layer are reported as unsupported, not
+  faked with a caption.
+- **Not** a document editor or a crawler. Files you supply, files it indexes.
 
-- **Not** a hosted service or multi-tenant SaaS.
-- **Not** a general-purpose agent framework — it is an application, and it may
-  depend on a framework rather than become one.
-- **Not** a UI. CLI and library first; a web layer is a separate, later concern.
-- **Not** multi-modal. Text in, text out.
+## Current state
+
+Accurate as of the planning commit:
+
+| Area | State |
+| --- | --- |
+| Repository, docs, decision records | Done |
+| `uv` project and lockfile | Done |
+| Runtime dependencies | **Not installed** — declared in [Features](features/README.md) |
+| Domain models | Not started |
+| Vector store / embeddings | Not started |
+| Ingestion pipeline | Not started |
+| Agent | Not started |
+| API, CLI, Streamlit | Not started |
+| Tests, CI, licence | Not started |
+
+The CLI currently prints a greeting. [Features](features/README.md) is the ordered
+plan for filling the rest of that table.
 
 ## Glossary
 
-Shared vocabulary, so these words mean the same thing in every page and in code.
-Terms are added as they are settled.
-
 | Term | Meaning |
 | --- | --- |
-| **Document** | A source unit before ingestion (a file, a page, a row). |
-| **Chunk** | A contiguous slice of a document that is embedded and retrieved as one unit. |
-| **Embedding** | A dense vector representation of a chunk, produced by an embedding model. |
-| **Index** | The persisted collection of chunks and their embeddings. |
-| **Retrieval** | Selecting chunks relevant to a query, usually by vector similarity. |
-| **Agent** | The loop that decides which tools to call — including retrieval — and composes an answer. |
-| **Tool** | A typed function the agent may call, with a Pydantic-validated input schema. |
+| **Document** | A source file, identified by the SHA-256 of its bytes. |
+| **Extracted document** | A loaded document as text blocks plus images, before chunking. |
+| **Chunk** | A contiguous slice of a document, embedded and retrieved as one unit. |
+| **Caption** | A vision-model description of an image, stored as an image chunk. |
+| **Embedding** | A dense vector for a chunk, from `text-embedding-3-small` by default. |
+| **Index** | The persisted collection of chunks and vectors. |
+| **Retrieval** | Selecting chunks relevant to a query by vector similarity. |
+| **Citation** | The document title, page or slide, and path behind a retrieved chunk. |
+| **Agent** | The `pydantic-ai` loop that calls tools and composes the answer. |
+| **Tool** | A typed function the agent may call, with a Pydantic-validated schema. |
+| **Conversation** | A multi-turn session, identified by `conversation_id`, history held server-side. |
 
 ## Related
 
-- [Architecture](architecture.md) — how the above becomes modules.
-- [Roadmap](roadmap.md) — the order in which the empty rows in the table get filled.
-- [Decision records](decisions/README.md) — the "why" behind choices already made.
+- [Architecture](architecture.md) — how this becomes modules.
+- [Features](features/README.md) — what gets built, in what order.
+- [Decision records](decisions/README.md) — the choices behind the stack.

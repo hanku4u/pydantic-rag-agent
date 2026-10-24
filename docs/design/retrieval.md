@@ -1,95 +1,91 @@
 # Retrieval design
 
-**Status:** stub — no decisions made. Sections describe the questions, not answers.
+**Status:** draft — the query path is decided; ranking refinements are deliberately
+deferred.
 
-How source material becomes something an agent can search: ingestion, chunking,
-embedding, storage, and search. Read [Architecture](../architecture.md) for where
-these pieces live in the code.
+The **read path**: from a user's question to the chunks handed to the agent. For how
+those chunks got into the store, see [Ingestion design](ingestion.md).
 
-## The pipeline
-
-Each stage is a seam worth isolating, because each fails differently and each is
-replaceable independently.
+## Query path
 
 ```text
-documents → load → chunk → embed → index → search → ranked chunks
-              ↑        ↑       ↑        ↑        ↑
-           format   size/overlap  model   store   metric + top-k
+question → embed_query → VectorStore.search → score floor → top-k → chunks + citations
 ```
 
-## Stages
+Deliberately short. Every additional stage — rewriting, expansion, reranking — adds
+latency and a new failure mode, and none of them can be justified until there is a
+baseline to measure against.
 
-### 1. Load and normalise
+## Decisions
 
-Turning heterogeneous inputs into text plus metadata.
+- **Pure vector similarity.** No keyword/hybrid search in v1. Hybrid helps most on
+  exact identifiers and rare terms; it is a follow-up once we know whether that is
+  the actual weakness.
+- **No reranking.** A cross-encoder reranker is the highest-value upgrade available
+  and is explicitly deferred. It belongs behind a measurement, not a hunch.
+- **`top_k` defaults to 5**, configurable. Enough context to answer, small enough
+  that a wrong chunk cannot drown out a right one.
+- **A score floor is applied.** Below-threshold chunks are dropped rather than
+  passed along as weak evidence. Passing everything to the model guarantees it will
+  find a way to use something irrelevant.
+- **Zero results is a valid, explicit outcome.** The tool returns a plain
+  "no relevant documents found" result. The model must be told this explicitly,
+  because an empty context is exactly the condition under which a model
+  confabulates from the question alone.
+- **Retrieval is exposed as a tool, not as pre-fetching.** The agent decides when to
+  search and what to search for. See [Agent design](agent.md).
 
-**Open questions**
+## Result model
 
-- Which source formats exist in scope? Plain text and Markdown are nearly free;
-  PDF and HTML each bring a parser dependency and a new class of failure.
-- What metadata survives normalisation — source path, title, section, page number,
-  modification time? Citation quality depends on this answer, so it is decided
-  early, not retrofitted.
+`RetrievedChunk` carries the text plus everything needed to cite it:
 
-### 2. Chunk
+| Field | Purpose |
+| --- | --- |
+| `chunk_id` | Stable identity |
+| `document_id` | Groups chunks back to a source |
+| `text` | What the model reads |
+| `score` | Similarity, for debugging and for the floor |
+| `title`, `source_path` | Human-readable provenance |
+| `page` / `slide` | Where in the source |
+| `heading_path` | Section context |
+| `kind` | `text` or `image` |
+| `image_id` | Present for image chunks, so `view_image` can resolve it |
 
-Splitting documents into retrievable units.
+`chunk_id` and `score` are for us. The rest is citation material, and the agent is
+instructed to cite from it.
 
-**Open questions**
+## Cost and latency
 
-- Character-, token-, or structure-aware chunking? Prose wants one answer,
-  Markdown wants heading-aware splits.
-- Chunk size and overlap — fixed defaults, or per-format configuration?
-- Do chunks carry their parent document's title and heading path into the embedding
-  text? Usually yes: it disambiguates otherwise context-free sentences.
-
-### 3. Embed
-
-Turning chunks into vectors.
-
-**Open questions**
-
-- Local model (sentence-transformers) or a hosted API? This determines whether the
-  test suite and first-run experience need a network connection or a large download.
-- Is the embedder an interface from day one, or one concrete class until a second
-  implementation appears?
-- How are dimension and model identity recorded alongside the index? Swapping
-  models silently invalidates every stored vector, and that is worth making
-  impossible rather than merely documented.
-
-### 4. Index
-
-Persisting vectors and retrieving them.
-
-**Open questions**
-
-- Which store? A brute-force in-memory or NumPy index is honest and fast enough for
-  thousands of chunks, and defers an infrastructure decision.
-- Is metadata filtering needed, or is pure vector similarity sufficient?
-- What does reindexing look like when documents change — full rebuild, or upsert by
-  document id?
-
-### 5. Search
-
-Selecting chunks for a query.
-
-**Open questions**
-
-- Similarity metric, and is it a stored property or a query-time choice?
-- Top-k fixed, or budgeted by context window?
-- Is hybrid (keyword + vector) search needed, or is that speculative for now?
-- What happens on zero results — empty context, a refusal, or a fallback?
+Retrieval costs one embedding call per query — a few milliseconds and a fraction of
+a cent. The expensive part of an answer is the model turn, and the expensive part of
+a bad answer is a tool-call loop. That is why the loop has a hard cap (see
+[Agent design](agent.md)) and why retrieval is kept cheap enough to call freely.
 
 ## Deliberately deferred
 
-Reranking, query rewriting, multi-query expansion, and semantic caching are all
-real techniques and all premature here. They add latency and failure modes that
-can only be justified once a baseline exists to measure them against. Record them
-in [Roadmap](../roadmap.md) rather than building them now.
+| Technique | Why deferred |
+| --- | --- |
+| Reranking | Highest value, but unmeasurable without a baseline evaluation set |
+| Hybrid keyword search | Only justified if exact identifiers turn out to be a real weakness |
+| Query rewriting / expansion | Adds a model call on the critical path |
+| MMR / diversity | Matters for summarisation, not question answering |
+| Semantic caching | Premature; hides the cost of bad retrieval behind a cache hit |
+
+Each belongs in [Roadmap](../roadmap.md) with a trigger condition, not in the code.
+
+## Open questions
+
+1. Which similarity metric, and does Chroma's default (cosine) suffice?
+2. Is the score floor a fixed number, or per-embedding-model? It almost certainly
+   needs to be per-model, since score distributions are not comparable across models.
+3. Should `top_k` be the agent's choice (a tool parameter) or fixed by config? Letting
+   the model choose invites it to ask for 50.
+4. Should results be deduplicated by document so one verbose document cannot fill the
+   whole context?
 
 ## Related
 
-- [Architecture](../architecture.md) — which layer owns each stage.
-- [Agent design](agent.md) — how retrieval is exposed as a tool.
-- [Configuration](../reference/configuration.md) — chunk size, top-k, model names.
-- [Testing](../development/testing.md) — testing this pipeline without an LLM.
+- [Ingestion design](ingestion.md) — where these vectors come from.
+- [Agent design](agent.md) — how retrieval is exposed.
+- [ADR 0003](../decisions/0003-vector-store-and-embeddings.md) — store and embedding choices.
+- [Architecture](../architecture.md) — the layers involved.

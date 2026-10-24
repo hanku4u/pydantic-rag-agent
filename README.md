@@ -3,8 +3,11 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** early scaffold. The package, CLI entry point, and dependency
-> management are wired up; the ingestion and query flows are not built yet.
+> **Status:** planning complete, implementation not started. The package skeleton,
+> dependency management, and documentation are in place; ingestion, retrieval, the
+> agent, the API, and the Streamlit UI are not built yet. The ordered plan is in
+> [`docs/features/`](docs/features/README.md) and
+> [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Why uv?
 
@@ -62,6 +65,8 @@ pydantic-rag-agent/
 ├── pyproject.toml            # project metadata, dependencies, CLI entry point
 ├── uv.lock                   # exact resolved versions — commit this
 ├── .python-version           # interpreter uv should use
+├── AGENTS.md                 # orientation for coding agents
+├── docs/                     # design, backlog, decisions — start at docs/README.md
 ├── src/
 │   └── pydantic_rag_agent/
 │       ├── __init__.py       # package marker, no import-time side effects
@@ -75,16 +80,24 @@ than by accident from the working directory, which is what makes
 
 ## Configuration
 
-No configuration is required yet. When API keys arrive, read them from
-environment variables (via `pydantic-settings`) rather than hard-coding them, and
-put a committed `.env.example` next to an ignored `.env`. The `.gitignore` here
-already ignores `.env` and any `.env.*` file except `.env.example`.
+Configuration is not implemented yet — FND-2 in the
+[feature backlog](docs/features/README.md).
+
+When it lands, settings are read from `PRAGENT_*` environment variables via
+`pydantic-settings` and validated at startup. Credentials keep their conventional
+names (`OPENAI_API_KEY`) and are never read from a committed file. The intended
+variable set is documented in
+[`docs/reference/configuration.md`](docs/reference/configuration.md).
+
+The `.gitignore` already ignores `.env` and any `.env.*` file except `.env.example`.
 
 ## Contributing
 
 1. `uv sync` to get a working environment.
-2. Add tests under `tests/` next to the module they cover.
-3. `uv run pytest` before opening a pull request.
+2. Pick a feature ID from the [backlog](docs/features/README.md) and reference it in
+   your commit subject.
+3. Add tests under `tests/` next to the module they cover.
+4. `uv run pytest` before opening a pull request.
 
 ## License
 

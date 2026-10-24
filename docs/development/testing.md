@@ -1,122 +1,125 @@
 # Testing
 
-**Status:** draft — the philosophy and naming rules are agreed; the harness is not
-installed yet.
+**Status:** draft — strategy agreed; harness not yet installed (FND-3).
 
-How tests are named, where they live, and what is worth testing. No framework is
-installed at the moment; [Setup](setup.md) covers installing one.
+How tests are named, where they live, and what is worth testing.
 
 ## Philosophy
 
-- **Test behaviour, not implementation.** A test that breaks when a private helper
-  is renamed is testing the wrong thing.
-- **Deterministic and offline by default.** The suite must pass with no network and
-  no API keys. Anything that calls a model or an embedding API sits behind a
-  separate, explicitly-opted-in marker.
-- **One reason to fail.** If a test can fail for four unrelated reasons, split it.
+- **Offline and deterministic by default.** No test may hit a paid API. `pydantic-ai`
+  gives us two tools for that, and both are mandatory here:
+  - `TestModel` and `TestEmbeddingModel` return deterministic results.
+  - `pydantic_ai.models.ALLOW_MODEL_REQUESTS = False` in `conftest.py` makes any
+    forgotten real client raise instead of quietly spending money. This is the
+    backstop, not the strategy.
+- **Test behaviour, not implementation.** A test that breaks on a rename of a private
+  helper is testing the wrong thing.
+- **One reason to fail.**
 - **Tests are documentation.** The name says what is guaranteed; the body says how.
 
 ## Layout
 
-Tests mirror the package structure, so the test for `application/ingest.py` is
-obvious without searching:
-
 ```text
 tests/
-├── conftest.py                 # shared fixtures
+├── conftest.py              # ALLOW_MODEL_REQUESTS = False, shared fakes
 ├── domain/
-│   └── test_chunk.py
+│   └── test_models.py
 ├── application/
-│   └── test_ingest.py
-└── adapters/
-    └── test_memory_store.py
+│   ├── test_ingestion.py
+│   └── test_retrieval.py
+├── adapters/
+│   ├── loaders/
+│   │   └── test_pdf.py
+│   └── test_chroma_store.py
+├── api/
+│   └── test_routes.py       # FastAPI TestClient
+└── fixtures/
+    └── documents/           # tiny sample files, committed
 ```
 
-Test files are `test_<module>.py`, one per module under test. Fixtures live in the
-nearest `conftest.py` that makes sense, not in one giant global file.
+Fixtures live in the nearest `conftest.py` that makes sense. Loader tests read small
+committed sample files from `fixtures/documents/` — real files, not synthetic strings,
+because the whole point of a loader is handling real formats. Each sample should be
+the smallest file that reproduces the format's awkwardness (an image in a slide, a
+table in a docx).
 
 ## Naming
-
-Names state the setup and the expected outcome, and they are allowed to be long. A
-test name read in a CI failure list should be enough to know what broke.
 
 ```text
 <method_or_class_under_test>_<testSetup>_<expectedOutcome>
 ```
 
-Examples:
+- `chunk_document_with_oversized_section_should_split_with_overlap()`
+- `search_with_empty_index_should_return_no_results()`
+- `ingest_same_file_twice_should_not_duplicate_chunks()`
+- `view_image_with_unknown_id_should_return_error_message_not_raise()`
 
-- `chunk_text_with_empty_string_should_return_empty_list()`
-- `search_with_no_indexed_chunks_should_return_empty_results()`
-- `load_settings_with_missing_api_key_should_raise_validation_error()`
-
-Prefixes are fine where they beat a sentence:
-
-```text
-test_<behaviour>_when_<condition>_then_<outcome>
-```
-
-Pick one style, use it throughout — switching styles mid-file makes the suite look
-unmaintained.
+Long names are fine. A name read from a CI failure list should identify the defect
+without opening the file.
 
 ## Structure
 
-Three phases, marked with comments, in that order. No assertions in the given or
-when phases.
+Given / when / then, marked with comments.
 
 ```python
-def chunk_text_with_overlap_larger_than_chunk_should_raise_value_error() -> None:
-    # given: a chunk size smaller than the overlap it would need
-    text = "one two three"
+def ingest_same_file_twice_should_not_duplicate_chunks(store: InMemoryVectorStore) -> None:
+    # given: a document already ingested
+    ingest_file(SAMPLE_MARKDOWN, store)
+    chunks_after_first = store.count()
 
-    # when: the invalid configuration is used
-    with pytest.raises(ValueError):
-        chunk_text(text, chunk_size=10, overlap=20)
+    # when: the identical file is ingested again
+    ingest_file(SAMPLE_MARKDOWN, store)
 
-    # then: the function refuses rather than looping forever
+    # then: content-hash identity replaces the old chunks instead of adding more
+    assert store.count() == chunks_after_first
 ```
 
-That final comment earns its place by naming the failure it prevents. A comment
-saying "assert raises" would not.
+## What each layer gets
 
-## What to cover
+| Layer | Approach |
+| --- | --- |
+| **Domain** | Pure model validation. No doubles needed. |
+| **Loaders** | Real sample files in, `ExtractedDocument` out. Assert text presence and image count, not exact whitespace. |
+| **Chunker** | Boundary cases: empty text, a single short section, a section far over the limit, overlap larger than size. |
+| **Stores** | The same protocol test suite runs against both `InMemoryVectorStore` and the Chroma adapter, so they cannot drift. |
+| **Ingestion** | End to end with `TestEmbeddingModel` and the in-memory store. Idempotency and per-file failure isolation are the important tests. |
+| **Agent** | `TestModel` to drive a tool call; assert the tool ran and that a budget-exhausted run reports it. |
+| **API** | `TestClient` against the real app with fake adapters injected. |
+| **Streamlit** | Not unit-tested. Keep the UI thin enough that this stays true. |
 
-Worth a test, in rough order of value:
+## The protocol conformance suite
 
-1. **Boundaries** — empty input, a single item, inputs above any documented limit,
-   and the exact values at each edge.
-2. **Validation** — bad configuration and malformed model output are rejected with a
-   clear error.
-3. **Ranking and retrieval** — given a known set of chunks, search returns them in
-   the expected order.
-4. **Agent loop control** — iteration limits are respected and budget exhaustion is
-   handled, using a fake model client.
+Because `pgvector` is a planned second `VectorStore`, its behaviour must be pinned by
+a shared test suite rather than by each adapter's own opinion of what `search` means.
+One parametrised suite, run against every implementation:
 
-Not worth a test: that a Pydantic model validates a field the framework already
-validates; that a third-party library works.
+```python
+@pytest.fixture(params=["memory", "chroma"])
+def store(request, tmp_path) -> VectorStore: ...
+```
 
-## Doubles, not mocks everywhere
+The Chroma variant writes to `tmp_path`, so tests never touch a real index.
 
-- Prefer a small in-memory fake (a vector store holding a list, a model client
-  returning canned responses) over heavily-specified mocks. Fakes survive
-  refactors; mocks pin implementation.
-- Patch at the boundary owned by this codebase, not deep inside a dependency.
-- Network-calling tests get an explicit marker and are excluded from the default
-  run.
+## What not to test
+
+- That Pydantic validates a field Pydantic already validates.
+- That `pydantic-ai` calls a tool. Test our tool.
+- Exact caption text from a vision model — untestable and brittle. Assert structure and
+  that caching prevented a second call.
 
 ## Open questions
 
-1. Test runner and dependencies — `pytest` plus `pytest-asyncio` if the pipeline
-   turns out async?
-2. Is a coverage threshold enforced in CI, or is coverage merely reported? A
-   threshold on a small codebase pushes people toward testing trivia.
-3. Are slow integration tests a separate command, or a marker on the default run?
-4. How is the agent's answer quality evaluated — is that a test suite, or a
-   separate evaluation harness with its own records?
+1. Coverage threshold in CI, or reported only? A threshold on a young codebase pushes
+   people to test trivia.
+2. Are the Chroma-store tests part of the default run, or a separate marker? They are
+   slow and filesystem-bound.
+3. How is vision captioning faked — a fixed caption per hash, or a small recorded
+   fixture set?
+4. Does EVAL-1 (retrieval quality) live in `tests/`, or as a separate harness with its
+   own report? It is a measurement, not an assertion.
 
 ## Related
 
+- [Conventions](conventions.md) — production style.
 - [Setup](setup.md) — installing the harness.
-- [Conventions](conventions.md) — the style the code under test follows.
-- [Retrieval design](../design/retrieval.md) — the stages most worth testing.
-- [Roadmap](../roadmap.md) — where the harness sits in the plan.
+- [Features](../features/README.md) — TST-1 and EVAL-1.

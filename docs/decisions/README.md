@@ -40,8 +40,10 @@ real value.
 | # | Title | Status | Date |
 | --- | --- | --- | --- |
 | [0001](0001-project-scaffold.md) | Project scaffold: uv, `src/` layout, Python floor | Accepted | 2026-10-24 |
+| [0002](0002-agent-framework.md) | Use pydantic-ai as the agent framework | Accepted | 2026-10-24 |
+| [0003](0003-vector-store-and-embeddings.md) | Chroma behind an injectable store interface; OpenAI embeddings | Accepted | 2026-10-24 |
 
-Next number: **0002**.
+Next number: **0004**.
 
 ## Writing one
 
