@@ -12,7 +12,7 @@ path see [Retrieval design](retrieval.md); for where this code lives see
 ```text
 file → load → extract → caption images → chunk → embed → index
          ↑       ↑            ↑            ↑       ↑        ↑
-      per-format  blocks    vision LLM   tokens  OpenAI   VectorStore
+      per-format  blocks    vision LLM   tokens  VoyageAI VectorStore
 ```
 
 Each stage is a separate, individually testable step, and each can be replaced
@@ -48,6 +48,11 @@ cost the user an hour of embedding the other forty.
 ## 2. Images
 
 **Decision:** caption images with a vision-capable model at ingest time.
+
+The default model — `deepseek/deepseek-v4.1-flash` via OpenRouter — advertises `text`
+and `image` input, so captioning needs no second provider. That is a happy accident of
+the model choice, not a hard dependency: `PRAGENT_CAPTION_MODEL` exists so a cheaper
+vision model can be substituted later.
 
 Rationale: the caption becomes ordinary text, so it flows through the same chunking,
 embedding, and search path as everything else. Image content becomes *searchable*
@@ -101,9 +106,16 @@ unchanged document is a no-op rather than a duplicate.
 
 ## 4. Embed and index
 
-- Batch `Embedder.embed_documents()` calls (batches of ~64) rather than one request
-  per chunk. Per-chunk calls are the difference between a usable ingest and a
-  rate-limit incident.
+- Embed with `Embedder.embed_documents()`, batched. One request per chunk is the
+  difference between a usable ingest and a rate-limit incident.
+- **Batch size is bounded by tokens, not by chunk count.** Voyage caps a single request
+  at 1,000 inputs and — for `voyage-4-large` — 120,000 total tokens. At 800-token
+  chunks, 64-chunk batches sit around 51K tokens and are comfortably inside that;
+  raising `chunk_size` without lowering the batch size is how an ingest starts failing
+  halfway through a corpus.
+- **Documents and queries are embedded differently.** Voyage prepends a distinct prompt
+  per `input_type`. `embed_documents()` here and `embed_query()` in retrieval apply the
+  right one; swapping them is a silent quality regression, not an error.
 - **Idempotency:** `document_id` is the SHA-256 of the file bytes. Ingesting the
   same file again replaces its chunks (`delete_by_document` then add) instead of
   duplicating them.

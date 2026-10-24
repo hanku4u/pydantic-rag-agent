@@ -24,6 +24,9 @@ How the code is organised, what may depend on what, and where the seams are.
 8. **Presentation is confined to the interfaces layer.** `rich`, `typer`, and
    `streamlit` are imported only by `cli.py` and `ui/`. Those layers decide how data
    looks; nothing below them knows a terminal exists.
+9. **Two external providers.** OpenRouter runs the agent and image captions; VoyageAI
+   supplies embeddings. OpenRouter exposes no embeddings endpoint, so the split is
+   forced rather than chosen. See [ADR 0004](decisions/0004-model-providers.md).
 
 ## Layers
 

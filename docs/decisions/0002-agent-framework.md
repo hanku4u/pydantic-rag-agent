@@ -23,8 +23,9 @@ The project's existing constraints narrow this considerably:
 
 Use **`pydantic-ai`** (v2) as the agent framework.
 
-Installed as `pydantic-ai-slim[openai]` rather than the full `pydantic-ai` bundle, so
-we pull only the provider group we actually use.
+Installed as `pydantic-ai-slim` with the provider extras rather than the full
+`pydantic-ai` bundle, so we pull only what we use. The extras are recorded in
+[ADR 0004](0004-model-providers.md); the framework choice below stands.
 
 The agent is defined declaratively:
 

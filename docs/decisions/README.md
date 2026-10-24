@@ -41,9 +41,10 @@ real value.
 | --- | --- | --- | --- |
 | [0001](0001-project-scaffold.md) | Project scaffold: uv, `src/` layout, Python floor | Accepted | 2026-10-24 |
 | [0002](0002-agent-framework.md) | Use pydantic-ai as the agent framework | Accepted | 2026-10-24 |
-| [0003](0003-vector-store-and-embeddings.md) | Chroma behind an injectable store interface; OpenAI embeddings | Accepted | 2026-10-24 |
+| [0003](0003-vector-store-and-embeddings.md) | Chroma behind an injectable store interface; OpenAI embeddings | Accepted — embedding half superseded by 0004 | 2026-10-24 |
+| [0004](0004-model-providers.md) | Model providers: OpenRouter for the agent, VoyageAI for embeddings | Accepted | 2026-10-24 |
 
-Next number: **0004**.
+Next number: **0005**.
 
 ## Writing one
 

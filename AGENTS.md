@@ -33,6 +33,9 @@ Orientation for automated coding assistants and for anyone joining the project.
   only in `cli.py` and `ui/`. Use one injected `Console` — no bare `print`, no
   module-level `Console`, and never import `rich` from domain, application, or
   adapter code.
+- **Two providers, two keys.** OpenRouter (`openrouter:…`) runs the agent and image
+  captions; VoyageAI (`voyageai:…`) supplies embeddings and needs `VOYAGE_API_KEY`.
+  OpenRouter serves no embeddings, so do not try to route embeddings through it.
 - **Keep docs in sync.** If your change alters documented behaviour, update the page in
   the same commit.
 - **`uv.lock` is committed.** Change dependencies with `uv add` / `uv remove` only.

@@ -1,7 +1,13 @@
 # 0003 — Chroma behind an injectable store interface; OpenAI embeddings
 
-**Status:** Accepted
+**Status:** Accepted — the **embedding** half is superseded by
+[0004](0004-model-providers.md). The vector-store decision stands unchanged.
 **Date:** 2026-10-24
+
+> **Note:** the OpenAI embedding choice below is historical. Current embeddings are
+> VoyageAI `voyage-4-large` at 1024 dimensions — see
+> [ADR 0004](0004-model-providers.md). The Chroma-behind-a-protocol reasoning is
+> unaffected.
 
 ## Context
 

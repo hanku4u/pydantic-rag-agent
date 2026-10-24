@@ -85,7 +85,7 @@ Configuration is not implemented yet — FND-2 in the
 
 When it lands, settings are read from `PRAGENT_*` environment variables via
 `pydantic-settings` and validated at startup. Credentials keep their conventional
-names (`OPENAI_API_KEY`) and are never read from a committed file. The intended
+names (`OPENROUTER_API_KEY`, `VOYAGE_API_KEY`) and are never read from a committed file. The intended
 variable set is documented in
 [`docs/reference/configuration.md`](docs/reference/configuration.md).
 

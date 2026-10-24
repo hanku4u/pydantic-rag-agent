@@ -13,7 +13,7 @@ the first sign a boundary is leaking.
 | --- | --- | --- |
 | `pydantic` | The project's organising idea: typed, validated boundaries everywhere. | Domain, every layer |
 | `pydantic-settings` | Typed configuration from the environment, failing at startup. | `config.py` |
-| `pydantic-ai-slim[openai]` | Agent loop, typed tools, multi-turn history, and the `Embedder` abstraction. Slim rather than the full bundle so we install only the provider group we use. | Adapters (`agent.py`, embedding) |
+| `pydantic-ai-slim[openrouter,voyageai]` | Agent loop, typed tools, multi-turn history, the `Embedder` abstraction, and both provider integrations. Slim rather than the full bundle so we install only the provider groups we use. | Adapters (`agent.py`, embedding) |
 | `chromadb` | Embedded vector store. The only place this may be imported is its adapter. | Adapters (`chroma_store.py`) |
 | `pymupdf` | PDF text and image extraction. | Adapters (`loaders/pdf.py`) |
 | `python-docx` | DOCX paragraphs and tables. | Adapters (`loaders/docx.py`) |
@@ -58,7 +58,8 @@ the first sign a boundary is leaking.
 | Not used | Because |
 | --- | --- |
 | `langchain`, `llamaindex` | They would become our domain model, inverting the dependency direction. See [ADR 0002](../decisions/0002-agent-framework.md). |
-| `openai` SDK directly | `pydantic-ai` supplies the model and embedding clients, with provider switching and test doubles. |
+| `openai` SDK directly | Installed transitively by the `openrouter` provider and never imported by our code: `pydantic-ai` supplies the model and embedding clients, with provider switching and test doubles. |
+| `voyageai` SDK directly | Reached through the `voyageai` extra of `pydantic-ai`, which also applies the correct query/document `input_type` for us. Calling the REST endpoint by hand would lose that. |
 | `logfire` | Valuable once there is something to observe. [OPS-1](../features/README.md) covers logging first. |
 | `faiss` | Embedded Chroma covers the prototype; `pgvector` is the planned replacement, not another embedded index. |
 | `python-magic` | File-type detection by extension is sufficient for v1, and `libmagic` is a system dependency. |

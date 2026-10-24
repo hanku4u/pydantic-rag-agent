@@ -25,6 +25,10 @@ baseline to measure against.
   and is explicitly deferred. It belongs behind a measurement, not a hunch.
 - **`top_k` defaults to 5**, configurable. Enough context to answer, small enough
   that a wrong chunk cannot drown out a right one.
+- **Asymmetric query embedding.** Voyage embeds queries and documents with different
+  prompts. Retrieval always goes through `embed_query()`; calling `embed_documents()`
+  on a query still returns a perfectly valid vector, which is exactly why the mistake
+  would go unnoticed until answers got quietly worse.
 - **A score floor is applied.** Below-threshold chunks are dropped rather than
   passed along as weak evidence. Passing everything to the model guarantees it will
   find a way to use something irrelevant.

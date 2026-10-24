@@ -35,7 +35,7 @@ Nothing user-visible. Everything after this is cheaper because it exists.
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | FND-1 | Declare and install dependencies | — | `uv sync` installs the stack; `uv.lock` committed; every package we import is declared in `pyproject.toml`, including transitive ones like `rich` |
-| FND-2 | Settings model | FND-1 | A missing `OPENAI_API_KEY` or malformed setting raises at startup with a readable message |
+| FND-2 | Settings model | FND-1 | A missing `OPENROUTER_API_KEY` or `VOYAGE_API_KEY`, or a malformed setting, raises at startup with a readable message |
 | FND-3 | Test harness | FND-1 | `uv run pytest` passes with zero tests and network blocked |
 | FND-4 | CI: lint, types, tests | FND-3 | PR fails on a stale lockfile, a lint error, or a red test |
 | FND-5 | Docs link check in CI | — | A renamed doc file breaks the build instead of the navigation |
@@ -51,7 +51,7 @@ The types everything else is written against. Getting these wrong later is expen
 | STO-1 | `VectorStore` protocol | DOM-1 | Protocol defines `add`, `search`, `delete_by_document`, `count`, `stats`; async |
 | STO-2 | In-memory store | STO-1 | Satisfies the protocol; tests use it with no filesystem access |
 | STO-3 | Chroma adapter | STO-1 | Satisfies the protocol; persists across process restarts; collection metadata records embedding model and dimension |
-| EMB-1 | Embedder wiring and guard | FND-2, STO-3 | Startup fails with a clear message when the configured model disagrees with stored index metadata |
+| EMB-1 | Embedder wiring and guard | FND-2, STO-3 | Startup fails with a clear message when the configured model or dimensions (default `voyage-4-large` / 1024) disagree with the stored index metadata |
 
 ## M2 — Ingestion
 
