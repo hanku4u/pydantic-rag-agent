@@ -105,4 +105,10 @@ The `.gitignore` already ignores `.env` and any `.env.*` file except `.env.examp
 
 ## License
 
-Not chosen yet. Add a `LICENSE` file before distributing this project.
+No licence is applied yet. This is a personal-use project, which leaves it
+all-rights-reserved by default — deliberate rather than forgotten.
+
+It must be resolved before the repository is published, distributed, or hosted, because
+the PDF loader (PyMuPDF) is **AGPL-3.0 or commercially licensed**. A permissive licence
+and that dependency cannot both be true once the software leaves your machine. See
+[ADR 0006](docs/decisions/0006-licensing-deferred.md).

@@ -27,6 +27,19 @@ the first sign a boundary is leaking.
 | `streamlit` | Chat and ingestion UI. | Interfaces (`ui/`) |
 | `httpx` | HTTP client used by the CLI and Streamlit to reach the API. Declared explicitly even though `openai` pulls it in. | Interfaces (CLI, UI) |
 
+## Licence constraints
+
+One dependency is not permissive: **`pymupdf`** is dual-licensed **AGPL-3.0 or Artifex
+commercial**. Personal, non-distributed use triggers no AGPL obligation, which is why it is
+acceptable now. Distributing the software — or hosting it for others — would, and would
+also block giving the project a permissive licence without swapping the loader. Assessed
+alternatives: `pypdfium2` (BSD-3/Apache-2.0, text extraction *and* page rendering) or a
+commercial Artifex licence. See [ADR 0006](../decisions/0006-licensing-deferred.md).
+
+Everything else in the direct stack is MIT, Apache-2.0, or BSD. A few transitive
+dependencies are MPL-2.0 (`tqdm`, `certifi`, `pathspec`), which is file-level copyleft and
+does not constrain the project's own licence.
+
 ## Development
 
 | Package | Why it is here |

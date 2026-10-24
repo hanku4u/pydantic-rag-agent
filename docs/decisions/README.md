@@ -43,9 +43,10 @@ real value.
 | [0002](0002-agent-framework.md) | Use pydantic-ai as the agent framework | Accepted | 2026-10-24 |
 | [0003](0003-vector-store-and-embeddings.md) | Chroma behind an injectable store interface; OpenAI embeddings | Accepted — embedding half superseded by 0004 | 2026-10-24 |
 | [0004](0004-model-providers.md) | All model access through OpenRouter: DeepSeek V4.1 Flash + Voyage embeddings | Accepted — embedding model superseded by 0005 | 2026-10-24 |
-| [0005](0005-embedding-model-qwen3.md) | Embedding model: Qwen3-Embedding-8B (4096 dims) | Accepted | 2026-10-24 |
+| [0005](0005-embedding-model-qwen3.md) | Embedding model: Qwen3-Embedding-8B (1024 dims via MRL) | Accepted | 2026-10-24 |
+| [0006](0006-licensing-deferred.md) | Defer project licensing; PyMuPDF bounds the future choice | Accepted | 2026-10-24 |
 
-Next number: **0006**.
+Next number: **0007**.
 
 ## Writing one
 

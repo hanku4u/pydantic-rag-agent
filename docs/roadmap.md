@@ -15,7 +15,7 @@ it is a bet.
 
 | # | Milestone | Outcome | Features |
 | --- | --- | --- | --- |
-| 0 | Foundation | Dependencies, settings, test harness, CI | FND-1…FND-6 |
+| 0 | Foundation | Dependencies, settings, test harness, CI | FND-1…FND-5 |
 | 1 | Domain and storage | Types exist; Chroma persists a vector and finds it again | DOM-1, STO-1…STO-3, EMB-1 |
 | 2 | Ingestion | Text files index end to end; then PDF, DOCX, PPTX, images | ING-1…ING-7, IMG-1…IMG-3 |
 | 3 | Retrieval | A query returns ranked, cited chunks — **no LLM involved** | RET-1…RET-4 |
