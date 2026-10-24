@@ -11,6 +11,14 @@ and managed with [uv](https://docs.astral.sh/uv/).
 Dependency resolution and virtualenv handling live in one fast tool, and `uv.lock`
 pins the exact graph so your CI and your laptop agree on what "it works" means.
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/README.md) — start with the
+[documentation index](docs/README.md) or the [project overview](docs/overview.md).
+Design rationale is recorded as [decision records](docs/decisions/README.md).
+
+Coding agents should read [`AGENTS.md`](AGENTS.md) first.
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13 or newer
