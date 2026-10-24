@@ -7,7 +7,23 @@ authors = [
     { name = "Nick", email = "98120512+hanku4u@users.noreply.github.com" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "chromadb>=1.5.9",
+    "fastapi>=0.162.0",
+    "httpx>=0.28.1",
+    "pillow>=13.0.0",
+    "pydantic>=2.14.1",
+    "pydantic-ai-slim[openai,openrouter]>=2.61,<3",
+    "pydantic-settings>=2.16.1",
+    "pymupdf>=2.0",
+    "python-docx>=1.2.0",
+    "python-pptx>=1.0.2",
+    "rich>=15.0.0",
+    "streamlit>=1.66.1",
+    "tiktoken>=0.14.0",
+    "typer>=0.27.3",
+    "uvicorn[standard]>=0.54.0",
+]
 
 [project.scripts]
 pydantic-rag-agent = "pydantic_rag_agent.cli:main"
@@ -15,3 +31,33 @@ pydantic-rag-agent = "pydantic_rag_agent.cli:main"
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Tests are named for the guarantee they make (..._should_...), as set out in
+# docs/development/testing.md, so discovery follows that convention rather than
+# forcing a redundant `test_` prefix onto every name.
+python_functions = ["test_*", "*_should_*"]
+
+[tool.mypy]
+python_version = "3.11"
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]

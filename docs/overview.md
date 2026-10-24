@@ -53,17 +53,21 @@ Accurate as of the planning commit:
 | Area | State |
 | --- | --- |
 | Repository, docs, decision records | Done |
-| `uv` project and lockfile | Done |
-| Runtime dependencies | **Not installed** — declared in [Features](features/README.md) |
-| Domain models | Not started |
-| Vector store / embeddings | Not started |
-| Ingestion pipeline | Not started |
-| Agent | Not started |
-| API, CLI, Streamlit | Not started |
-| Tests, CI, licence | Not started |
+| `uv` project, lockfile, full dependency stack | Done — FND-1 |
+| Settings model (`config.Settings`) | Done, startup wiring pending — FND-2 |
+| Test harness and offline guard | Done — FND-3 |
+| Docs link check in CI | Done — FND-5 |
+| CI workflow (lint, types, tests) | Written, first run pending — FND-4 |
+| Domain models | Not started — M1 |
+| Vector store and embeddings | Not started — M1 |
+| Ingestion pipeline | Not started — M2 |
+| Retrieval | Not started — M3 |
+| Agent | Not started — M4 |
+| API, CLI, Streamlit | Not started — M5 |
+| Licence | **Not chosen** — FND-6 |
 
-The CLI currently prints a greeting. [Features](features/README.md) is the ordered
-plan for filling the rest of that table.
+The CLI still prints a greeting. [Features](features/README.md) is the ordered plan for
+the rest of that table.
 
 ## Glossary
 
@@ -73,7 +77,7 @@ plan for filling the rest of that table.
 | **Extracted document** | A loaded document as text blocks plus images, before chunking. |
 | **Chunk** | A contiguous slice of a document, embedded and retrieved as one unit. |
 | **Caption** | A vision-model description of an image, stored as an image chunk. |
-| **Embedding** | A dense vector for a chunk, from VoyageAI `voyage-4-large` (1024 dimensions) by default. |
+| **Embedding** | A dense vector for a chunk, from `voyageai/voyage-4-large` (1024 dimensions) via OpenRouter by default. |
 | **Index** | The persisted collection of chunks and vectors. |
 | **Retrieval** | Selecting chunks relevant to a query by vector similarity. |
 | **Citation** | The document title, page or slide, and path behind a retrieved chunk. |

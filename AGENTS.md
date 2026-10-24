@@ -33,9 +33,10 @@ Orientation for automated coding assistants and for anyone joining the project.
   only in `cli.py` and `ui/`. Use one injected `Console` — no bare `print`, no
   module-level `Console`, and never import `rich` from domain, application, or
   adapter code.
-- **Two providers, two keys.** OpenRouter (`openrouter:…`) runs the agent and image
-  captions; VoyageAI (`voyageai:…`) supplies embeddings and needs `VOYAGE_API_KEY`.
-  OpenRouter serves no embeddings, so do not try to route embeddings through it.
+- **One provider.** OpenRouter serves chat (`openrouter:…`), image captions, and
+  embeddings, all with `OPENROUTER_API_KEY`. The embedding model id is
+  `voyageai/voyage-4-large` — a slash, because it is a plain OpenRouter model id routed
+  through its OpenAI-compatible endpoint, not a `pydantic-ai` provider prefix.
 - **Keep docs in sync.** If your change alters documented behaviour, update the page in
   the same commit.
 - **`uv.lock` is committed.** Change dependencies with `uv add` / `uv remove` only.
@@ -45,15 +46,20 @@ Orientation for automated coding assistants and for anyone joining the project.
 ```bash
 uv sync                        # create/refresh the environment
 uv run pydantic-rag-agent --help   # CLI
+uv run pytest                  # tests (offline; model requests disabled)
+uv run ruff check .            # lint
+uv run ruff format --check .   # formatting
+uv run mypy src                # types
+uv run python scripts/check_docs_links.py   # docs link graph
 ```
 
-There is no test runner or CI installed yet — FND-3 and FND-4 in
-[docs/features/README.md](docs/features/README.md).
+These are exactly what CI runs, so a green local run means a green pull request.
 
 ## Current state
 
-Planning is complete; implementation has not started. Dependencies are declared in the
-backlog but **not installed**. The package contains a placeholder CLI that prints a
-greeting. The authoritative accounting is in
+M0 (foundation) has landed: the dependency stack is installed and locked,
+`config.Settings` exists with validation tests, the pytest harness disables model
+requests, and CI plus the docs link check are wired up. The package still contains a
+placeholder CLI. M1 (domain and storage) is next. The authoritative accounting is in
 [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

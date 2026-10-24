@@ -3,9 +3,9 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** planning complete, implementation not started. The package skeleton,
-> dependency management, and documentation are in place; ingestion, retrieval, the
-> agent, the API, and the Streamlit UI are not built yet. The ordered plan is in
+> **Status:** foundation complete (M0). Dependencies are installed and locked, settings
+> and the offline test harness exist, and CI runs. Domain models, ingestion, retrieval,
+> the agent, the API, and the Streamlit UI are not built yet. The ordered plan is in
 > [`docs/features/`](docs/features/README.md) and
 > [`docs/roadmap.md`](docs/roadmap.md).
 
@@ -36,6 +36,10 @@ cd pydantic-rag-agent
 
 # Create .venv and install the project plus its dependencies
 uv sync
+
+# Provide the one credential: chat, captions, and embeddings all use it
+cp .env.example .env
+# then edit .env and set OPENROUTER_API_KEY
 
 # Run the CLI
 uv run pydantic-rag-agent
@@ -85,7 +89,7 @@ Configuration is not implemented yet — FND-2 in the
 
 When it lands, settings are read from `PRAGENT_*` environment variables via
 `pydantic-settings` and validated at startup. Credentials keep their conventional
-names (`OPENROUTER_API_KEY`, `VOYAGE_API_KEY`) and are never read from a committed file. The intended
+names (`OPENROUTER_API_KEY`) and are never read from a committed file. The intended
 variable set is documented in
 [`docs/reference/configuration.md`](docs/reference/configuration.md).
 

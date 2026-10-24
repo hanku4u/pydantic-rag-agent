@@ -26,6 +26,25 @@ Every buildable unit of work, grouped by milestone. Design context lives in
 | `planned` | Agreed, not started |
 | `deferred` | Considered and postponed — see [the deferred list](#deferred) |
 
+## Progress
+
+Update this table in the same commit that lands a feature; the milestone tables below
+stay the canonical list.
+
+| Milestone | Done | In progress |
+| --- | --- | --- |
+| M0 Foundation | FND-1, FND-3, FND-5 | FND-2, FND-4 |
+| M1 Domain and storage | — | — |
+| M2 Ingestion | — | — |
+| M3 Retrieval | — | — |
+| M4 Agent | — | — |
+| M5 Interfaces | — | — |
+| M6 Hardening | — | — |
+
+FND-2 is partially landed: `config.Settings` and its validation tests exist; loading
+it at startup arrives with the API (API-1). FND-4's workflow is written but has not yet
+completed a run on GitHub.
+
 ---
 
 ## M0 — Foundation
@@ -35,7 +54,7 @@ Nothing user-visible. Everything after this is cheaper because it exists.
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | FND-1 | Declare and install dependencies | — | `uv sync` installs the stack; `uv.lock` committed; every package we import is declared in `pyproject.toml`, including transitive ones like `rich` |
-| FND-2 | Settings model | FND-1 | A missing `OPENROUTER_API_KEY` or `VOYAGE_API_KEY`, or a malformed setting, raises at startup with a readable message |
+| FND-2 | Settings model | FND-1 | A missing `OPENROUTER_API_KEY`, or a malformed or contradictory setting, raises at startup with a readable message |
 | FND-3 | Test harness | FND-1 | `uv run pytest` passes with zero tests and network blocked |
 | FND-4 | CI: lint, types, tests | FND-3 | PR fails on a stale lockfile, a lint error, or a red test |
 | FND-5 | Docs link check in CI | — | A renamed doc file breaks the build instead of the navigation |

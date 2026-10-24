@@ -1,7 +1,6 @@
 # Conventions
 
-**Status:** draft — the naming and structure rules are agreed; a formatter and
-linter are not yet chosen.
+**Status:** stable — the rules are agreed and enforced in CI.
 
 House style, so the codebase reads as though one deliberate person wrote it rather
 than several people who never met. These are the rules worth enforcing in review;
@@ -87,12 +86,22 @@ Types in use: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `build`, `ci`.
 - New settings are added to [Configuration](../reference/configuration.md) in the
   same pull request that introduces them.
 
-## Open questions
+## Settled tooling
 
-1. Which formatter and linter? Ruff handles both and is the obvious default, but it
-   is not yet installed.
-2. Line length — 88 (Ruff's default) or 100?
-3. Is a type checker (mypy or pyright) enforced in CI, or run ad hoc?
+These were open questions until M0. They are now enforced in CI, so treat them as
+decided rather than as preferences.
+
+| Concern | Choice | Configured in |
+| --- | --- | --- |
+| Formatter and linter | `ruff` (one tool, both jobs) | `[tool.ruff]` |
+| Line length | 100 | `[tool.ruff]` |
+| Type checker | `mypy`, run against `src` | `[tool.mypy]` |
+| Test runner | `pytest` + `pytest-asyncio` | `[tool.pytest.ini_options]` |
+| Test discovery | `test_*` **and** `*_should_*` | `[tool.pytest.ini_options]` |
+
+The discovery rule exists so tests can be named for the guarantee they make
+(`chunk_document_with_empty_text_should_return_no_chunks`) without a redundant
+`test_` prefix. See [Testing](testing.md).
 
 ## Related
 

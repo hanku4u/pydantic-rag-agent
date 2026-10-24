@@ -1,7 +1,7 @@
 # Dependencies
 
-**Status:** draft — the stack is agreed; nothing is installed yet (FND-1 in the
-[feature backlog](../features/README.md)).
+**Status:** draft — installed and locked (FND-1). Exact versions live in `uv.lock`, not
+here, so this page describes intent rather than numbers that go stale.
 
 What we depend on, why each package exists, and which layer is allowed to import it.
 The point of the "Layer" column is that a dependency imported in the wrong layer is
@@ -13,7 +13,7 @@ the first sign a boundary is leaking.
 | --- | --- | --- |
 | `pydantic` | The project's organising idea: typed, validated boundaries everywhere. | Domain, every layer |
 | `pydantic-settings` | Typed configuration from the environment, failing at startup. | `config.py` |
-| `pydantic-ai-slim[openrouter,voyageai]` | Agent loop, typed tools, multi-turn history, the `Embedder` abstraction, and both provider integrations. Slim rather than the full bundle so we install only the provider groups we use. | Adapters (`agent.py`, embedding) |
+| `pydantic-ai-slim[openai,openrouter]` | Agent loop, typed tools, multi-turn history, the `Embedder` abstraction, and both client integrations. `openrouter` supplies the chat provider; `openai` supplies `OpenAIEmbeddingModel`, pointed at OpenRouter's OpenAI-compatible embeddings endpoint. | Adapters (`agent.py`, embedding) |
 | `chromadb` | Embedded vector store. The only place this may be imported is its adapter. | Adapters (`chroma_store.py`) |
 | `pymupdf` | PDF text and image extraction. | Adapters (`loaders/pdf.py`) |
 | `python-docx` | DOCX paragraphs and tables. | Adapters (`loaders/docx.py`) |
@@ -58,8 +58,8 @@ the first sign a boundary is leaking.
 | Not used | Because |
 | --- | --- |
 | `langchain`, `llamaindex` | They would become our domain model, inverting the dependency direction. See [ADR 0002](../decisions/0002-agent-framework.md). |
-| `openai` SDK directly | Installed transitively by the `openrouter` provider and never imported by our code: `pydantic-ai` supplies the model and embedding clients, with provider switching and test doubles. |
-| `voyageai` SDK directly | Reached through the `voyageai` extra of `pydantic-ai`, which also applies the correct query/document `input_type` for us. Calling the REST endpoint by hand would lose that. |
+| `openai` SDK directly | Present transitively and reached only through `pydantic-ai`'s clients. We never call it ourselves: provider switching, retries, and the embedding abstraction live one layer up. |
+| `voyageai` SDK directly | Not installed. Voyage models are reached through OpenRouter's OpenAI-shaped embeddings endpoint, so a Voyage-specific client would add a vendor and a key for no gain. |
 | `logfire` | Valuable once there is something to observe. [OPS-1](../features/README.md) covers logging first. |
 | `faiss` | Embedded Chroma covers the prototype; `pgvector` is the planned replacement, not another embedded index. |
 | `python-magic` | File-type detection by extension is sufficient for v1, and `libmagic` is a system dependency. |

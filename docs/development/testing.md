@@ -1,6 +1,7 @@
 # Testing
 
-**Status:** draft — strategy agreed; harness not yet installed (FND-3).
+**Status:** draft — harness installed (FND-3); the per-layer approach will firm up as
+modules land.
 
 How tests are named, where they live, and what is worth testing.
 

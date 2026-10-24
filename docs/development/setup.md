@@ -1,7 +1,6 @@
 # Development setup
 
-**Status:** stable — accurate for the current scaffold. Revisit when dependencies
-or the test harness are added.
+**Status:** stable — accurate as of M0 (FND-1…FND-5 landed).
 
 Getting from a fresh clone to a working environment. All commands are run from the
 repository root.
@@ -23,6 +22,11 @@ in the repository rather than documented in prose that goes stale.
 git clone git@github.com:hanku4u/pydantic-rag-agent.git
 cd pydantic-rag-agent
 uv sync
+
+# Provide the one credential: chat, captions, and embeddings all use it.
+cp .env.example .env
+$EDITOR .env            # set OPENROUTER_API_KEY
+
 uv run pydantic-rag-agent
 ```
 
@@ -34,6 +38,29 @@ Hello from pydantic-rag-agent!
 
 `uv sync` does four things in one step: creates `.venv`, resolves the dependency
 graph, installs the project in editable mode, and writes or verifies `uv.lock`.
+
+`.env` is gitignored; `.env.example` is committed and lists every supported
+variable with its default. Nothing runs without `OPENROUTER_API_KEY`, and it fails
+at startup rather than at the first question.
+
+## Quality gates
+
+The same four checks that CI runs, and the ones to run before opening a pull
+request:
+
+| Check | Command |
+| --- | --- |
+| Tests | `uv run pytest` |
+| Formatting | `uv run ruff format --check .` |
+| Linting | `uv run ruff check .` |
+| Types | `uv run mypy src` |
+| Documentation links | `uv run python scripts/check_docs_links.py` |
+
+`uv run ruff format .` applies formatting rather than checking it.
+
+The pytest suite is offline by construction: `tests/conftest.py` sets
+`ALLOW_MODEL_REQUESTS = False`, so a test that forgets to override a model fails
+instead of spending money. See [Testing](testing.md).
 
 ## Everyday commands
 
