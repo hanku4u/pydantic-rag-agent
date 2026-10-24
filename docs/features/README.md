@@ -33,7 +33,7 @@ stay the canonical list.
 
 | Milestone | Done | In progress |
 | --- | --- | --- |
-| M0 Foundation | FND-1, FND-3, FND-4, FND-5, FND-6 | FND-2 |
+| M0 Foundation | FND-1, FND-2, FND-3, FND-4, FND-5, FND-6 | — |
 | M1 Domain and storage | DOM-1, STO-1, STO-2, STO-3, EMB-1 | — |
 | M2 Ingestion | ING-1…ING-8, IMG-1, IMG-2, IMG-3, IMG-4 | — |
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
