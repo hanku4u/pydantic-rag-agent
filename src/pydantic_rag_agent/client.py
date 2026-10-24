@@ -71,11 +71,17 @@ class RagClient:
         return response.json()
 
     def ingest(self, paths: Sequence[Path]) -> dict[str, object]:
-        """Upload files and return the ingestion report."""
-        files = [
-            ("files", (path.name, path.read_bytes(), "application/octet-stream")) for path in paths
-        ]
-        response = self._client.post("/documents", files=files)
+        """Upload files from disk and return the ingestion report."""
+        return self.ingest_files([(path.name, path.read_bytes()) for path in paths])
+
+    def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]:
+        """Upload in-memory files.
+
+        The Streamlit UI has uploads, not paths, so the bytes-shaped entry point is the
+        primitive and the path-shaped one delegates to it.
+        """
+        payload = [("files", (name, data, "application/octet-stream")) for name, data in files]
+        response = self._client.post("/documents", files=payload)
         self._raise_for_status(response)
         return response.json()
 

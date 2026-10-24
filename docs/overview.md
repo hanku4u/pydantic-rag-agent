@@ -71,7 +71,8 @@ Accurate as of the planning commit:
 | Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7 |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `--json` | Done — CLI-1…CLI-3 |
-| Streamlit UI | Not started — UI-1…UI-3 |
+| Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
+| `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 
 The CLI still prints a greeting. [Features](features/README.md) is the ordered plan for

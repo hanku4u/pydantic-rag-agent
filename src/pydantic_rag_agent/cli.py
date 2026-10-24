@@ -15,7 +15,7 @@ import json
 import math
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 from rich.console import Console, Group, RenderableType
@@ -26,6 +26,9 @@ from rich.table import Table
 from rich.text import Text
 
 from pydantic_rag_agent.client import UPLOAD_SUFFIXES, ClientError, RagClient
+
+if TYPE_CHECKING:
+    import uvicorn
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
 
@@ -202,6 +205,86 @@ def stats(api_url: ApiUrl = DEFAULT_API_URL, as_json: AsJson = False) -> None:
 
 def main() -> None:
     app()
+
+
+@app.command()
+def dev(
+    host: Annotated[str, typer.Option(help="Interface the API binds to.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port for the API.")] = 8000,
+    ui_port: Annotated[int, typer.Option(help="Port for the Streamlit UI.")] = 8501,
+) -> None:
+    """Run the API and the Streamlit UI together (DX-1)."""
+    import os
+    import subprocess
+    import sys
+    import threading
+
+    from pydantic_rag_agent.api.app import create_default_app
+
+    console = Console()
+    api_url = f"http://{host}:{port}"
+
+    server = create_server(create_default_app(), host=host, port=port)
+    threading.Thread(target=server.run, daemon=True).start()
+
+    if not _wait_for_api(api_url, timeout=30.0):
+        console.print("[red]the API did not start[/red]")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]API[/green] {api_url}")
+    console.print(f"[green]UI [/green] http://{host}:{ui_port}")
+
+    ui = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(_ui_script()),
+            "--server.port",
+            str(ui_port),
+            "--server.address",
+            host,
+            "--server.headless",
+            "true",
+            # Local tool: no usage telemetry, for the same reason Chroma's is disabled.
+            "--browser.gatherUsageStats",
+            "false",
+        ],
+        env={**os.environ, "PRAGENT_API_URL": api_url},
+    )
+    try:
+        ui.wait()
+    except KeyboardInterrupt:
+        ui.terminate()
+
+
+def create_server(app: Any, *, host: str, port: int) -> uvicorn.Server:
+    """Build a uvicorn server without starting it, so it can run in a thread."""
+    import uvicorn
+
+    return uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+
+
+def _wait_for_api(api_url: str, *, timeout: float) -> bool:
+    import time
+
+    import httpx
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if httpx.get(f"{api_url}/health", timeout=1.0).status_code == 200:
+                return True
+        except httpx.HTTPError:
+            time.sleep(0.2)
+    return False
+
+
+def _ui_script() -> Path:
+    import pydantic_rag_agent.ui as ui_package
+
+    return Path(ui_package.__file__).parent / "streamlit_app.py"
 
 
 def _client(api_url: str) -> RagClient:

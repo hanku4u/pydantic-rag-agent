@@ -50,6 +50,7 @@ Orientation for automated coding assistants and for anyone joining the project.
 uv sync                        # create/refresh the environment
 uv run pydantic-rag-agent --help   # every CLI command
 uv run pydantic-rag-agent serve    # the API (terminal 1; everything else is a client)
+uv run pydantic-rag-agent dev      # the API and the Streamlit UI together (DX-1)
 uv run pydantic-rag-agent ingest ./docs        # index documents
 uv run pydantic-rag-agent ask "…"              # one streamed answer
 uv run pytest                  # tests (offline; model requests disabled)
@@ -66,9 +67,9 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Current state
 
-M5 is nearly complete: the composition root builds the object graph once, the HTTP API
-serves documents, conversations, answered turns and SSE streaming, and the CLI wraps all of
-it — `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, with a `--json` mode for
-scripts. Streamlit and the `dev` command (DX-1) remain. The authoritative accounting is in
+M5 is complete: the composition root builds the object graph once; the HTTP API serves
+documents, conversations, answered turns and SSE streaming; the CLI wraps all of it; and a
+Streamlit UI offers the same chat and ingestion in a browser. `dev` starts the API and the
+UI together. Next is M6 hardening, starting with SEC-1. The authoritative accounting is in
 [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

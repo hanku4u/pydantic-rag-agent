@@ -27,9 +27,12 @@ uv sync
 cp .env.example .env
 $EDITOR .env            # set OPENROUTER_API_KEY
 
-# Start the API (the CLI is a client for it).
-uv run pydantic-rag-agent serve
+# Start the API and the web UI together (the CLI is a client for the API).
+uv run pydantic-rag-agent dev
 ```
+
+That serves the API on <http://127.0.0.1:8000> and the chat UI on
+<http://127.0.0.1:8501>. Use `serve` instead if you only want the API.
 
 In a second terminal:
 
