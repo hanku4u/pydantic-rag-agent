@@ -1,8 +1,7 @@
 # Ingestion design
 
-**Status:** draft — text, Markdown, PDF text, DOCX text and DOCX images ingest end to end
-(ING-1…ING-6, ING-8, IMG-1…IMG-3). PPTX and PDF-embedded images are designed but not
-built.
+**Status:** draft — M2 is complete: text, Markdown, PDF, DOCX and PPTX ingest end to end,
+with embedded images stored, captioned and searchable (ING-1…ING-8, IMG-1…IMG-4).
 
 The **write path**: from a user-supplied file to vectors in the store. For the read
 path see [Retrieval design](retrieval.md); for where this code lives see

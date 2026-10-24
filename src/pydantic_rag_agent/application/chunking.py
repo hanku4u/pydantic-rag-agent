@@ -119,6 +119,7 @@ def image_chunks(
                 ordinal=ordinal,
                 page=image.page,
                 slide=image.slide,
+                heading_path=image.heading_path,
                 image_id=image.image_id,
             )
         )

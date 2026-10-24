@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from pydantic_rag_agent.adapters.loaders.docx import DocxLoader
 from pydantic_rag_agent.adapters.loaders.pdf import PdfLoader
+from pydantic_rag_agent.adapters.loaders.pptx import PptxLoader
 from pydantic_rag_agent.adapters.loaders.text import TextLoader
 from pydantic_rag_agent.domain.ports import DocumentLoader
 
 
 def default_loaders() -> list[DocumentLoader]:
     """Every loader the prototype ships with, in priority order."""
-    return [TextLoader(), PdfLoader(), DocxLoader()]
+    return [TextLoader(), PdfLoader(), DocxLoader(), PptxLoader()]

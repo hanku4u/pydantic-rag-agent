@@ -7,11 +7,14 @@ builder is itself exercised here by the loader parsing its output.
 
 from __future__ import annotations
 
+import hashlib
+from io import BytesIO
 from pathlib import Path
 
 import pypdfium2 as pdfium
 import pytest
-from fixtures.pdf_builder import build_text_pdf
+from fixtures.pdf_builder import build_pdf_with_image, build_text_pdf
+from PIL import Image
 
 from pydantic_rag_agent.adapters.loaders.pdf import PdfLoader
 
@@ -98,3 +101,37 @@ def pdf_loader_should_report_the_pdf_media_type(tmp_path: Path) -> None:
 
     # when / then: the media type travels with the document
     assert PdfLoader().load(path, document_id=DOCUMENT_ID).media_type == "application/pdf"
+
+
+def pdf_loader_with_an_embedded_image_should_extract_it(tmp_path: Path) -> None:
+    # given: a page containing a JPEG
+    buffer = BytesIO()
+    Image.new("RGB", (48, 32), "teal").save(buffer, format="JPEG")
+    path = tmp_path / "illustrated.pdf"
+    path.write_bytes(
+        build_pdf_with_image(
+            "A page with a diagram.",
+            jpeg=buffer.getvalue(),
+            width=48,
+            height=32,
+        )
+    )
+
+    # when: the PDF is loaded
+    document = PdfLoader().load(path, document_id=DOCUMENT_ID)
+
+    # then: the image is surfaced with page context and a usable PNG
+    assert len(document.images) == 1
+    image = document.images[0]
+    assert image.media_type == "image/png"
+    assert image.page == 1
+    assert image.image_id == hashlib.sha256(image.data).hexdigest()
+    assert Image.open(BytesIO(image.data)).size == (48, 32)
+
+
+def pdf_loader_without_images_should_return_no_images(tmp_path: Path) -> None:
+    # given: a text-only PDF
+    path = write_pdf(tmp_path, "plain.pdf", ["just text"])
+
+    # when / then: nothing is invented
+    assert PdfLoader().load(path, document_id=DOCUMENT_ID).images == ()

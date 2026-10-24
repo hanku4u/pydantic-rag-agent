@@ -23,6 +23,7 @@ from docx.document import Document as DocxDocument
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
+from pydantic_rag_agent.adapters.loaders._tables import render_table
 from pydantic_rag_agent.domain.extraction import ExtractedBlock, ExtractedDocument, ExtractedImage
 
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -116,27 +117,12 @@ def _blocks(document: DocxDocument) -> list[ExtractedBlock]:
                 del heading_stack[deeper]
 
         elif isinstance(item, Table):
-            rendered = _table_text(item)
+            rendered = render_table([cell.text for cell in row.cells] for row in item.rows)
             if rendered:
                 buffer.append(rendered)
 
     flush()
     return blocks
-
-
-def _table_text(table: Table) -> str:
-    """Render a table as one line per row.
-
-    Pipe-separated rather than a Markdown table: it keeps row association for the
-    chunker and reads acceptably to a model, without inventing alignment syntax
-    the source never had.
-    """
-    lines: list[str] = []
-    for row in table.rows:
-        cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
-        if any(cells):
-            lines.append(" | ".join(cells))
-    return "\n".join(lines)
 
 
 def _images(path: Path) -> list[ExtractedImage]:

@@ -83,6 +83,19 @@ startup rather than at the first query. The embeddings client is the exception â
 construct it ourselves, so it reads the same variable explicitly instead of relying on
 an SDK default.
 
+**Gotcha worth knowing before wiring the agent:** `.env` is read by `pydantic-settings`
+into `Settings`, and is **not** exported into the process environment. `pydantic-ai`'s
+`openrouter:` shorthand resolves its provider by looking for `OPENROUTER_API_KEY` *in the
+environment*, so with `.env` alone it finds nothing. The composition root must therefore
+build the model with an explicit provider:
+
+```python
+model = OpenRouterModel(model_name, provider=OpenRouterProvider(api_key=key))
+```
+
+where `key` comes from `settings.openrouter_api_key`. Verified: `Settings` sees the key,
+`os.environ` does not.
+
 `PRAGENT_EMBEDDING_DIMENSIONS` is not cosmetic. It is written into the index metadata
 and compared at startup, because changing it (or the embedding model) invalidates every
 stored vector. See [ADR 0003](../decisions/0003-vector-store-and-embeddings.md).

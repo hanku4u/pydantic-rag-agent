@@ -83,6 +83,22 @@ index nor the best quality.
   4096 (raising it is a reindex), or OpenRouter exposes instruction or `input_type`
   fields. Both are cheaper now than after a large corpus exists.
 
+## Verification (2026-10-24, against the live API)
+
+The two open questions above were settled with a real key:
+
+| Question | Answer |
+| --- | --- |
+| Does OpenRouter forward a `dimensions` parameter? | **Yes.** `dimensions=1024` returns a 1024-component, unit-norm vector |
+| What is returned without it? | 4096 components — the model's native width |
+| Is client-side truncation equivalent? | **Almost.** `cos(provider_1024, normalise(4096[:1024])) = 0.998`, maximum component difference 0.0087 |
+
+The third row matters. Truncating the wider vector is very close to what the provider
+does, but not identical, so **the two paths must never be mixed in one index**.
+`EmbeddingService` always requests the configured width, which keeps it on the provider
+path; `fit_dimensions` remains a guard for providers that ignore the hint, and its
+renormalisation is a no-op when the vector is already unit length.
+
 ## Related
 
 - [Configuration](../reference/configuration.md) — the model and dimension defaults.

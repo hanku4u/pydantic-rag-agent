@@ -64,9 +64,8 @@ Accurate as of the planning commit:
 | Ingestion: text and Markdown, end to end | Done — ING-1…ING-4, ING-8 |
 | Ingestion: PDF text and page numbers | Done — ING-5 |
 | Ingestion: DOCX — paragraphs, tables, embedded media found | Done — ING-6 |
-| Ingestion: PPTX | Not started — ING-7 |
-| Ingestion: images — stored, captioned, searchable (DOCX) | Done — IMG-1…IMG-3 |
-| Ingestion: PDF embedded images | Not started — IMG-4 |
+| Ingestion: PPTX — slides, notes, tables, pictures | Done — ING-7 |
+| Ingestion: images — stored, captioned, searchable (DOCX, PPTX, PDF) | Done — IMG-1…IMG-4 |
 | Retrieval | Not started — M3 |
 | Agent | Not started — M4 |
 | API, CLI, Streamlit | Not started — M5 |

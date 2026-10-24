@@ -40,6 +40,7 @@ class ExtractedImage(BaseModel):
     image_id: str = Field(min_length=1)
     data: bytes
     media_type: str
+    heading_path: tuple[str, ...] = ()
     page: int | None = Field(default=None, ge=1)
     slide: int | None = Field(default=None, ge=1)
 

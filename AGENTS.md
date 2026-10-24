@@ -60,10 +60,10 @@ These are exactly what CI runs, so a green local run means a green pull request.
 
 ## Current state
 
-M2 is nearly landed: text, Markdown, PDF text, DOCX text and DOCX images ingest end to
-end — load, chunk, embed, index — with idempotent re-ingest and replacement of a changed
-file's chunks. Images are stored content-addressed, captioned once by a vision model,
-and indexed as ordinary text chunks. PPTX and PDF-embedded images remain. Retrieval and
-the agent do not exist yet. The authoritative accounting is in
+M2 (ingestion) is complete: text, Markdown, PDF, DOCX and PPTX ingest end to end —
+load, chunk, embed, index — with idempotent re-ingest, replacement of a changed file's
+chunks, and images stored content-addressed, captioned once, and indexed as text chunks.
+Verified against the live OpenRouter API at 1024 dimensions. Retrieval and the agent do
+not exist yet; M3 is next. The authoritative accounting is in
 [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).
