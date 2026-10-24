@@ -69,7 +69,7 @@ src/pydantic_rag_agent/
 │   │   ├── pdf.py        # .pdf via PDFium
 │   │   ├── docx.py       # .docx — paragraphs, tables, media
 │   │   └── pptx.py       # .pptx — slides, notes, tables, pictures
-│   └── agent.py          # Agent, AgentDeps, tools         (not built yet)
+│   └── agent.py          # knowledge-base capability + turn orchestration
 ├── api/                  # FastAPI app and DI              (not built yet)
 └── ui/                   # Streamlit                       (not built yet)
 ```

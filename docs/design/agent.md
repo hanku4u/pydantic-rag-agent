@@ -1,7 +1,8 @@
 # Agent design
 
-**Status:** draft — the tool surface, output mode, and conversation ownership are
-decided. Prompt wording and guardrail thresholds are still open.
+**Status:** implemented — AGT-1…AGT-7 landed and verified against the live API. Tool
+surface, output mode, conversation ownership, and budgets are settled; prompt wording
+will still benefit from tuning against real use.
 
 The control loop: how a question becomes an answer, which tools the model may call,
 and where it is stopped. Built on `pydantic-ai` v2 — see
@@ -33,6 +34,11 @@ work; most examples found online are v0.x.
 | --- | --- | --- | --- |
 | `search_knowledge_base` | `query: str`, `top_k: int = 5` | ranked chunks with citation metadata | The R in RAG |
 | `view_image` | `image_id: str` | `BinaryContent` | Lets a vision model actually look at an image the index only describes |
+
+The `image_id` is included in the rendered search output (`[1] … (image id: abc123)`),
+because otherwise the model has no way to obtain it and `view_image` can only be called
+with a guess. That is not a detail — the live run failed exactly this way before it was
+fixed.
 
 Two tools is the intent for v1. A calculator or file reader would be speculative
 without a demonstrated need, and every added tool is another way for the model to

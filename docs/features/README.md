@@ -37,7 +37,7 @@ stay the canonical list.
 | M1 Domain and storage | DOM-1, STO-1, STO-2, STO-3, EMB-1 | — |
 | M2 Ingestion | ING-1…ING-8, IMG-1, IMG-2, IMG-3, IMG-4 | — |
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
-| M4 Agent | — | — |
+| M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | — | — |
 | M6 Hardening | — | — |
 

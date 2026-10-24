@@ -60,10 +60,10 @@ These are exactly what CI runs, so a green local run means a green pull request.
 
 ## Current state
 
-M3 (retrieval) is complete: a `RetrievalService` embeds a query, ranks chunks, applies
-an optional score floor, and returns an explicit empty outcome rather than an empty
-list. Verified against the live index from the M2 run. M2 ingestion is also complete for
-text, Markdown, PDF, DOCX and PPTX, with images captioned and searchable. The agent does
-not exist yet; M4 is next. The authoritative accounting is in
+M4 (agent) is complete: a `knowledge_base` capability bundles `search_knowledge_base` and
+`view_image` with their instructions, and `ask()` returns the answer, its citations, and
+the history for the next turn under a request budget. Verified live — including an
+out-of-corpus question correctly answered with "I couldn't find that in your documents".
+Next is M5: the API, then the CLI and Streamlit. The authoritative accounting is in
 [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).
