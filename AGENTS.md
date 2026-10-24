@@ -37,7 +37,9 @@ Orientation for automated coding assistants and for anyone joining the project.
   embeddings, all with `OPENROUTER_API_KEY`. The embedding model id is
   `qwen/qwen3-embedding-8b` — a slash, because it is a plain OpenRouter model id routed
   through its OpenAI-compatible endpoint, not a `pydantic-ai` provider prefix.
-  Its output is 4096-dimensional; keep `PRAGENT_EMBEDDING_DIMENSIONS` in step with it.
+  It is natively 4096-wide; we request 1024 via Matryoshka truncation, and must
+  truncate + L2-renormalise documents and queries **identically** if the provider
+  ignores `dimensions`.
 - **Keep docs in sync.** If your change alters documented behaviour, update the page in
   the same commit.
 - **`uv.lock` is committed.** Change dependencies with `uv add` / `uv remove` only.

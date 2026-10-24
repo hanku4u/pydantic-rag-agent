@@ -25,6 +25,10 @@ baseline to measure against.
   and is explicitly deferred. It belongs behind a measurement, not a hunch.
 - **`top_k` defaults to 5**, configurable. Enough context to answer, small enough
   that a wrong chunk cannot drown out a right one.
+- **Truncation must match ingestion exactly.** Queries are embedded at 1024 widths using
+  the same Matryoshka truncation and renormalisation as documents. A mismatch yields
+  vectors from different spaces that still score plausibly — the worst kind of bug to
+  discover, because nothing throws.
 - **Query instructions are lost in transit.** Qwen3-Embedding supports an optional
   instruction prefix for retrieval queries; OpenRouter's OpenAI-shaped endpoint has no
   field for it. The model is symmetric and performs well without it, so this costs a

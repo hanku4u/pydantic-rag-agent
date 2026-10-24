@@ -30,7 +30,7 @@ because `pydantic-ai` reads them itself.
 | `PRAGENT_CAPTION_MODEL` | no | `PRAGENT_MODEL` | Vision-capable model for captions. The default supports image input |
 | `PRAGENT_EMBEDDING_MODEL` | no | `qwen/qwen3-embedding-8b` | OpenRouter embedding model id. **Slash, not a colon** — see below |
 | `PRAGENT_EMBEDDING_BASE_URL` | no | `https://openrouter.ai/api/v1` | OpenAI-compatible embeddings endpoint |
-| `PRAGENT_EMBEDDING_DIMENSIONS` | no | `4096` | Expected output dimension, asserted against the provider at startup |
+| `PRAGENT_EMBEDDING_DIMENSIONS` | no | `1024` | Requested output width. The model is natively 4096; 1024 comes from Matryoshka truncation |
 | `PRAGENT_CHROMA_PATH` | no | `./data/chroma` | Persistent Chroma directory |
 | `PRAGENT_IMAGE_DIR` | no | `./data/images` | Where extracted images are stored |
 | `PRAGENT_CHUNK_SIZE` | no | `800` | Target chunk size in tokens |
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     caption_model: str | None = None  # falls back to `model`
     embedding_model: str = "qwen/qwen3-embedding-8b"
     embedding_base_url: str = "https://openrouter.ai/api/v1"
-    embedding_dimensions: int = Field(default=4096, gt=0)
+    embedding_dimensions: int = Field(default=1024, gt=0)
     chunk_size: int = Field(default=800, gt=0)
     chunk_overlap: int = Field(default=100, ge=0)
     top_k: int = Field(default=5, gt=0)
@@ -87,10 +87,16 @@ an SDK default.
 and compared at startup, because changing it (or the embedding model) invalidates every
 stored vector. See [ADR 0003](../decisions/0003-vector-store-and-embeddings.md).
 
-It is also why **4096 matters**: Qwen3-Embedding-8B produces 4× the components of a
-1024-dimensional model, so each chunk vector is 16 KiB as float32 and a 10,000-chunk
-index is roughly 160 MB before metadata. Fine for a prototype; the first thing to
-revisit at scale. See [ADR 0005](../decisions/0005-embedding-model-qwen3.md).
+It is also why the number must match what the provider actually returns.
+Qwen3-Embedding-8B is natively **4096**-wide, but we ask for **1024** via its
+Matryoshka training: 4 KiB per chunk vector as float32, so a 10,000-chunk index is
+roughly 40 MB before metadata, instead of 160 MB.
+
+That is the model's documented behaviour, not a workaround — but it is only true if
+both sides agree. **EMB-1** is responsible for requesting `dimensions=1024`,
+truncating and L2-renormalising if OpenRouter ignores the parameter, and failing loudly
+when the returned length disagrees. See
+[ADR 0005](../decisions/0005-embedding-model-qwen3.md).
 
 ## Secrets in practice
 

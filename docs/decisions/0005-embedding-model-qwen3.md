@@ -30,29 +30,58 @@ Facts verified from the model card rather than recalled:
 ## Decision
 
 Embeddings use **`qwen/qwen3-embedding-8b`** through OpenRouter's OpenAI-compatible
-embeddings endpoint, with `PRAGENT_EMBEDDING_DIMENSIONS = 4096`.
+embeddings endpoint, **truncated to 1024 dimensions** through the model's Matryoshka
+training. `PRAGENT_EMBEDDING_DIMENSIONS = 1024`.
 
-The change is one default plus one dimension. No index exists, so the dimension change
-costs nothing today — which is precisely why it is being made now rather than later.
+This is the model's documented behaviour, not a workaround. Its card states that it
+"supports user-defined output dimensions ranging from 32 to 4096" and lists
+`MRL Support: Yes`. The first 1024 components of the 4096-wide vector, L2-renormalised,
+form a valid embedding.
+
+**Revised before implementation.** This record first specified native 4096. The output
+width was changed to 1024 the same day — before any code or index depended on it — so the
+index footprint matches what a 1024-native model would have needed.
+
+## Why not switch to a 1024-native model
+
+That was the obvious alternative, and it is worse. From the card's own MTEB multilingual
+table:
+
+| Model | Native width | Mean | Retrieval |
+| --- | --- | --- | --- |
+| `baai/bge-m3` | 1024 | 59.56 | 54.60 |
+| Qwen3-Embedding-0.6B | 1024 | 64.33 | 64.64 |
+| Qwen3-Embedding-4B | 2560 | 69.45 | 69.60 |
+| Qwen3-Embedding-8B | 4096 | 70.58 | 70.88 |
+| **Qwen3-Embedding-8B, truncated to 1024** | 1024 | not published | not published |
+
+A large model truncated still beats a small model at the same width — that is the entire
+purpose of Matryoshka training. No Qwen size served by OpenRouter is natively 1024: 0.6B
+is 1024 but is not available there, and 4B is 2560, which would mean neither the smaller
+index nor the best quality.
 
 ## Consequences
 
-- **Easier:** the stack is open-weight end to end — DeepSeek V4.1 Flash and Qwen3-
-  Embedding-8B are both on Hugging Face under permissive licences; 12× cheaper than
-  Voyage at $0.01/M; 40960-token context is far beyond our 800-token chunks, so
-  truncation is a non-issue; Qwen3-Embedding is symmetric, so losing Voyage's
-  query/document conditioning is moot.
-- **Harder:** **4096 dimensions is 4× Voyage's 1024.** A chunk vector is 16 KiB as
-  float32, so a 10,000-chunk index is roughly 160 MB of vectors before metadata or any
-  ANN overhead. Fine for a prototype; the first thing to revisit at scale.
-- **A new, smaller caveat:** Qwen3-Embedding supports an optional instruction prefix for
-  queries. OpenRouter's OpenAI-shaped request has no field for it, so the model is used
-  without instructions. It performs well in that mode, but this is a quality difference
-  that is invisible in tests — the same class of risk that EVAL-1 exists to catch.
+- **Easier:** open-weight end to end (DeepSeek V4.1 Flash and Qwen3-Embedding-8B are both
+  on Hugging Face under permissive licences); 12× cheaper than Voyage at $0.01/M; 32k
+  context comfortably exceeds our 800-token chunks; the index stays at 4 KiB per chunk
+  vector — roughly 40 MB per 10,000 chunks — instead of 16 KiB and 160 MB.
+- **Harder:** truncating to 25% of native width is a real quality trade, and the card
+  publishes **no per-width table**. That makes it EVAL-1's problem to measure, not
+  something to assume either way. Documents and queries must also be truncated
+  **identically**; mixing widths yields vectors from different spaces that still produce
+  plausible-looking similarity scores.
+- **Provider support is unverified.** Whether OpenRouter forwards a `dimensions`
+  parameter is untested, so the adapter must be able to truncate client-side and
+  renormalise. EMB-1 owns this and must fail loudly if the returned length disagrees
+  with the configured one.
+- **Instruction cost is now quantified:** the card reports a **1–5%** retrieval drop when
+  a query-side instruction is omitted. That is the price of OpenRouter's OpenAI-shaped
+  request having no instruction field — smaller than feared, and bounded.
 - **Foreclosed:** nothing.
-- **Revisit when:** index size or query latency becomes the constraint, a bake-off shows
-  retrieval quality is the bottleneck, or OpenRouter exposes an instruction/`input_type`
-  field. All three are cheaper to satisfy now than after a large corpus exists.
+- **Revisit when:** a dimension sweep on real documents shows 1024 materially behind
+  4096 (raising it is a reindex), or OpenRouter exposes instruction or `input_type`
+  fields. Both are cheaper now than after a large corpus exists.
 
 ## Related
 

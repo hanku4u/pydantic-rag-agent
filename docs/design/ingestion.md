@@ -113,6 +113,11 @@ unchanged document is a no-op rather than a duplicate.
   tokens is roughly 51K tokens per request, comfortably inside the model's 40960-token
   context per input. Raising `chunk_size` without lowering the batch size is how an
   ingest starts failing halfway through a corpus.
+- **Truncate to 1024 and renormalise.** Chunks are embedded at 1024 widths through the
+  model's Matryoshka training: keep the first 1024 components, then L2-normalise.
+  Retrieval must apply the identical transformation to queries — see
+  [Retrieval](retrieval.md) — because two different widths still produce plausible
+  similarity scores from incomparable spaces.
 - **Instruction prefixes are unavailable.** Qwen3-Embedding supports an optional
   instruction prefix for retrieval queries, but OpenRouter's OpenAI-shaped request has no
   field for it, so the model runs unconditioned. It performs well in that mode; this is a

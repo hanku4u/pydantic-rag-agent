@@ -20,7 +20,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # docs/decisions/0005-embedding-model-qwen3.md.
 DEFAULT_MODEL = "openrouter:deepseek/deepseek-v4.1-flash"
 DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
-DEFAULT_EMBEDDING_DIMENSIONS = 4096
+# Qwen3-Embedding-8B is natively 4096-wide. We request 1024 via its Matryoshka
+# training: the first 1024 components, L2-renormalised, are a valid embedding.
+# See docs/decisions/0005-embedding-model-qwen3.md.
+DEFAULT_EMBEDDING_DIMENSIONS = 1024
 DEFAULT_EMBEDDING_BASE_URL = "https://openrouter.ai/api/v1"
 
 

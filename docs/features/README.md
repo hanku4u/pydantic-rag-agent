@@ -70,7 +70,7 @@ The types everything else is written against. Getting these wrong later is expen
 | STO-1 | `VectorStore` protocol | DOM-1 | Protocol defines `add`, `search`, `delete_by_document`, `count`, `stats`; async |
 | STO-2 | In-memory store | STO-1 | Satisfies the protocol; tests use it with no filesystem access |
 | STO-3 | Chroma adapter | STO-1 | Satisfies the protocol; persists across process restarts; collection metadata records embedding model and dimension |
-| EMB-1 | Embedder wiring and guard | FND-2, STO-3 | Startup fails with a clear message when the configured model or dimensions (default `qwen/qwen3-embedding-8b` / 4096) disagree with the stored index metadata |
+| EMB-1 | Embedder wiring, MRL truncation, and guard | FND-2, STO-3 | Requests `dimensions=1024`; truncates and L2-renormalises when the provider returns 4096; fails with both numbers when the configured width disagrees with the returned one or with stored index metadata |
 
 ## M2 — Ingestion
 
