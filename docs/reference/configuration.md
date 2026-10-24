@@ -25,12 +25,12 @@ because `pydantic-ai` reads them itself.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `OPENROUTER_API_KEY` | yes | — | Credential for the agent and caption model |
-| `VOYAGE_API_KEY` | yes | — | Credential for embeddings. **A separate account from OpenRouter** |
-| `PRAGENT_MODEL` | no | `openrouter:deepseek/deepseek-v4.1-flash` | Agent model. Must support tool calling |
+| `OPENROUTER_API_KEY` | yes | — | One credential for chat, captions, **and** embeddings |
+| `PRAGENT_MODEL` | no | `openrouter:deepseek/deepseek-v4.1-flash` | Agent model, as a `pydantic-ai` chat provider string. Must support tool calling |
 | `PRAGENT_CAPTION_MODEL` | no | `PRAGENT_MODEL` | Vision-capable model for captions. The default supports image input |
-| `PRAGENT_EMBEDDING_MODEL` | no | `voyageai:voyage-4-large` | Embedder, in `pydantic-ai` provider-string form |
-| `PRAGENT_EMBEDDING_DIMENSIONS` | no | `1024` | Output dimension. `voyage-4*` supports 256, 512, 1024, 2048 |
+| `PRAGENT_EMBEDDING_MODEL` | no | `voyageai/voyage-4-large` | OpenRouter embedding model id. **Slash, not a colon** — see below |
+| `PRAGENT_EMBEDDING_BASE_URL` | no | `https://openrouter.ai/api/v1` | OpenAI-compatible embeddings endpoint |
+| `PRAGENT_EMBEDDING_DIMENSIONS` | no | `1024` | Expected output dimension, asserted against the provider at startup |
 | `PRAGENT_CHROMA_PATH` | no | `./data/chroma` | Persistent Chroma directory |
 | `PRAGENT_IMAGE_DIR` | no | `./data/images` | Where extracted images are stored |
 | `PRAGENT_CHUNK_SIZE` | no | `800` | Target chunk size in tokens |
@@ -40,14 +40,17 @@ because `pydantic-ai` reads them itself.
 | `PRAGENT_LOG_LEVEL` | no | `INFO` | Log verbosity |
 | `PRAGENT_API_URL` | no | `http://127.0.0.1:8000` | Base URL used by the CLI and Streamlit client |
 
-**Two providers, two keys.** OpenRouter runs the agent and captions; VoyageAI supplies
-embeddings. OpenRouter serves no embedding models, so this split is forced rather than
-chosen — see [ADR 0004](../decisions/0004-model-providers.md). Neither key has a
-fallback: an absent one is a startup error.
+**One vendor, one key.** OpenRouter serves chat, image captioning, and embeddings, so
+`OPENROUTER_API_KEY` covers everything — see
+[ADR 0004](../decisions/0004-model-providers.md). An absent key is a startup error.
 
-The prefix in each model string selects the provider (`openrouter:`, `voyageai:`,
-`anthropic:`, `ollama:`), so changing provider is a configuration change, not a code
-change. The agent slug is **pinned** rather than using OpenRouter's
+The chat model uses a **provider prefix** (`openrouter:`) because `pydantic-ai` resolves
+providers from it. The embedding model does **not**: it is a plain OpenRouter model id
+(`voyageai/voyage-4-large`) because the embeddings client is constructed explicitly
+against `PRAGENT_EMBEDDING_BASE_URL`. Setting `PRAGENT_EMBEDDING_MODEL` to something
+like `openai:text-embedding-3-small` will not do what you expect here.
+
+The agent slug is **pinned** rather than using OpenRouter's
 `~deepseek/deepseek-flash-latest` alias, because a model that changes underneath you
 makes evaluation results meaningless. If the pin is retired, change it deliberately.
 
@@ -61,13 +64,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Runtime configuration, read from the environment."""
 
-    model_config = SettingsConfigDict(
-        env_prefix="PRAGENT_", env_file=".env", extra="forbid"
-    )
+    model_config = SettingsConfigDict(env_prefix="PRAGENT_", env_file=".env", extra="forbid")
 
     model: str = "openrouter:deepseek/deepseek-v4.1-flash"
     caption_model: str | None = None  # falls back to `model`
-    embedding_model: str = "voyageai:voyage-4-large"
+    embedding_model: str = "voyageai/voyage-4-large"
+    embedding_base_url: str = "https://openrouter.ai/api/v1"
     embedding_dimensions: int = Field(default=1024, gt=0)
     chunk_size: int = Field(default=800, gt=0)
     chunk_overlap: int = Field(default=100, ge=0)
@@ -75,9 +77,11 @@ class Settings(BaseSettings):
     max_tool_calls: int = Field(default=8, gt=0)
 ```
 
-`OPENROUTER_API_KEY` and `VOYAGE_API_KEY` are intentionally absent: they are the
-providers' variables, read by `pydantic-ai`, not ours to duplicate. Their absence still
-fails loudly at startup rather than at the first query.
+`OPENROUTER_API_KEY` is intentionally absent from `Settings`: it is the provider's
+variable, read by `pydantic-ai`, not ours to duplicate. Its absence still fails loudly at
+startup rather than at the first query. The embeddings client is the exception — we
+construct it ourselves, so it reads the same variable explicitly instead of relying on
+an SDK default.
 
 `PRAGENT_EMBEDDING_DIMENSIONS` is not cosmetic. It is written into the index metadata
 and compared at startup, because changing it (or the embedding model) invalidates every
@@ -89,15 +93,13 @@ stored vector. See [ADR 0003](../decisions/0003-vector-store-and-embeddings.md).
 cp .env.example .env    # fill in both provider keys
 ```
 
-`.env.example` lists `OPENROUTER_API_KEY=` and `VOYAGE_API_KEY=` with empty values, so
-a new contributor can see both are needed without either being committed.
+`.env.example` lists `OPENROUTER_API_KEY=` with an empty value, so a new contributor can
+see it is required without any real value being committed.
 
 - `.env` and every `.env.*` file are ignored except `.env.example`.
 - Never commit a real key, even briefly — git history keeps it and so does anyone who
   fetched.
 - Never log settings wholesale. Log model names and paths; redact credentials.
-- The two keys belong to **different accounts**. Both live in one `.env`, but
-  conflating them produces a 401 that reads like a quota problem.
 
 ## Open questions
 

@@ -109,13 +109,16 @@ unchanged document is a no-op rather than a duplicate.
 - Embed with `Embedder.embed_documents()`, batched. One request per chunk is the
   difference between a usable ingest and a rate-limit incident.
 - **Batch size is bounded by tokens, not by chunk count.** Voyage caps a single request
-  at 1,000 inputs and — for `voyage-4-large` — 120,000 total tokens. At 800-token
-  chunks, 64-chunk batches sit around 51K tokens and are comfortably inside that;
-  raising `chunk_size` without lowering the batch size is how an ingest starts failing
-  halfway through a corpus.
-- **Documents and queries are embedded differently.** Voyage prepends a distinct prompt
-  per `input_type`. `embed_documents()` here and `embed_query()` in retrieval apply the
-  right one; swapping them is a silent quality regression, not an error.
+  at 1,000 inputs and — for `voyage-4-large` — 120,000 total tokens. Requests routed
+  through OpenRouter still hit those upstream limits, on top of OpenRouter's own rate
+  limits. At 800-token chunks, 64-chunk batches sit around 51K tokens; raising
+  `chunk_size` without lowering the batch size is how an ingest starts failing halfway
+  through a corpus.
+- **Query/document conditioning is likely unavailable.** Voyage normally embeds queries
+  and documents with different prompts via its `input_type` parameter, but OpenRouter's
+  embeddings request is OpenAI-shaped and has no such field. Voyage states the two are
+  compatible, so this costs retrieval quality rather than correctness. Recorded in
+  [ADR 0004](../decisions/0004-model-providers.md); it is a thing to measure, not assume.
 - **Idempotency:** `document_id` is the SHA-256 of the file bytes. Ingesting the
   same file again replaces its chunks (`delete_by_document` then add) instead of
   duplicating them.

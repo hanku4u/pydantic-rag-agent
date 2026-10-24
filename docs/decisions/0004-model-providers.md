@@ -1,4 +1,4 @@
-# 0004 — Model providers: OpenRouter for the agent, VoyageAI for embeddings
+# 0004 — All model access through OpenRouter
 
 **Status:** Accepted
 **Date:** 2026-10-24
@@ -6,77 +6,98 @@
 
 ## Context
 
-[ADR 0003](0003-vector-store-and-embeddings.md) assumed OpenAI for both the agent and
-embeddings. That assumption no longer holds: access is via an **OpenRouter** key, and
-the intended models are **DeepSeek V4.1 Flash** for the agent and **Voyage
-`voyage-4-large`** for embeddings.
+Access is a single **OpenRouter** key. The intended models are **DeepSeek V4.1 Flash**
+for the agent and **Voyage `voyage-4-large`** for embeddings.
 
-Requirements that constrain the choice:
+This record replaces an earlier draft that claimed OpenRouter exposes no embeddings
+API. That claim was wrong. It came from reading `/api/v1/models`, which is the *chat*
+catalogue. OpenRouter maintains a separate embeddings catalogue at
+`/api/v1/embeddings/models`, and `POST /api/v1/embeddings` exists (an unauthenticated
+probe returns `401`, not `404`). Verified against the live API on the date above:
+**35 embedding models**, including `voyageai/voyage-4-large`.
 
-- Tool calling is non-negotiable — the whole design is a tool loop.
-- Image input is needed for captioning, or a second vendor becomes necessary just for
-  vision.
-- Embeddings must be available over an HTTP API, since local models were previously
-  rejected in favour of hosted ones.
+The lesson is recorded here on purpose: a catalogue scan is not the same as checking
+whether the route exists, and a documentation claim about a vendor's capabilities should
+be verified before it becomes an architectural constraint.
 
 ## Decision
 
-### Agent and captions — OpenRouter
+### Chat and captions — OpenRouter
 
 - Model: **`deepseek/deepseek-v4.1-flash`**, via `pydantic-ai`'s dedicated OpenRouter
-  provider.
+  provider. Model string: `openrouter:deepseek/deepseek-v4.1-flash`.
 - Installed with the `openrouter` extra; credential is `OPENROUTER_API_KEY`.
-- Model string: `openrouter:deepseek/deepseek-v4.1-flash`.
-- Used for **both** the agent and image captioning: the model advertises `text` and
-  `image` input modalities, so captioning needs no additional vendor.
+- Used for both the agent and image captioning: the model advertises `text` and `image`
+  input, so captioning needs no additional model.
+- The slug is **pinned** rather than using the `~deepseek/deepseek-flash-latest` alias,
+  because a model that changes underneath you makes evaluation results meaningless.
 
 We use the dedicated `openrouter:` provider rather than pointing an OpenAI-compatible
-client at the OpenRouter base URL. The dedicated provider carries OpenRouter-specific
-settings (reasoning, usage accounting, app attribution), typed errors, and is what the
-framework tests against. "OpenAI-compatible wire format" is a transport detail, not a
-reason to hand-roll the client.
+client at the base URL. The dedicated provider carries OpenRouter-specific settings
+(reasoning, usage accounting, app attribution), typed errors, and is what the framework
+tests against. "OpenAI-compatible wire format" is a transport detail, not a reason to
+hand-roll the client.
 
-The slug is **pinned** to the dated model rather than using OpenRouter's
-`~deepseek/deepseek-flash-latest` alias, because a silently changing model makes
-evaluation results meaningless. If the pin is retired, switch to the alias
-deliberately.
+### Embeddings — OpenRouter's embeddings endpoint
 
-### Embeddings — VoyageAI, directly
+- Model: **`voyageai/voyage-4-large`** — 1024 dimensions by default, 32K token context.
+- Consumed through `pydantic-ai`'s `OpenAIEmbeddingModel` with an `OpenAIProvider`
+  pointed at `https://openrouter.ai/api/v1`, reusing `OPENROUTER_API_KEY`.
+- OpenRouter has no dedicated embedding provider class in `pydantic-ai`, but its
+  endpoint is OpenAI-shaped, so the OpenAI embedding client plus a custom base URL is
+  the supported path.
+- One vendor, one key, one bill.
 
-- Model: **`voyage-4-large`**, 1024 dimensions by default (256/512/2048 configurable),
-  32K token context.
-- Accessed through `pydantic-ai`'s `voyageai` provider — string
-  `voyageai:voyage-4-large`, credential `VOYAGE_API_KEY`.
-- **Not** via OpenRouter. OpenRouter's public catalogue contains no embedding models and
-  it exposes no embeddings endpoint; this is a hard constraint, not a preference.
+### Why not the `voyageai:` provider
 
-Voyage embeddings are asymmetric: queries and documents are embedded with different
-prompts via the API's `input_type`. `Embedder.embed_query()` and
-`Embedder.embed_documents()` apply the correct one, which is a concrete reason to use
-the framework's `Embedder` rather than calling the REST endpoint ourselves.
+`pydantic-ai`'s `voyageai:` provider talks to `api.voyageai.com` directly, which would
+require a second account and a second key. It also applies Voyage's query/document
+`input_type` conditioning automatically — a real quality feature we give up by routing
+through OpenRouter. See the caveats below.
+
+## Caveats — read before tuning retrieval
+
+1. **`input_type` conditioning is probably lost.** Voyage embeds queries and documents
+   with different prompts; OpenRouter's embeddings request is OpenAI-shaped (`input`,
+   `model`, optionally `dimensions`), which has no such field. Voyage states that
+   embeddings produced with and without `input_type` are *compatible*, so this is a
+   quality difference, not a correctness break. It should be measured, not assumed.
+2. **Dimension control is unverified.** Whether OpenRouter forwards a `dimensions`
+   parameter to Voyage's `output_dimension` is untested. Assume 1024 (Voyage's default)
+   and treat `PRAGENT_EMBEDDING_DIMENSIONS` as an assertion about what the provider
+   actually returns, verified at startup.
+3. **Voyage's upstream caps may still apply** — 1,000 inputs and 120,000 total tokens
+   per request for `voyage-4-large` — since OpenRouter proxies to Voyage. OpenRouter
+   adds its own rate limits on top.
+4. **Pricing** for `voyageai/voyage-4-large` is $0.12 per million prompt tokens, which
+   is negligible at prototype scale but worth knowing before a full corpus reindex.
+
+## Alternatives considered
+
+| Option | Why not (for now) |
+| --- | --- |
+| **Direct VoyageAI** (`voyageai:voyage-4-large`) | Restores `input_type` conditioning and explicit dimension control, at the cost of a second vendor and key. This is the upgrade path if evaluation shows conditioning matters. |
+| **OpenAI embeddings via OpenRouter** (`openai/text-embedding-3-*`) | Available and familiar, but 1536 dimensions and weaker multilingual retrieval than Voyage for this use case. |
+| **Local sentence-transformers** | No key and offline, but a large download and a PyTorch dependency for a prototype that already depends on hosted models. |
+| **`voyageai/voyage-multimodal-3.5`** | Embeds text *and* images into one space, which would replace caption-then-embed for images. Interesting, but it changes the image strategy rather than just the embedding model. Deferred. |
 
 ## Consequences
 
-- **Easier:** one key covers the agent and captioning; provider switching stays a string
-  change; vision capability without a third vendor; strong multilingual retrieval from
-  Voyage; correct query/document asymmetry comes for free.
-- **Harder:** **two provider accounts and two keys** (`OPENROUTER_API_KEY`,
-  `VOYAGE_API_KEY`) where the earlier plan needed one. Two independent failure modes,
-  two rate-limit behaviours, and two sets of credentials to keep out of git.
-- **Batching is constrained:** Voyage caps a request at 1,000 inputs and, for
-  `voyage-4-large`, 120,000 total tokens. Batch sizing must be derived from tokens, not
-  from a chunk count that happens to work today.
-- **Dimension change:** 1536 (OpenAI) → 1024 (Voyage). No index exists yet, so this is
-  free now and expensive later; the startup guard in
-  [Architecture](../architecture.md) exists precisely to catch it.
+- **Easier:** a single credential and a single provider to debug; vision captioning with
+  no extra vendor; swapping models is a string change; the local test suite still uses
+  `TestEmbeddingModel`, so no test spends money.
+- **Harder:** two caveats above must be measured rather than reasoned about; a quality
+  regression from lost `input_type` conditioning would be invisible in tests and only
+  show up in retrieval evaluation (EVAL-1).
 - **Foreclosed:** nothing.
-- **Revisit when:** OpenRouter ships embeddings, Voyage pricing or quality stops
-  justifying a second vendor, or evaluation shows a cheaper Voyage tier
-  (`voyage-4`, `voyage-4-lite`) performs equally well.
+- **Revisit when:** EVAL-1 shows retrieval quality is the bottleneck, at which point a
+  direct VoyageAI key is a small, well-scoped change confined to one adapter.
+- **Dimension change:** 1536 (OpenAI) → 1024 (Voyage). No index exists yet, so this is
+  free now and expensive later.
 
 ## Related
 
-- [Configuration](../reference/configuration.md) — the two credentials and the model defaults.
-- [Dependencies](../reference/dependencies.md) — `pydantic-ai-slim[openrouter,voyageai]`.
-- [Ingestion](../design/ingestion.md) — batching against Voyage's request limits.
+- [Configuration](../reference/configuration.md) — one key, the model defaults.
+- [Dependencies](../reference/dependencies.md) — `pydantic-ai-slim[openai,openrouter]`.
+- [Ingestion](../design/ingestion.md) — batching against request limits.
 - [ADR 0003](0003-vector-store-and-embeddings.md) — the vector-store half still stands.

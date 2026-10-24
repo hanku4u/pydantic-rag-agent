@@ -72,7 +72,7 @@ rather than inventing one and writing it down as fact.
 - [0001 — Project scaffold](decisions/0001-project-scaffold.md) — uv, `src/` layout, Python floor.
 - [0002 — Agent framework](decisions/0002-agent-framework.md) — why `pydantic-ai`, and what it costs.
 - [0003 — Vector store and embeddings](decisions/0003-vector-store-and-embeddings.md) — Chroma behind a protocol; its OpenAI embedding choice is superseded.
-- [0004 — Model providers](decisions/0004-model-providers.md) — OpenRouter for the agent and captions, VoyageAI for embeddings, and why that needs two keys.
+- [0004 — Model providers](decisions/0004-model-providers.md) — single-vendor access: DeepSeek for chat and captions, Voyage for embeddings, one key.
 
 ## For coding agents
 
