@@ -1,6 +1,8 @@
 # 0006 — Defer project licensing; PyMuPDF bounds the future choice
 
-**Status:** Accepted
+**Status:** Superseded by [0007](0007-mit-licence-and-pypdfium2.md) — the project now
+carries an MIT licence and PyMuPDF has been replaced, so the deferral this record
+describes no longer applies. Kept for the AGPL reasoning.
 **Date:** 2026-10-24
 
 ## Context
@@ -63,5 +65,5 @@ Options at that point, already assessed:
 ## Related
 
 - [Dependencies](../reference/dependencies.md) — the licence constraints of the stack.
-- [Features](../features/README.md) — FND-6, now in the deferred table.
+- [Features](../features/README.md) — FND-6, since completed by [0007](0007-mit-licence-and-pypdfium2.md).
 - [Overview](../overview.md) — current state.

@@ -26,7 +26,7 @@ format means adding a loader, not touching the pipeline.
 
 | Format | Library | Text source | Images |
 | --- | --- | --- | --- |
-| `.pdf` | PyMuPDF (`pymupdf`) | page text blocks, in reading order | raster images per page |
+| `.pdf` | `pypdfium2` (PDFium) | page text via `get_textpage().get_text_bounded()` | embedded images via `PdfImage.get_bitmap()` |
 | `.docx` | `python-docx` | paragraphs and tables | `word/media/*` entries in the zip |
 | `.pptx` | `python-pptx` | shape text and speaker notes | picture shapes |
 | `.txt`, `.md` | stdlib | whole file | none |

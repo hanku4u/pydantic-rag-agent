@@ -64,7 +64,7 @@ Accurate as of the planning commit:
 | Retrieval | Not started — M3 |
 | Agent | Not started — M4 |
 | API, CLI, Streamlit | Not started — M5 |
-| Licence | Deliberately none — personal use; FND-6 deferred, see [ADR 0006](decisions/0006-licensing-deferred.md) |
+| Licence | **MIT** — see [LICENSE](../LICENSE) |
 
 The CLI still prints a greeting. [Features](features/README.md) is the ordered plan for
 the rest of that table.

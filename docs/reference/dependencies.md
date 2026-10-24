@@ -15,7 +15,7 @@ the first sign a boundary is leaking.
 | `pydantic-settings` | Typed configuration from the environment, failing at startup. | `config.py` |
 | `pydantic-ai-slim[openai,openrouter]` | Agent loop, typed tools, multi-turn history, the `Embedder` abstraction, and both client integrations. `openrouter` supplies the chat provider; `openai` supplies `OpenAIEmbeddingModel`, pointed at OpenRouter's OpenAI-compatible embeddings endpoint. | Adapters (`agent.py`, embedding) |
 | `chromadb` | Embedded vector store. The only place this may be imported is its adapter. | Adapters (`chroma_store.py`) |
-| `pymupdf` | PDF text and image extraction. | Adapters (`loaders/pdf.py`) |
+| `pypdfium2` | PDF text extraction, embedded-image extraction, and page rendering. Binds PDFium. | Adapters (`loaders/pdf.py`) |
 | `python-docx` | DOCX paragraphs and tables. | Adapters (`loaders/docx.py`) |
 | `python-pptx` | PPTX slide text, notes, and pictures. | Adapters (`loaders/pptx.py`) |
 | `pillow` | Image validation and normalisation before captioning and storage. | Adapters (image store, captioning) |
@@ -29,16 +29,18 @@ the first sign a boundary is leaking.
 
 ## Licence constraints
 
-One dependency is not permissive: **`pymupdf`** is dual-licensed **AGPL-3.0 or Artifex
-commercial**. Personal, non-distributed use triggers no AGPL obligation, which is why it is
-acceptable now. Distributing the software — or hosting it for others — would, and would
-also block giving the project a permissive licence without swapping the loader. Assessed
-alternatives: `pypdfium2` (BSD-3/Apache-2.0, text extraction *and* page rendering) or a
-commercial Artifex licence. See [ADR 0006](../decisions/0006-licensing-deferred.md).
+The project is **MIT** ([ADR 0007](../decisions/0007-mit-licence-and-pypdfium2.md)), and
+the direct dependency stack is entirely permissive: MIT, Apache-2.0, or BSD-3-Clause. No
+strong copyleft remains anywhere in the tree.
 
-Everything else in the direct stack is MIT, Apache-2.0, or BSD. A few transitive
-dependencies are MPL-2.0 (`tqdm`, `certifi`, `pathspec`), which is file-level copyleft and
-does not constrain the project's own licence.
+PyMuPDF was removed for exactly this reason. It is dual-licensed **AGPL-3.0 or Artifex
+commercial**, which would have blocked a permissive licence the moment the software was
+distributed or hosted. Do not reintroduce it without reopening
+[ADR 0006](../decisions/0006-licensing-deferred.md)'s analysis.
+
+A few transitive dependencies are **MPL-2.0** (`tqdm`, `certifi`, `pathspec`). That is
+file-level copyleft: it constrains modifications to those packages' own files, not this
+project's licence.
 
 ## Development
 

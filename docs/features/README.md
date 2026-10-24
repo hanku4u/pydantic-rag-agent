@@ -33,7 +33,7 @@ stay the canonical list.
 
 | Milestone | Done | In progress |
 | --- | --- | --- |
-| M0 Foundation | FND-1, FND-3, FND-4, FND-5 | FND-2 |
+| M0 Foundation | FND-1, FND-3, FND-4, FND-5, FND-6 | FND-2 |
 | M1 Domain and storage | — | — |
 | M2 Ingestion | — | — |
 | M3 Retrieval | — | — |
@@ -41,9 +41,8 @@ stay the canonical list.
 | M5 Interfaces | — | — |
 | M6 Hardening | — | — |
 
-FND-2 is partially landed: `config.Settings` and its validation tests exist; loading
-it at startup arrives with the API (API-1). FND-6 (licence) has moved to the deferred
-table — the project is for personal use, so there is nothing to license yet.
+FND-2 is partially landed: `config.Settings` and its validation tests exist; loading it at
+startup arrives with the API (API-1). M0 is otherwise closed.
 
 ---
 
@@ -58,6 +57,7 @@ Nothing user-visible. Everything after this is cheaper because it exists.
 | FND-3 | Test harness | FND-1 | `uv run pytest` passes with zero tests and network blocked |
 | FND-4 | CI: lint, types, tests | FND-3 | PR fails on a stale lockfile, a lint error, or a red test |
 | FND-5 | Docs link check in CI | — | A renamed doc file breaks the build instead of the navigation |
+| FND-6 | Licence | — | `LICENSE` exists, `pyproject.toml` declares it, and the wheel carries `License-Expression: MIT` |
 
 ## M1 — Domain and storage
 
@@ -152,7 +152,6 @@ without one, "deferred" quietly becomes "forgotten".
 
 | Feature | Trigger to revisit |
 | --- | --- |
-| Project licence (FND-6) | The repo becomes public, the software is distributed or hosted, or outside contributions are accepted — see [ADR 0006](../decisions/0006-licensing-deferred.md) |
 | `pgvector` adapter | Retrieval basics work and the index outgrows embedded Chroma |
 | Reranking (cross-encoder) | EVAL-1 shows ranking, not recall, is the bottleneck |
 | Hybrid keyword search | Evaluation shows exact identifiers or rare terms are missed |
