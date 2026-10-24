@@ -146,10 +146,20 @@ The rules matter more than the primitives:
 install time — but it is still declared explicitly, because a package you import
 directly should be a package you name. See [Dependencies](../reference/dependencies.md).
 
-**Open question — streaming Markdown.** Re-rendering a `Markdown` object on every
-token is expensive and visibly flickers. The options are: throttle `Live` updates to
-roughly 10 fps, stream plain text and render the final Markdown once at the end, or
-buffer by sentence. This needs trying against a real provider before it is decided.
+7. **User input is rendered as `Text`, not `Markdown`.** What someone typed should appear
+   exactly as typed; reinterpreting their words as formatting is a small betrayal that
+   looks like a bug.
+
+**Streaming rendering.** The agent's turn is a `rich.Live` panel re-rendered at 12 fps with
+the partial answer as Markdown, then printed once more when the turn ends. Re-rendering on
+every token flickers and burns CPU for no visible gain; at 12 fps the text appears to flow.
+When stdout is not a terminal the live region is skipped entirely, so piped or captured
+output gets one clean panel rather than a stream of escape codes.
+
+Turns are boxed so the two speakers are distinguishable at a glance: the user's in cyan,
+the agent's in green, with tool activity as dim lines inside the agent's panel —
+`search_knowledge_base` reads as "searching the knowledge base", because a function name is
+not something to show a person.
 
 **Known friction:** the CLI needs the API running, so a first run is two terminals.
 The accepted mitigation is a `dev` command that starts the API and the UI together;

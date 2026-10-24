@@ -129,20 +129,57 @@ class StreamingFakeClient:
         yield "done", {"answer": "answer text", "citations_valid": True}
 
 
-def stream_answer_should_put_tool_activity_on_its_own_line() -> None:
+def stream_answer_should_box_the_answer_and_show_tool_activity() -> None:
     # given: a console writing to a buffer, and a stream that calls a tool first
     from io import StringIO
 
     from rich.console import Console
 
     buffer = StringIO()
-    console = Console(file=buffer, force_terminal=False, width=200)
+    console = Console(file=buffer, force_terminal=False, width=100)
 
-    # when: the answer is rendered
+    # when: the turn is rendered
     cli._stream_answer(console, StreamingFakeClient(), "conv-1", "question?")  # type: ignore[arg-type]
 
-    # then: the tool line and the answer do not run together, and sources are listed
+    # then: the agent's turn is a box containing friendly tool activity, the answer,
+    # and the sources below it
     rendered = buffer.getvalue()
-    assert "· search_knowledge_base\n" in rendered
+    assert "agent" in rendered
+    assert "searching the knowledge base" in rendered
     assert "answer text" in rendered
     assert "Handbook — p. 2" in rendered
+
+
+def question_panel_should_show_the_text_exactly_as_typed() -> None:
+    # given: a question containing something that looks like markup
+    question = "what does [bold] do?"
+
+    # when: it is put in a panel
+    from io import StringIO
+
+    from rich.console import Console
+
+    buffer = StringIO()
+    Console(file=buffer, force_terminal=False, width=100).print(cli._question_panel(question))
+
+    # then: it is shown literally, not interpreted as styling
+    assert "[bold]" in buffer.getvalue()
+
+
+def stream_answer_on_a_terminal_should_drive_the_live_region() -> None:
+    # given: a console that believes it is a terminal, so the Live path is taken
+    from io import StringIO
+
+    from rich.console import Console
+
+    buffer = StringIO()
+    console = Console(file=buffer, force_terminal=True, width=100)
+
+    # when: a turn is rendered
+    payload = cli._stream_answer(console, StreamingFakeClient(), "conv-1", "question?")  # type: ignore[arg-type]
+
+    # then: it completes, the answer survives the live re-rendering, and the payload
+    # came back from the done event
+    rendered = buffer.getvalue()
+    assert "answer text" in rendered
+    assert payload["answer"] == "answer text"

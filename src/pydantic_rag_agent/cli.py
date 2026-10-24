@@ -11,19 +11,29 @@ interpreted as style; and nothing here blocks on a spinner while a stream is run
 
 from __future__ import annotations
 
-import itertools
 import json
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Annotated, Any, cast
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group, RenderableType
+from rich.live import Live
+from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from pydantic_rag_agent.client import UPLOAD_SUFFIXES, ClientError, RagClient
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
+
+# What the agent is doing, in words a user would use. Unknown tools fall back to their
+# identifier with underscores removed, which is still more useful than silence.
+_TOOL_PHRASES = {
+    "search_knowledge_base": "searching the knowledge base",
+    "view_image": "looking at an image",
+}
 
 app = typer.Typer(
     add_completion=False,
@@ -95,7 +105,7 @@ def ask(
             if as_json:
                 typer.echo(json.dumps(client.ask(conversation_id, question), indent=2))
                 return
-            _stream_answer(console, client, conversation_id, question)
+            _stream_answer(console, client, conversation_id, question, echo_question=True)
     except ClientError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -108,16 +118,25 @@ def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
     try:
         with _client(api_url) as client:
             conversation_id = client.create_conversation()
-            console.print("[dim]Type a question, or 'exit' to leave.[/dim]")
+            console.print(
+                Panel(
+                    Text(
+                        "Ask about your documents. 'exit' leaves; Ctrl-C works too.",
+                        style="dim",
+                    ),
+                    border_style="dim",
+                    padding=(0, 1),
+                )
+            )
             while True:
                 try:
-                    question = typer.prompt("you")
+                    question = console.input("[bold cyan]›[/bold cyan] ")
                 except (EOFError, KeyboardInterrupt):
                     console.print()
                     return
                 if question.strip().lower() in {"exit", "quit", ""}:
                     return
-                _stream_answer(console, client, conversation_id, question)
+                _stream_answer(console, client, conversation_id, question, echo_question=True)
     except ClientError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -201,37 +220,93 @@ def _stream_answer(
     client: RagClient,
     conversation_id: str,
     question: str,
+    *,
+    echo_question: bool = False,
 ) -> dict[str, object]:
-    """Print a streamed answer as it arrives, then its sources."""
+    """Render one turn: the question boxed, then a live panel that becomes the answer."""
+    if echo_question:
+        console.print(_question_panel(question))
+
     events: Iterator[tuple[str, dict]] = client.stream(conversation_id, question)
 
-    # Wait for the first event behind a spinner, then stop it: a spinner and a live
-    # stream cannot both own the terminal.
-    with console.status("[dim]thinking…[/dim]"):
-        first = next(events, None)
+    answer: list[str] = []
+    tools: list[str] = []
+    citations: list[dict[str, Any]] = []
+    payload: dict[str, Any] = {}
 
-    console.print("[bold]agent[/bold] ", end="")
-    payload: dict[str, object] = {}
-    citations: list[dict[str, object]] = []
+    def snapshot() -> Panel:
+        return _answer_panel("".join(answer), tools, pending=not payload)
 
-    for name, data in itertools.chain([first] if first else [], events):
-        if name == "token":
-            console.print(data["text"], end="", markup=False, highlight=False, soft_wrap=True)
-        elif name == "tool_call":
-            # Its own line, with a newline after it: without that, the next token
-            # continues on the same line as the tool name.
-            console.print(f"\n[dim]· {data['name']}[/dim]")
-        elif name == "citations":
-            citations = cast("list[dict[str, Any]]", data["citations"])
-        elif name == "done":
-            payload = data
-        elif name == "error":
-            raise ClientError(f"{data['detail']} ({data['code']})")
+    # Only drive a Live region when there is a terminal to drive. Piped or captured
+    # output gets one clean panel at the end instead of a ream of escape codes.
+    live = (
+        Live(snapshot(), console=console, refresh_per_second=12, transient=True)
+        if console.is_terminal
+        else None
+    )
+    if live is not None:
+        live.start()
 
-    console.print()
+    try:
+        for name, data in events:
+            if name == "token":
+                answer.append(str(data["text"]))
+            elif name == "tool_call":
+                phrase = _TOOL_PHRASES.get(str(data["name"]), str(data["name"]).replace("_", " "))
+                if phrase not in tools:
+                    tools.append(phrase)
+            elif name == "citations":
+                citations = cast("list[dict[str, Any]]", data["citations"])
+            elif name == "done":
+                payload = data
+            elif name == "error":
+                raise ClientError(f"{data['detail']} ({data['code']})")
+
+            if live is not None:
+                live.update(snapshot())
+    finally:
+        if live is not None:
+            live.stop()
+
+    console.print(_answer_panel("".join(answer), tools, pending=False))
+    if payload.get("budget_exhausted"):
+        console.print("[yellow]Stopped at the request limit.[/yellow]")
     if citations:
         _render_citations(console, citations)
     return payload
+
+
+def _question_panel(question: str) -> Panel:
+    """The user's turn, boxed in cyan.
+
+    Rendered as ``Text`` rather than ``Markdown``: the user's words should appear exactly
+    as typed, not be reinterpreted as formatting.
+    """
+    return Panel(
+        Text(question),
+        title="[bold cyan]you[/bold cyan]",
+        title_align="left",
+        border_style="cyan",
+        padding=(0, 1),
+    )
+
+
+def _answer_panel(answer: str, tools: Sequence[str], *, pending: bool) -> Panel:
+    """The agent's turn: what it is doing, then what it concluded."""
+    parts: list[RenderableType] = [Text(f"· {tool}", style="dim italic") for tool in tools]
+    if answer.strip():
+        parts.append(Markdown(answer))
+    elif pending:
+        parts.append(Text("thinking…", style="dim italic"))
+
+    body: RenderableType = Group(*parts) if parts else Text("")
+    return Panel(
+        body,
+        title="[bold green]agent[/bold green]",
+        title_align="left",
+        border_style="green",
+        padding=(0, 1),
+    )
 
 
 def _render_citations(console: Console, citations: list[dict[str, Any]]) -> None:
