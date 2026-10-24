@@ -76,8 +76,8 @@ Accurate as of the planning commit:
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 
-The CLI still prints a greeting. [Features](features/README.md) is the ordered plan for
-the rest of that table.
+Everything in that table is built and verified except the deferred items;
+[Features](features/README.md) is the canonical list of what remains.
 
 ## Glossary
 
