@@ -111,7 +111,10 @@ Citations are audited after every turn. Markers found in the answer are compared
 passages actually retrieved, and any out-of-range reference is logged. A citation to a
 passage that was never retrieved reads as authoritative and is unverifiable, and nothing
 else in the pipeline notices — the prose is fluent, the marker is well-formed, and the
-citations we return are correct. The check is about fifteen lines and touches no prompt.
+citations we return are correct. The mirror case is logged too: passages retrieved but
+none cited, because silent citation neglect is how a "cite everything" instruction quietly
+stops being true. Neither check fires when nothing was retrieved, or every honest refusal
+would produce noise.
 
 Logging records tool calls, token counts, and latency per run. It never logs document
 contents or credentials.

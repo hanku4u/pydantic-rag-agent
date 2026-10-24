@@ -322,6 +322,41 @@ async def ask_with_a_correctly_cited_answer_should_report_a_clean_audit(tmp_path
     assert turn.citation_audit.cited == (1,)
 
 
+async def ask_with_retrieved_passages_but_no_citation_should_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # given: an answer that ignores the passages it was given
+    store = build_store()
+    await seed_backups(store)
+    deps = build_deps(tmp_path, store)
+    agent = build_agent(TestModel(call_tools="all", custom_output_text="Backups run nightly."))
+
+    # when: the turn is run
+    with caplog.at_level(logging.WARNING):
+        turn = await ask(agent, deps, "When do backups run?")
+
+    # then: citation neglect is reported, because silence here is how the
+    # citation instruction quietly stops being true
+    assert turn.citation_audit.is_uncited is True
+    assert any("cited nothing" in record.getMessage() for record in caplog.records)
+
+
+async def ask_with_no_retrieved_passages_should_not_warn_about_missing_citations(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # given: an empty index and an answer with no citations
+    deps = build_deps(tmp_path, build_store())
+    agent = build_agent(TestModel(call_tools="all", custom_output_text="I found nothing."))
+
+    # when: the turn is run
+    with caplog.at_level(logging.WARNING):
+        await ask(agent, deps, "anything")
+
+    # then: there was nothing to cite, so nothing is reported — a warning here
+    # would be noise on every honest refusal
+    assert not any("cited nothing" in record.getMessage() for record in caplog.records)
+
+
 def build_agent_should_reject_nothing_and_construct_offline() -> None:
     # given / when: an agent over a test model needs no credentials or network
     agent = build_agent(TestModel())

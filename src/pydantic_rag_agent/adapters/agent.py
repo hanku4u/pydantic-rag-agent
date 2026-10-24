@@ -193,6 +193,14 @@ async def ask(
             ", ".join(f"[{marker}]" for marker in audit.out_of_range),
             len(citations),
         )
+    elif citations and audit.is_uncited:
+        # The other half of the same failure: passages were retrieved and the
+        # answer ignored them. Silent citation neglect is how a "cite everything"
+        # instruction quietly stops being true.
+        _logger.warning(
+            "answer cited nothing, though %d passage(s) were retrieved",
+            len(citations),
+        )
 
     return AgentTurn(
         text=result.output,
