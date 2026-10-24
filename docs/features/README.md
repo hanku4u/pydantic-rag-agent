@@ -88,6 +88,14 @@ testable. See [Ingestion design](../design/ingestion.md).
 | IMG-1 | Image extraction and storage | ING-5, ING-6, ING-7 | Images written to `data/images/<document_id>/<sha>.<ext>`; duplicates collapse by hash |
 | IMG-2 | Vision captioning with cache | IMG-1, FND-2 | Each distinct image captioned once; repeat ingests make no duplicate API calls |
 | IMG-3 | Image chunks in the index | IMG-2, ING-2 | A question about image content retrieves the caption chunk; `image_id` present in metadata |
+| ING-8 | Replace stale chunks when a file changes | ING-4, STO-1 | Re-ingesting an edited file removes the previous version's chunks, so the index does not accumulate superseded text |
+
+> **Known gap, found after the text slice landed (ING-8).** Document identity is the
+> content hash, so an *unchanged* file is skipped — but an *edited* file gets a new
+> identity, and its previous chunks stay in the index. Search would then return both
+> versions, and the count only grows. This is invisible in normal use and gets slowly
+> worse, which is the worst shape for a bug to have. Prefer fixing it before pointing
+> ingestion at a corpus you intend to keep current.
 
 ## M3 — Retrieval
 
