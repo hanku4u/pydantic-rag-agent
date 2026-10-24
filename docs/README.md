@@ -36,6 +36,7 @@ rather than inventing one and writing it down as fact.
 | Understand the agent | [Agent design](design/agent.md) |
 | Understand the API, CLI, and UI | [Interfaces](design/interfaces.md) |
 | Configure the app | [Configuration](reference/configuration.md) |
+| Know what we depend on, and why | [Dependencies](reference/dependencies.md) |
 | Know why something is the way it is | [Decision records](decisions/README.md) |
 
 ## Index
@@ -63,6 +64,7 @@ rather than inventing one and writing it down as fact.
 ### Reference
 
 - [Configuration](reference/configuration.md) — settings, environment variables, secrets.
+- [Dependencies](reference/dependencies.md) — the stack, why each package exists, and which layer may import it.
 
 ### Decisions
 

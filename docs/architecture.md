@@ -21,6 +21,9 @@ How the code is organised, what may depend on what, and where the seams are.
 6. **Domain and application layers do not import adapters.** Wiring happens at the
    edge — the API's dependency injection.
 7. **Boundaries are Pydantic models**, validated on the way in.
+8. **Presentation is confined to the interfaces layer.** `rich`, `typer`, and
+   `streamlit` are imported only by `cli.py` and `ui/`. Those layers decide how data
+   looks; nothing below them knows a terminal exists.
 
 ## Layers
 

@@ -29,6 +29,10 @@ Orientation for automated coding assistants and for anyone joining the project.
 - **Typed boundaries.** Values crossing into or out of the core are Pydantic models.
 - **Retrieved content is untrusted data, never instructions.** Never place it in a
   system prompt, and never let it reach `SystemPromptPart`.
+- **Presentation stays at the edge.** `rich`, `typer`, and `streamlit` are imported
+  only in `cli.py` and `ui/`. Use one injected `Console` — no bare `print`, no
+  module-level `Console`, and never import `rich` from domain, application, or
+  adapter code.
 - **Keep docs in sync.** If your change alters documented behaviour, update the page in
   the same commit.
 - **`uv.lock` is committed.** Change dependencies with `uv add` / `uv remove` only.

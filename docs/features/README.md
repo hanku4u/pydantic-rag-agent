@@ -34,7 +34,7 @@ Nothing user-visible. Everything after this is cheaper because it exists.
 
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
-| FND-1 | Declare and install dependencies | — | `uv sync` installs the stack; `uv.lock` committed |
+| FND-1 | Declare and install dependencies | — | `uv sync` installs the stack; `uv.lock` committed; every package we import is declared in `pyproject.toml`, including transitive ones like `rich` |
 | FND-2 | Settings model | FND-1 | A missing `OPENAI_API_KEY` or malformed setting raises at startup with a readable message |
 | FND-3 | Test harness | FND-1 | `uv run pytest` passes with zero tests and network blocked |
 | FND-4 | CI: lint, types, tests | FND-3 | PR fails on a stale lockfile, a lint error, or a red test |
@@ -108,8 +108,9 @@ See [Interfaces](../design/interfaces.md).
 | API-3 | Conversation and message endpoints | AGT-2 | A question returns an answer with citations |
 | API-4 | SSE streaming | API-3 | Tokens arrive incrementally; tool activity is visible as an event |
 | API-5 | Error mapping | API-1 | Provider errors return `502` with a categorised code; no traceback leaks |
-| CLI-1 | `typer` skeleton and `serve` | API-1 | `--help` lists every command; `serve` runs the API |
-| CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output |
+| CLI-1 | `typer` + `rich` skeleton and `serve` | API-1 | `--help` lists every command; `serve` runs the API; all output goes through one injected `Console`; `--no-color` and `NO_COLOR` are honoured |
+| CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output; answers render as Markdown with a numbered citation table; ingest shows progress per file |
+| CLI-3 | Plain and JSON output modes | CLI-2 | Piped output contains no ANSI escapes or box drawing; `--json` emits one parseable object per result so the CLI is usable from scripts |
 | UI-1 | Streamlit chat | API-4 | A question streams into the chat window |
 | UI-2 | Streamlit ingest sidebar | API-2 | Files upload and ingest from the browser; document list reflects reality |
 | UI-3 | Citation rendering | API-3 | Each answer exposes its sources in an expander |

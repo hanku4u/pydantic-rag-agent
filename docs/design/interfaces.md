@@ -91,6 +91,55 @@ core.
 `--api-url` defaults to `http://127.0.0.1:8000` and is also settable via
 `PRAGENT_API_URL`.
 
+### Terminal rendering
+
+**Decision:** `typer` structures the commands, `rich` draws everything the user
+sees.
+
+The reason is the shape of a RAG answer: long, structured, and arriving
+incrementally. Plain `print` produces an undifferentiated wall of text, and the
+provenance — which document, which page — is exactly what the user needs to trust
+the answer. `rich` gives us Markdown rendering, tables, progress bars, and spinners
+for roughly the cost of importing it.
+
+| Element | `rich` primitive | Rendered as |
+| --- | --- | --- |
+| Answer | `Markdown` | Streamed prose, then finalised as Markdown |
+| Citations | `Table` | Numbered rows: title, page or slide, source path |
+| Tool activity | `Status` / spinner | "Searching the knowledge base…" |
+| Ingest | `Progress` | One task per file, then a summary table from `IngestReport` |
+| Errors | `Panel` (red) | Human-readable message; provider detail only with `-v` |
+| `documents` | `Table` | Title, chunk count, source, ingest date |
+| `stats` | `Table` | Chunk count, embedding model, dimension, store path |
+
+The rules matter more than the primitives:
+
+1. **One `Console`, injected.** Constructed once in the command entry point and
+   passed to the rendering functions — the same reasoning as every other
+   dependency. No module-level `Console`, and no bare `print` anywhere in `cli.py`.
+2. **Rendering is confined to the interfaces layer.** `rich` must not be imported by
+   domain, application, or adapter code. Those layers return data; `cli.py` decides
+   how it looks. See [Architecture](../architecture.md).
+3. **Never mix logging with rendered output.** Python logging goes to a
+   `RichHandler` on stderr, or the two write over each other and both become
+   unreadable.
+4. **Degrade gracefully.** `rich` strips styling automatically when stdout is not a
+   TTY; honour `NO_COLOR` and a `--no-color` flag in addition. Piping output is a
+   first-class use, not an accident.
+5. **Sequence the animations.** A spinner and a live stream cannot both own the
+   terminal — the display fights itself and the user sees garbage. Show the spinner
+   while *waiting*, stop it, then stream.
+6. **Never render secrets or full document bodies.** Cite the source; don't dump it.
+
+**Dependency note:** `typer` already requires `rich>=13.8`, so this costs nothing at
+install time — but it is still declared explicitly, because a package you import
+directly should be a package you name. See [Dependencies](../reference/dependencies.md).
+
+**Open question — streaming Markdown.** Re-rendering a `Markdown` object on every
+token is expensive and visibly flickers. The options are: throttle `Live` updates to
+roughly 10 fps, stream plain text and render the final Markdown once at the end, or
+buffer by sentence. This needs trying against a real provider before it is decided.
+
 **Known friction:** the CLI needs the API running, so a first run is two terminals.
 The accepted mitigation is a `dev` command that starts the API and the UI together;
 until it exists, [Setup](../development/setup.md) documents the two-terminal flow
@@ -119,6 +168,9 @@ does **not** hold message history — the server owns that. See
    filesystem.
 3. Is there a maximum upload size, and where is it enforced?
 4. Should the API expose the raw retrieved chunks for debugging?
+5. Is a plain or `--json` output mode needed for scripting and pipes? Rich output is
+   actively hostile to `| grep`, so this should be answered before people start
+   scripting against the CLI.
 
 ## Related
 
