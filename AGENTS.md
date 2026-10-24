@@ -60,8 +60,9 @@ These are exactly what CI runs, so a green local run means a green pull request.
 
 ## Current state
 
-M2 is partly landed: text and Markdown ingest end to end — load, chunk, embed, index —
-with idempotent re-ingest keyed on the file's content hash. PDF, DOCX, PPTX and images
-are designed but not built. Retrieval and the agent do not exist yet. The authoritative
-accounting is in [docs/overview.md](docs/overview.md#current-state) and
+M2 is partly landed: text, Markdown and PDF text ingest end to end — load, chunk,
+embed, index — with idempotent re-ingest keyed on content hash and replacement of a
+changed file's chunks. DOCX, PPTX and images are designed but not built. Retrieval and
+the agent do not exist yet. The authoritative accounting is in
+[docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

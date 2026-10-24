@@ -65,3 +65,9 @@ disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 plugins = ["pydantic.mypy"]
+
+# pypdfium2 ships no py.typed marker, so its API arrives as Any. Confined to one
+# thin adapter that is tested against real PDFs, which is the mitigation.
+[[tool.mypy.overrides]]
+module = ["pypdfium2", "pypdfium2.*"]
+ignore_missing_imports = true

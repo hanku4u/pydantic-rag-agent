@@ -35,7 +35,7 @@ stay the canonical list.
 | --- | --- | --- |
 | M0 Foundation | FND-1, FND-3, FND-4, FND-5, FND-6 | FND-2 |
 | M1 Domain and storage | DOM-1, STO-1, STO-2, STO-3, EMB-1 | — |
-| M2 Ingestion | ING-1, ING-2, ING-3, ING-4, ING-8 | — |
+| M2 Ingestion | ING-1, ING-2, ING-3, ING-4, ING-5, ING-8 | — |
 | M3 Retrieval | — | — |
 | M4 Agent | — | — |
 | M5 Interfaces | — | — |

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from factories import build_embedding_service
+from fixtures.pdf_builder import build_text_pdf
 
 from pydantic_rag_agent.adapters.loaders import default_loaders
 from pydantic_rag_agent.adapters.loaders.text import TextLoader
@@ -52,6 +53,22 @@ async def ingest_single(
     path: Path, *, store: VectorStore, service: EmbeddingService
 ) -> IngestReport:
     return await ingest_paths([path], store=store, embeddings=service, loaders=default_loaders())
+
+
+async def ingest_paths_with_a_pdf_should_index_one_chunk_per_page(tmp_path: Path) -> None:
+    # given: a two-page PDF
+    path = tmp_path / "handbook.pdf"
+    path.write_bytes(build_text_pdf(["Page one content.", "Page two content."]))
+    store, (service, _) = build_store(), build_service()
+
+    # when: it is ingested
+    report = await ingest_single(path, store=store, service=service)
+
+    # then: each page becomes a chunk, and page numbers survive into the index
+    assert report.indexed == 1
+    assert report.chunks == 2
+    hits = await store.search(await service.embed_query("page"))
+    assert sorted(hit.chunk.page or 0 for hit in hits) == [1, 2]
 
 
 async def ingest_paths_with_a_markdown_file_should_index_chunks(tmp_path: Path) -> None:

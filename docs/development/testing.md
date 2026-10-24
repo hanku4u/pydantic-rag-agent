@@ -46,9 +46,12 @@ better than threading a factory fixture through every test.
 
 Fixtures live in the nearest `conftest.py` that makes sense. Text-format tests write
 their inputs to `tmp_path`, which is cheaper than committing fixtures and equally real.
-Binary formats (PDF, DOCX, PPTX) will use small committed samples in
-`fixtures/documents/`, each the smallest file that reproduces that format's
-awkwardness — an image in a slide, a table in a docx.
+
+PDF fixtures are **generated** by `tests/fixtures/pdf_builder.py` — a dependency-free
+minimal-PDF writer. A two-page document written inline is reviewable; an opaque binary
+blob is not. DOCX and PPTX will use committed samples, because writing those formats by
+hand would be a project in itself; each sample should be the smallest file that
+reproduces that format's awkwardness, such as an image in a slide or a table in a docx.
 
 ## Naming
 

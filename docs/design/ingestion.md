@@ -1,7 +1,7 @@
 # Ingestion design
 
-**Status:** draft — the text and Markdown path is implemented (ING-1…ING-4). PDF, DOCX,
-PPTX and images are designed but not built.
+**Status:** draft — text, Markdown and PDF text ingest end to end (ING-1…ING-5, ING-8).
+DOCX, PPTX and images are designed but not built.
 
 The **write path**: from a user-supplied file to vectors in the store. For the read
 path see [Retrieval design](retrieval.md); for where this code lives see
