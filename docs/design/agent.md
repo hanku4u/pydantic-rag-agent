@@ -116,6 +116,25 @@ none cited, because silent citation neglect is how a "cite everything" instructi
 stops being true. Neither check fires when nothing was retrieved, or every honest refusal
 would produce noise.
 
+### Retrieved content is untrusted
+
+A document can contain anything, including text addressed to the model. Three things keep
+that from becoming an instruction channel:
+
+1. **Instructions** say passages are data, and that a passage addressing the model should be
+   described, not obeyed.
+2. **Structural fencing.** Tool output opens with a preamble stating the passages are quoted
+   data, and each passage is wrapped in a backtick fence longer than any run inside it — so
+   a document cannot close the fence and have the rest of itself read as prose.
+3. **Retrieved text never reaches a system prompt.** `SystemPromptPart` carries operator
+   authority; building one from a document would hand an attacker the instruction channel.
+
+Verified against a live poisoned document: the agent answered the real question, cited it,
+and reported the injection attempt instead of following it. That check needs a model and
+cannot gate CI; the offline tests cover the fencing. The classifier-based
+`PromptInjectionDefender` in `pydantic-ai-harness` is the upgrade path — see
+[ADR 0008](../decisions/0008-prompt-injection-defence.md).
+
 Logging records tool calls, token counts, and latency per run. It never logs document
 contents or credentials.
 

@@ -68,6 +68,7 @@ Accurate as of the planning commit:
 | Ingestion: images — stored, captioned, searchable (DOCX, PPTX, PDF) | Done — IMG-1…IMG-4 |
 | Retrieval: query embedding, ranking, score floor, explicit empty results | Done — RET-1…RET-4 |
 | Evaluation: recall@5, MRR, floor calibration | Done — EVAL-1 |
+| Security: prompt-injection defence (instructions, fencing, no system-prompt injection) | Done — SEC-1 |
 | Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7 |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `--json` | Done — CLI-1…CLI-3 |

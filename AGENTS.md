@@ -67,9 +67,8 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Current state
 
-M5 is complete: the composition root builds the object graph once; the HTTP API serves
-documents, conversations, answered turns and SSE streaming; the CLI wraps all of it; and a
-Streamlit UI offers the same chat and ingestion in a browser. `dev` starts the API and the
-UI together. Next is M6 hardening, starting with SEC-1. The authoritative accounting is in
-[docs/overview.md](docs/overview.md#current-state) and
+M6 hardening has started with SEC-1: retrieved text is framed as quoted data in the tool
+output, fenced so a hostile document cannot close the quotation, and never promoted to a
+system prompt. Verified against a live poisoned document. OPS-1, OPS-2 and TST-1 remain. The
+authoritative accounting is in [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).
