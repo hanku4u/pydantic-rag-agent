@@ -22,14 +22,17 @@ NON_FILE_PREFIXES = ("http://", "https://", "#", "mailto:")
 
 
 def markdown_files(root: Path) -> list[Path]:
-    """Every Markdown page, excluding tool and VCS directories.
+    """Documentation pages only.
 
     Dot-directories are skipped wholesale — ``.venv``, ``.git``, and the assorted
-    ``.*_cache`` folders all ship Markdown that is not ours to validate.
+    ``.*_cache`` folders all ship Markdown that is not ours to validate. ``eval`` is
+    skipped because a retrieval corpus is data, not documentation, and is not meant
+    to be linked from the hub.
     """
     pages = []
     for page in root.rglob("*.md"):
-        if any(part.startswith(".") for part in page.relative_to(root).parts[:-1]):
+        parts = page.relative_to(root).parts[:-1]
+        if any(part.startswith(".") for part in parts) or (parts and parts[0] == "eval"):
             continue
         pages.append(page)
     return sorted(pages)

@@ -67,6 +67,7 @@ Accurate as of the planning commit:
 | Ingestion: PPTX — slides, notes, tables, pictures | Done — ING-7 |
 | Ingestion: images — stored, captioned, searchable (DOCX, PPTX, PDF) | Done — IMG-1…IMG-4 |
 | Retrieval: query embedding, ranking, score floor, explicit empty results | Done — RET-1…RET-4 |
+| Evaluation: recall@5, MRR, floor calibration | Done — EVAL-1 |
 | Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7 |
 | API, CLI, Streamlit | Not started — M5 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |

@@ -31,6 +31,7 @@ rather than inventing one and writing it down as fact.
 | Set up a working environment | [Development setup](development/setup.md) |
 | Contribute code that fits the house style | [Conventions](development/conventions.md) |
 | Write or run tests | [Testing](development/testing.md) |
+| Measure retrieval quality | [Evaluation](development/evaluation.md) |
 | Understand ingestion | [Ingestion design](design/ingestion.md) |
 | Understand retrieval | [Retrieval design](design/retrieval.md) |
 | Understand the agent | [Agent design](design/agent.md) |
@@ -60,6 +61,7 @@ rather than inventing one and writing it down as fact.
 - [Setup](development/setup.md) — uv workflow, running the pieces, troubleshooting.
 - [Conventions](development/conventions.md) — naming, style, commits, documentation rules.
 - [Testing](development/testing.md) — offline tests, fakes, protocol conformance.
+- [Evaluation](development/evaluation.md) — measuring retrieval quality (EVAL-1).
 
 ### Reference
 

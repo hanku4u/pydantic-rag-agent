@@ -1,0 +1,108 @@
+# Evaluation
+
+**Status:** stable — the harness and its baseline are in use.
+
+How retrieval quality is measured, so that settings are chosen from numbers rather than
+from taste. This is **EVAL-1**.
+
+## Why bother
+
+Three settings decide whether an answer is possible: the embedding model, `top_k`, and
+`min_score`. Two of those were guesses. A guess is not visible in review, does not fail a
+test, and cannot tell you whether last week's change helped. A small fixed benchmark can.
+
+It is deliberately **not** in CI: it needs a paid API and a live model, so it is a
+measurement you run, not an assertion that gates a merge.
+
+## The dataset
+
+| Path | What it is |
+| --- | --- |
+| `eval/corpus/` | Three short Markdown documents — an operations handbook, a security policy, a support FAQ |
+| `eval/questions.json` | Eight answerable questions and three the corpus cannot answer |
+
+Each answerable case lists **phrases** that a relevant chunk must contain:
+
+```json
+{ "question": "When do the nightly backups run?", "expect_any": ["02:00"] }
+```
+
+Phrases rather than chunk ids on purpose: ids are content hashes, so they change whenever
+a document is edited, and a benchmark that breaks on re-ingest is a benchmark nobody runs.
+
+The **unanswerable** cases are not filler. They are what makes a score floor calibratable:
+a floor is only meaningful if it sits above the scores that irrelevant questions attract.
+
+## Running it
+
+```bash
+uv run python scripts/evaluate_retrieval.py
+```
+
+It ingests `eval/corpus` into a throwaway index, asks every question, prints a per-case
+table and a summary, and exits non-zero if `--min-recall` is not met.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--corpus` | `eval/corpus` | Directory to ingest |
+| `--questions` | `eval/questions.json` | Dataset file |
+| `--top-k` | `PRAGENT_TOP_K` | Override the result count |
+| `--index` | temporary | Reuse an index directory instead of a fresh one |
+| `--min-recall` | `0.0` | Exit non-zero below this recall |
+
+## Reading the output
+
+| Number | Meaning |
+| --- | --- |
+| `recall@k` | Fraction of answerable questions whose evidence appeared in the top *k* |
+| `MRR` | Mean reciprocal rank of the first relevant chunk; a miss counts as zero |
+| recommended floor | A `min_score` that separates answerable from unanswerable questions |
+
+If the worst answerable question scores **at or below** the best unanswerable one, the
+harness refuses to suggest a floor. That is not a limitation — a number between two
+overlapping populations would hide a retrieval problem behind a threshold.
+
+## Baseline — 2026-10-24
+
+Corpus: 3 documents, 9 chunks. Embeddings: `qwen/qwen3-embedding-8b` at 1024 dimensions.
+`top_k = 5`, no floor during measurement.
+
+```text
+recall@5: 1.00    MRR: 1.000
+suggested min_score: 0.615
+  (above the best unanswerable 0.461, below the worst answerable 0.770)
+```
+
+Every answerable question found its evidence at **rank 1**. The unanswerable questions
+topped out at 0.211, 0.366 and 0.461.
+
+**What this changed:** the working value of `min_score = 0.2` was too low. It would have
+passed "How much does the company spend on cloud hosting?" at 0.461, handing the agent
+five irrelevant passages and inviting an invented answer. `0.6` is the measured
+suggestion; see [Configuration](../reference/configuration.md).
+
+## Limits
+
+- **Eleven cases, three documents.** Enough to set a floor and catch obvious regressions;
+  not enough to distinguish two good embedding models. Widen the corpus before trusting
+  small differences.
+- **The floor is corpus- and model-specific.** Re-measure when either changes; the number
+  is not a constant.
+- **Phrase matching is crude.** A relevant chunk that paraphrases the expected phrase
+  without containing it counts as a miss. Prefer distinctive facts — numbers, names,
+  identifiers — over sentence-shaped expectations.
+- **It measures retrieval, not answers.** A good rank does not guarantee a good answer;
+  the agent's citation audit covers a different failure.
+
+## Changing the dataset
+
+1. Add documents to `eval/corpus/`, keeping facts distinctive and greppable.
+2. Add answerable cases with a phrase that appears verbatim in the expected chunk.
+3. Keep at least two unanswerable cases, or the floor recommendation disappears.
+4. Re-run and record the new baseline here, with the date.
+
+## Related
+
+- [Retrieval design](../design/retrieval.md) — what is being measured.
+- [Testing](testing.md) — unit tests, which are a different tool for a different job.
+- [Configuration](../reference/configuration.md) — `top_k` and `min_score`.

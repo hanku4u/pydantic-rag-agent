@@ -54,9 +54,12 @@ uv run ruff check .            # lint
 uv run ruff format --check .   # formatting
 uv run mypy src                # types
 uv run python scripts/check_docs_links.py   # docs link graph
+uv run python scripts/evaluate_retrieval.py   # retrieval eval (needs API key, costs money)
 ```
 
-These are exactly what CI runs, so a green local run means a green pull request.
+The first six are exactly what CI runs, so a green local run means a green pull request.
+The evaluation script is a **measurement, not a gate**: it needs a paid API, so CI does
+not run it. See [docs/development/evaluation.md](docs/development/evaluation.md).
 
 ## Current state
 

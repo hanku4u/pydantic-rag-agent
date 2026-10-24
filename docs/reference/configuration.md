@@ -36,7 +36,7 @@ because `pydantic-ai` reads them itself.
 | `PRAGENT_CHUNK_SIZE` | no | `800` | Target chunk size in tokens |
 | `PRAGENT_CHUNK_OVERLAP` | no | `100` | Token overlap between split chunks |
 | `PRAGENT_TOP_K` | no | `5` | Chunks returned per retrieval |
-| `PRAGENT_MIN_SCORE` | no | — (no floor) | Minimum similarity for a chunk to be returned. A useful value is per-embedding-model, so it is left unset until measured |
+| `PRAGENT_MIN_SCORE` | no | — (no floor) | Minimum similarity for a chunk to be returned. **0.6 is the measured suggestion** for the `eval/` corpus — see [Evaluation](../development/evaluation.md); re-measure if the corpus or embedding model changes |
 | `PRAGENT_MAX_TOOL_CALLS` | no | `8` | Request limit per turn; bounds the agent loop |
 | `PRAGENT_LOG_LEVEL` | no | `INFO` | Log verbosity |
 | `PRAGENT_API_URL` | no | `http://127.0.0.1:8000` | Base URL used by the CLI and Streamlit client |

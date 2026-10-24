@@ -130,8 +130,9 @@ renamed or dropped method at definition time rather than at a call site.
    slow and filesystem-bound.
 3. How is vision captioning faked — a fixed caption per hash, or a small recorded
    fixture set?
-4. Does EVAL-1 (retrieval quality) live in `tests/`, or as a separate harness with its
-   own report? It is a measurement, not an assertion.
+4. ~~Does EVAL-1 live in `tests/`, or as a separate harness?~~ Resolved: a separate
+   harness, `scripts/evaluate_retrieval.py`, deliberately outside CI because it needs a
+   paid API. See [Evaluation](evaluation.md).
 
 ## Related
 

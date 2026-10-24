@@ -39,7 +39,7 @@ stay the canonical list.
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | — | — |
-| M6 Hardening | — | — |
+| M6 Hardening | EVAL-1 | — |
 
 FND-2 is partially landed: `config.Settings` and its validation tests exist; loading it at
 startup arrives with the API (API-1). M0 is otherwise closed.

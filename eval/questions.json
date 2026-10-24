@@ -1,0 +1,16 @@
+{
+  "name": "operations-and-policy-v1",
+  "cases": [
+    { "question": "When do the nightly backups run?", "expect_any": ["02:00"] },
+    { "question": "How long are backups retained for?", "expect_any": ["thirty days"] },
+    { "question": "How often is backup media rotated?", "expect_any": ["rotated quarterly"] },
+    { "question": "At what error rate is the on-call engineer paged?", "expect_any": ["5%"] },
+    { "question": "How often must passwords be rotated?", "expect_any": ["90 days"] },
+    { "question": "How often are access reviews performed?", "expect_any": ["access review"] },
+    { "question": "What hours is support staffed?", "expect_any": ["09:00"] },
+    { "question": "When is a ticket escalated to tier 2?", "expect_any": ["two hours"] },
+    { "question": "What is the capital of France?" },
+    { "question": "How much does the company spend on cloud hosting?" },
+    { "question": "Who is the chief executive officer?" }
+  ]
+}
