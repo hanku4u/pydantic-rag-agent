@@ -75,8 +75,9 @@ a bad answer is a tool-call loop. That is why the loop has a hard cap (see
 
 [EVAL-1](../development/evaluation.md) scores this pipeline at **recall@5 = 1.00** and
 **MRR = 1.000** on the committed corpus, with every answerable question finding its
-evidence at rank 1. It also settles the floor: the best unanswerable question scored
-0.461 and the worst answerable one 0.770, so **0.615** separates the two populations.
+evidence at rank 1 — including one whose answer exists only inside a document image. It
+also settles the floor: the best unanswerable question scored 0.446 and the worst
+answerable one 0.733, so **0.59** separates the two populations.
 
 That retires the working value of `0.2`, which would have passed irrelevant passages
 straight to the agent. The floor remains configuration rather than a constant, because it
@@ -97,7 +98,7 @@ Each belongs in [Roadmap](../roadmap.md) with a trigger condition, not in the co
 ## Open questions
 
 1. Which similarity metric, and does Chroma's default (cosine) suffice?
-2. ~~Fixed floor or per-model floor?~~ Measured at 0.615 for this corpus and embedding
+2. ~~Fixed floor or per-model floor?~~ Measured at 0.59 for this corpus and embedding
    model, and per-model by nature — re-measure if either changes. See
    [Evaluation](../development/evaluation.md).
 3. Should `top_k` be the agent's choice (a tool parameter) or fixed by config? Letting

@@ -9,6 +9,7 @@
     { "question": "How often are access reviews performed?", "expect_any": ["access review"] },
     { "question": "What hours is support staffed?", "expect_any": ["09:00"] },
     { "question": "When is a ticket escalated to tier 2?", "expect_any": ["two hours"] },
+    { "question": "Which rack is server SRV-042 in?", "expect_any": ["rack b7"] },
     { "question": "What is the capital of France?" },
     { "question": "How much does the company spend on cloud hosting?" },
     { "question": "Who is the chief executive officer?" }

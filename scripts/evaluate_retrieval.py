@@ -19,13 +19,17 @@ import sys
 import tempfile
 from pathlib import Path
 
-from pydantic_ai import Embedder
+from pydantic_ai import Agent, Embedder
 from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
+from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 from rich.console import Console
 from rich.table import Table
 
+from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
 from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
+from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
 from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.application.evaluation import EvalDataset, EvalReport, evaluate
@@ -70,7 +74,22 @@ async def run(args: argparse.Namespace) -> int:
     top_k = args.top_k or settings.top_k
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        index_path = Path(args.index) if args.index else Path(temp_dir) / "chroma"
+        work = Path(args.index).parent if args.index else Path(temp_dir)
+        index_path = Path(args.index) if args.index else work / "chroma"
+
+        # Images are part of the corpus now, so the evaluation must exercise the
+        # caption path too — otherwise a caption model that stopped transcribing text
+        # would leave every score unchanged.
+        captioner = PydanticAICaptioner(
+            Agent(
+                OpenRouterModel(
+                    settings.effective_caption_model.removeprefix("openrouter:"),
+                    provider=OpenRouterProvider(api_key=key),
+                )
+            ),
+            cache_dir=work / "images" / "captions",
+        )
+
         store = ChromaVectorStore(
             index_path,
             embedding_model=settings.embedding_model,
@@ -84,9 +103,13 @@ async def run(args: argparse.Namespace) -> int:
             loaders=default_loaders(),
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
+            image_store=FileImageStore(work / "images"),
+            captioner=captioner,
         )
+        captioned = sum(result.images for result in ingest.results)
         console.print(
-            f"indexed {ingest.chunks} chunks from {ingest.indexed} document(s) into {index_path}"
+            f"indexed {ingest.chunks} chunks from {ingest.indexed} document(s), "
+            f"{captioned} image(s) captioned, into {index_path}"
         )
 
         # No floor here on purpose: the evaluation exists to measure the scores a
