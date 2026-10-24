@@ -150,6 +150,20 @@ async def delete_by_document_with_unknown_id_should_return_zero(store: VectorSto
     assert await store.count() == 2
 
 
+async def has_document_with_indexed_document_should_be_true(store: VectorStore) -> None:
+    # given: a document in the index
+    await store.add(two_chunks())
+
+    # when / then: it is recognised, which is what makes re-ingestion cheap
+    assert await store.has_document("doc-1") is True
+
+
+async def has_document_with_unknown_document_should_be_false(store: VectorStore) -> None:
+    # given: an empty index
+    # when / then: nothing is claimed to exist
+    assert await store.has_document("doc-1") is False
+
+
 async def stats_should_report_embedding_identity(store: VectorStore) -> None:
     # given: a populated index
     await store.add(two_chunks())

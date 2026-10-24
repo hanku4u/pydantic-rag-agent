@@ -75,6 +75,25 @@ def citation_label_without_heading_or_locator_should_be_the_title() -> None:
     assert chunk.citation.label == "notes.txt"
 
 
+def citation_label_with_the_title_as_top_heading_should_not_repeat_it() -> None:
+    # given: a Markdown document whose H1 supplies both the title and the first heading
+    chunk = build_chunk(title="Handbook", heading_path=("Handbook", "Backups"), page=7)
+
+    # when: the citation is rendered
+    label = chunk.citation.label
+
+    # then: the title appears once, not twice
+    assert label == "Handbook — Backups — p. 7"
+
+
+def embedding_text_with_the_title_as_top_heading_should_not_repeat_it() -> None:
+    # given: the same overlap between title and heading path
+    chunk = build_chunk(title="Handbook", heading_path=("Handbook", "Backups"))
+
+    # when / then: the prefix is "Handbook > Backups", not "Handbook > Handbook > Backups"
+    assert chunk.embedding_text.startswith("Handbook > Backups\n\n")
+
+
 def chunk_json_round_trip_should_preserve_every_field() -> None:
     # given: a fully populated chunk
     original = build_chunk(

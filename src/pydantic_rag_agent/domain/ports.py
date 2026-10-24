@@ -7,9 +7,25 @@ inwards: the application declares what it needs, and infrastructure conforms.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from pydantic_rag_agent.domain.extraction import ExtractedDocument
 from pydantic_rag_agent.domain.models import EmbeddedChunk, RetrievedChunk, StoreStats
+
+
+@runtime_checkable
+class DocumentLoader(Protocol):
+    """Turns one file format into an ``ExtractedDocument``.
+
+    Adding a format means adding a loader, never touching the pipeline. The
+    document identity is passed in because it is derived from the file bytes,
+    which the pipeline reads before deciding whether the work is already done.
+    """
+
+    suffixes: frozenset[str]
+
+    def load(self, path: Path, *, document_id: str) -> ExtractedDocument: ...
 
 
 @runtime_checkable
@@ -41,6 +57,8 @@ class VectorStore(Protocol):
     ) -> list[RetrievedChunk]: ...
 
     async def delete_by_document(self, document_id: str) -> int: ...
+
+    async def has_document(self, document_id: str) -> bool: ...
 
     async def count(self) -> int: ...
 

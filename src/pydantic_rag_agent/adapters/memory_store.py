@@ -90,6 +90,9 @@ class InMemoryVectorStore:
             del self._records[chunk_id]
         return len(doomed)
 
+    async def has_document(self, document_id: str) -> bool:
+        return any(record.chunk.document_id == document_id for record in self._records.values())
+
     async def count(self) -> int:
         return len(self._records)
 

@@ -1,7 +1,7 @@
 # Ingestion design
 
-**Status:** draft — the pipeline shape, formats, and image strategy are decided.
-Chunking parameters and deduplication policy are still open.
+**Status:** draft — the text and Markdown path is implemented (ING-1…ING-4). PDF, DOCX,
+PPTX and images are designed but not built.
 
 The **write path**: from a user-supplied file to vectors in the store. For the read
 path see [Retrieval design](retrieval.md); for where this code lives see
@@ -93,6 +93,11 @@ document whose extraction yields no text should be reported as such, loudly.
 
 Starting defaults, to be tuned against real documents rather than guessed at:
 `chunk_size = 800` tokens, `chunk_overlap = 100`.
+
+**Overlap applies only where text must be cut mid-sentence.** Paragraphs are packed
+greedily into chunks at their natural boundaries, and only a paragraph that exceeds the
+budget on its own is windowed with overlap. Overlapping at a paragraph boundary adds
+duplicate context for no benefit, and inflates the index.
 
 Chunk identity is `sha256(document_id + section_path + ordinal)`, so re-ingesting an
 unchanged document is a no-op rather than a duplicate.

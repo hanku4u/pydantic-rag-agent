@@ -55,12 +55,17 @@ src/pydantic_rag_agent/
 ├── application/
 │   ├── embedding.py      # EmbeddingService + width adaptation
 │   ├── index_guard.py    # refuse a mismatched index
-│   ├── ingestion.py      # load → chunk → embed → index    (not built yet)
+│   ├── chunking.py       # structure-aware splitting
+│   ├── ingestion.py      # load → chunk → embed → index
 │   └── conversations.py  # history ownership               (not built yet)
 ├── adapters/
 │   ├── chroma_store.py   # VectorStore implementation
 │   ├── memory_store.py   # test double / small corpora
-│   ├── loaders/          # pdf, docx, pptx, text           (not built yet)
+│   ├── loaders/
+│   │   ├── text.py       # .txt and .md
+│   │   ├── pdf.py        # (not built yet)
+│   │   ├── docx.py       # (not built yet)
+│   │   └── pptx.py       # (not built yet)
 │   └── agent.py          # Agent, AgentDeps, tools         (not built yet)
 ├── api/                  # FastAPI app and DI              (not built yet)
 └── ui/                   # Streamlit                       (not built yet)

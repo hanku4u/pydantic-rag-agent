@@ -1,14 +1,16 @@
-"""Builders for domain objects used in tests.
+"""Builders and doubles shared across the test suite.
 
-Plain helpers rather than fixtures: they are pure, need no teardown, and being
-able to call ``build_chunk(document_id="d2")`` inline reads better than threading
-a factory fixture through every test.
+Plain helpers rather than fixtures: they are pure, need no teardown, and being able
+to call ``build_chunk(document_id="d2")`` inline reads better than threading a
+factory fixture through every test.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from types import SimpleNamespace
 
+from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.domain.models import Chunk, EmbeddedChunk
 
 
@@ -43,3 +45,50 @@ def build_chunk(
 
 def build_embedded(chunk: Chunk, embedding: Sequence[float]) -> EmbeddedChunk:
     return EmbeddedChunk(chunk=chunk, embedding=tuple(embedding))
+
+
+class FakeEmbedder:
+    """Deterministic stand-in for ``pydantic_ai.Embedder``.
+
+    Returns one-hot vectors, so results are predictable and non-degenerate, and
+    records the settings it was handed so width hints can be asserted. It also
+    counts calls, which is how "no pointless API call was made" is tested.
+    """
+
+    def __init__(self, native_dimensions: int = 8) -> None:
+        self.native_dimensions = native_dimensions
+        self.calls = 0
+        self.settings_seen: list[object] = []
+
+    def _vector(self, index: int) -> list[float]:
+        vector = [0.0] * self.native_dimensions
+        vector[index % self.native_dimensions] = 1.0
+        return vector
+
+    async def embed_documents(
+        self,
+        documents: Sequence[str],
+        *,
+        settings: object = None,
+    ) -> SimpleNamespace:
+        self.calls += 1
+        self.settings_seen.append(settings)
+        return SimpleNamespace(embeddings=[self._vector(i) for i in range(len(documents))])
+
+    async def embed_query(self, query: str, *, settings: object = None) -> SimpleNamespace:
+        self.calls += 1
+        self.settings_seen.append(settings)
+        return SimpleNamespace(embeddings=[self._vector(0)])
+
+
+def build_embedding_service(
+    *,
+    dimensions: int = 8,
+    native_dimensions: int | None = None,
+) -> tuple[EmbeddingService, FakeEmbedder]:
+    """A real ``EmbeddingService`` over a fake provider.
+
+    Tests exercise the real width adaptation; only the network is faked.
+    """
+    embedder = FakeEmbedder(native_dimensions=native_dimensions or dimensions)
+    return EmbeddingService(embedder, dimensions=dimensions), embedder  # type: ignore[arg-type]

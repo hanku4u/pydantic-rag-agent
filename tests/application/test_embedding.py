@@ -6,36 +6,14 @@ otherwise fail silently: the width actually handed to the index.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
+from factories import FakeEmbedder, build_embedding_service
 
 from pydantic_rag_agent.application.embedding import (
     EmbeddingDimensionError,
     EmbeddingService,
     fit_dimensions,
 )
-
-
-class FakeEmbedder:
-    """Stands in for ``pydantic_ai.Embedder``, recording what it was asked for."""
-
-    def __init__(self, vectors: list[list[float]]) -> None:
-        self._vectors = vectors
-        self.calls = 0
-        self.settings_seen: list[object] = []
-
-    async def embed_documents(
-        self, documents: list[str], *, settings: object = None
-    ) -> SimpleNamespace:
-        self.calls += 1
-        self.settings_seen.append(settings)
-        return SimpleNamespace(embeddings=self._vectors[: len(documents)])
-
-    async def embed_query(self, query: str, *, settings: object = None) -> SimpleNamespace:
-        self.calls += 1
-        self.settings_seen.append(settings)
-        return SimpleNamespace(embeddings=self._vectors[:1])
 
 
 def fit_dimensions_with_wider_vector_should_truncate_and_normalise() -> None:
@@ -85,8 +63,7 @@ def fit_dimensions_with_non_positive_width_should_raise() -> None:
 
 async def embed_documents_with_wider_provider_output_should_return_configured_width() -> None:
     # given: a provider that ignores the width hint and returns 4096 components
-    embedder = FakeEmbedder([[1.0] * 4096])
-    service = EmbeddingService(embedder, dimensions=1024)  # type: ignore[arg-type]
+    service, _ = build_embedding_service(dimensions=1024, native_dimensions=4096)
 
     # when: documents are embedded
     vectors = await service.embed_documents(["hello"])
@@ -98,8 +75,7 @@ async def embed_documents_with_wider_provider_output_should_return_configured_wi
 
 async def embed_query_with_wider_provider_output_should_return_configured_width() -> None:
     # given: the same misbehaving provider
-    embedder = FakeEmbedder([[1.0] * 4096])
-    service = EmbeddingService(embedder, dimensions=1024)  # type: ignore[arg-type]
+    service, _ = build_embedding_service(dimensions=1024, native_dimensions=4096)
 
     # when / then: queries are adapted identically, or similarity is meaningless
     assert len(await service.embed_query("hello")) == 1024
@@ -107,8 +83,7 @@ async def embed_query_with_wider_provider_output_should_return_configured_width(
 
 async def embed_documents_with_empty_input_should_not_call_the_provider() -> None:
     # given: nothing to embed
-    embedder = FakeEmbedder([])
-    service = EmbeddingService(embedder, dimensions=4)  # type: ignore[arg-type]
+    service, embedder = build_embedding_service(dimensions=4)
 
     # when: an empty batch is embedded
     vectors = await service.embed_documents([])
@@ -120,8 +95,7 @@ async def embed_documents_with_empty_input_should_not_call_the_provider() -> Non
 
 async def embed_documents_should_request_configured_width_from_provider() -> None:
     # given: a service configured for 1024
-    embedder = FakeEmbedder([[1.0] * 1024])
-    service = EmbeddingService(embedder, dimensions=1024)  # type: ignore[arg-type]
+    service, embedder = build_embedding_service(dimensions=1024)
 
     # when: documents are embedded
     await service.embed_documents(["hello"])
@@ -134,4 +108,4 @@ async def embed_documents_should_request_configured_width_from_provider() -> Non
 def embedding_service_with_non_positive_width_should_raise() -> None:
     # given / when / then: a nonsensical index width is refused at construction
     with pytest.raises(ValueError, match="must be positive"):
-        EmbeddingService(FakeEmbedder([]), dimensions=0)  # type: ignore[arg-type]
+        EmbeddingService(FakeEmbedder(), dimensions=0)  # type: ignore[arg-type]

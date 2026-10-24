@@ -17,6 +17,19 @@ from pydantic import BaseModel, ConfigDict, Field
 ChunkKind = Literal["text", "image"]
 
 
+def context_parts(title: str, heading_path: tuple[str, ...]) -> tuple[str, ...]:
+    """Title plus section headings, without saying the title twice.
+
+    A loader derives the title from the document's top heading and also reports
+    that heading in the path, so the two overlap. Joining them naively produces
+    "Handbook > Handbook > Backups", which wastes embedding tokens on a duplicate
+    and reads badly in a citation.
+    """
+    if heading_path and heading_path[0] == title:
+        return (title, *heading_path[1:])
+    return (title, *heading_path)
+
+
 class Citation(BaseModel):
     """Where an answer's evidence came from.
 
@@ -35,7 +48,7 @@ class Citation(BaseModel):
     @property
     def label(self) -> str:
         """One-line reference suitable for display: title, section, position."""
-        parts = [self.title, *self.heading_path]
+        parts = list(context_parts(self.title, self.heading_path))
         if self.locator:
             parts.append(self.locator)
         return " — ".join(parts)
@@ -89,6 +102,18 @@ class Chunk(BaseModel):
         if self.slide is not None:
             return f"slide {self.slide}"
         return None
+
+    @property
+    def embedding_text(self) -> str:
+        """The text sent to the embedding model — not necessarily ``text``.
+
+        A chunk reading "it must be rotated quarterly" is unretrievable without
+        its document and section; the prefixed form is not. The prefix is kept out
+        of ``text`` so that what the model reads at answer time, and what a
+        citation displays, stays free of repeated boilerplate.
+        """
+        context = " > ".join(context_parts(self.title, self.heading_path))
+        return f"{context}\n\n{self.text}" if context else self.text
 
     @property
     def citation(self) -> Citation:

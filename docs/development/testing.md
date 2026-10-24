@@ -22,27 +22,33 @@ How tests are named, where they live, and what is worth testing.
 
 ```text
 tests/
-├── conftest.py              # ALLOW_MODEL_REQUESTS = False, shared fakes
+├── conftest.py                    # network guard, environment isolation
+├── factories.py                   # builders and the fake embedder
 ├── domain/
 │   └── test_models.py
 ├── application/
-│   ├── test_ingestion.py
-│   └── test_retrieval.py
+│   ├── test_chunking.py
+│   ├── test_embedding.py
+│   ├── test_index_guard.py
+│   └── test_ingestion.py
 ├── adapters/
 │   ├── loaders/
-│   │   └── test_pdf.py
-│   └── test_chroma_store.py
-├── api/
-│   └── test_routes.py       # FastAPI TestClient
+│   │   └── test_text_loader.py
+│   ├── test_chroma_store.py
+│   └── test_vector_store_contract.py
 └── fixtures/
-    └── documents/           # tiny sample files, committed
+    └── documents/                 # samples for binary formats (ING-5…ING-7)
 ```
 
-Fixtures live in the nearest `conftest.py` that makes sense. Loader tests read small
-committed sample files from `fixtures/documents/` — real files, not synthetic strings,
-because the whole point of a loader is handling real formats. Each sample should be
-the smallest file that reproduces the format's awkwardness (an image in a slide, a
-table in a docx).
+Shared builders live in `factories.py` rather than `conftest.py`: they are pure
+functions with no teardown, and calling `build_chunk(document_id="d2")` inline reads
+better than threading a factory fixture through every test.
+
+Fixtures live in the nearest `conftest.py` that makes sense. Text-format tests write
+their inputs to `tmp_path`, which is cheaper than committing fixtures and equally real.
+Binary formats (PDF, DOCX, PPTX) will use small committed samples in
+`fixtures/documents/`, each the smallest file that reproduces that format's
+awkwardness — an image in a slide, a table in a docx.
 
 ## Naming
 
