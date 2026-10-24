@@ -90,16 +90,19 @@ def ingest_same_file_twice_should_not_duplicate_chunks(store: InMemoryVectorStor
 
 ## The protocol conformance suite
 
-Because `pgvector` is a planned second `VectorStore`, its behaviour must be pinned by
-a shared test suite rather than by each adapter's own opinion of what `search` means.
-One parametrised suite, run against every implementation:
+`pgvector` is a planned second `VectorStore`, so behaviour is pinned by a shared suite
+rather than by each adapter's own opinion of what `search` means. One parametrised suite,
+run against every implementation, in `tests/adapters/test_vector_store_contract.py`:
 
 ```python
 @pytest.fixture(params=["memory", "chroma"])
 def store(request, tmp_path) -> VectorStore: ...
 ```
 
-The Chroma variant writes to `tmp_path`, so tests never touch a real index.
+The Chroma variant writes to `tmp_path`, so tests never touch a real index, and its
+telemetry is disabled in the adapter itself — a suite that promises to be offline should
+not phone home. The first test asserts `isinstance(store, VectorStore)`, which catches a
+renamed or dropped method at definition time rather than at a call site.
 
 ## What not to test
 

@@ -52,6 +52,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Shared builders live in tests/factories.py and are imported as `factories`.
+pythonpath = ["tests"]
 # Tests are named for the guarantee they make (..._should_...), as set out in
 # docs/development/testing.md, so discovery follows that convention rather than
 # forcing a redundant `test_` prefix onto every name.

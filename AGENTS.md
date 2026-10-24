@@ -60,9 +60,9 @@ These are exactly what CI runs, so a green local run means a green pull request.
 
 ## Current state
 
-M0 (foundation) has landed: the dependency stack is installed and locked,
-`config.Settings` exists with validation tests, the pytest harness disables model
-requests, and CI plus the docs link check are wired up. The package still contains a
-placeholder CLI. M1 (domain and storage) is next. The authoritative accounting is in
+M1 (domain and storage) has landed: Pydantic domain models, an async `VectorStore`
+protocol with in-memory and Chroma implementations, and an embedding service that forces
+the configured width. The package still contains a placeholder CLI and no ingestion or
+retrieval. M2 (ingestion) is next. The authoritative accounting is in
 [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

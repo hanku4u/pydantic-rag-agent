@@ -46,27 +46,24 @@ what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 ```text
 src/pydantic_rag_agent/
 ├── __init__.py           # docstring only
-├── cli.py                # typer app — HTTP client
+├── cli.py                # typer app — HTTP client          (not built yet)
 ├── config.py             # Settings (pydantic-settings)
 ├── domain/
 │   ├── models.py         # Document, Chunk, RetrievedChunk, Citation
-│   └── ports.py          # VectorStore protocol
+│   ├── ports.py          # VectorStore protocol
+│   └── errors.py         # IndexMismatchError
 ├── application/
-│   ├── ingestion.py      # load → chunk → embed → index
-│   ├── retrieval.py      # query → search → rank
-│   └── conversations.py  # history ownership
+│   ├── embedding.py      # EmbeddingService + width adaptation
+│   ├── index_guard.py    # refuse a mismatched index
+│   ├── ingestion.py      # load → chunk → embed → index    (not built yet)
+│   └── conversations.py  # history ownership               (not built yet)
 ├── adapters/
-│   ├── loaders/          # pdf.py, docx.py, pptx.py, text.py
-│   ├── chroma_store.py
-│   ├── memory_store.py
-│   ├── captioning.py
-│   └── agent.py          # Agent, AgentDeps, tools
-├── api/
-│   ├── app.py            # FastAPI app and DI
-│   ├── routes/           # documents, conversations, health
-│   └── schemas.py        # wire models, separate from domain
-└── ui/
-    └── streamlit_app.py  # HTTP client
+│   ├── chroma_store.py   # VectorStore implementation
+│   ├── memory_store.py   # test double / small corpora
+│   ├── loaders/          # pdf, docx, pptx, text           (not built yet)
+│   └── agent.py          # Agent, AgentDeps, tools         (not built yet)
+├── api/                  # FastAPI app and DI              (not built yet)
+└── ui/                   # Streamlit                       (not built yet)
 ```
 
 `api/schemas.py` is deliberately separate from `domain/models.py`. The wire contract

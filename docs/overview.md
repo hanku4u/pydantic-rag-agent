@@ -58,8 +58,9 @@ Accurate as of the planning commit:
 | Test harness and offline guard | Done — FND-3 |
 | Docs link check in CI | Done — FND-5 |
 | CI workflow (lint, types, tests, docs links) | Done — FND-4 |
-| Domain models | Not started — M1 |
-| Vector store and embeddings | Not started — M1 |
+| Domain models (`domain/`) | Done — DOM-1 |
+| Vector store protocol, in-memory and Chroma adapters | Done — STO-1…STO-3 |
+| Embeddings: width adaptation, MRL truncation, index guard | Done — EMB-1 |
 | Ingestion pipeline | Not started — M2 |
 | Retrieval | Not started — M3 |
 | Agent | Not started — M4 |
