@@ -57,6 +57,7 @@ src/pydantic_rag_agent/
 │   ├── index_guard.py    # refuse a mismatched index
 │   ├── chunking.py       # structure-aware splitting
 │   ├── ingestion.py      # load → chunk → embed → index
+│   ├── retrieval.py      # query → ranked, cited chunks
 │   └── conversations.py  # history ownership               (not built yet)
 ├── adapters/
 │   ├── chroma_store.py   # VectorStore implementation

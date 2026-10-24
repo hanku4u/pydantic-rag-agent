@@ -66,7 +66,7 @@ Accurate as of the planning commit:
 | Ingestion: DOCX — paragraphs, tables, embedded media found | Done — ING-6 |
 | Ingestion: PPTX — slides, notes, tables, pictures | Done — ING-7 |
 | Ingestion: images — stored, captioned, searchable (DOCX, PPTX, PDF) | Done — IMG-1…IMG-4 |
-| Retrieval | Not started — M3 |
+| Retrieval: query embedding, ranking, score floor, explicit empty results | Done — RET-1…RET-4 |
 | Agent | Not started — M4 |
 | API, CLI, Streamlit | Not started — M5 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |

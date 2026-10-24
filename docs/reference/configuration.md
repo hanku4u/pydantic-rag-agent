@@ -36,6 +36,7 @@ because `pydantic-ai` reads them itself.
 | `PRAGENT_CHUNK_SIZE` | no | `800` | Target chunk size in tokens |
 | `PRAGENT_CHUNK_OVERLAP` | no | `100` | Token overlap between split chunks |
 | `PRAGENT_TOP_K` | no | `5` | Chunks returned per retrieval |
+| `PRAGENT_MIN_SCORE` | no | — (no floor) | Minimum similarity for a chunk to be returned. A useful value is per-embedding-model, so it is left unset until measured |
 | `PRAGENT_MAX_TOOL_CALLS` | no | `8` | Request limit per turn; bounds the agent loop |
 | `PRAGENT_LOG_LEVEL` | no | `INFO` | Log verbosity |
 | `PRAGENT_API_URL` | no | `http://127.0.0.1:8000` | Base URL used by the CLI and Streamlit client |
@@ -74,6 +75,7 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=800, gt=0)
     chunk_overlap: int = Field(default=100, ge=0)
     top_k: int = Field(default=5, gt=0)
+    min_score: float | None = Field(default=None, ge=-1.0, le=1.0)
     max_tool_calls: int = Field(default=8, gt=0)
 ```
 

@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=800, gt=0)
     chunk_overlap: int = Field(default=100, ge=0)
     top_k: int = Field(default=5, gt=0)
+    # None means "no floor": every chunk in the top-k comes back. A useful value is
+    # per-embedding-model, which is why it is configuration rather than a constant
+    # baked into the service. See docs/design/retrieval.md.
+    min_score: float | None = Field(default=None, ge=-1.0, le=1.0)
     max_tool_calls: int = Field(default=8, gt=0)
 
     chroma_path: Path = Path("./data/chroma")

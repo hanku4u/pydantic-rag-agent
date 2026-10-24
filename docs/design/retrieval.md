@@ -1,7 +1,7 @@
 # Retrieval design
 
-**Status:** draft — the query path is decided; ranking refinements are deliberately
-deferred.
+**Status:** implemented — the query path is done (RET-1…RET-4). Ranking refinements are
+deliberately deferred.
 
 The **read path**: from a user's question to the chunks handed to the agent. For how
 those chunks got into the store, see [Ingestion design](ingestion.md).
@@ -38,10 +38,10 @@ baseline to measure against.
 - **A score floor is applied.** Below-threshold chunks are dropped rather than
   passed along as weak evidence. Passing everything to the model guarantees it will
   find a way to use something irrelevant.
-- **Zero results is a valid, explicit outcome.** The tool returns a plain
-  "no relevant documents found" result. The model must be told this explicitly,
-  because an empty context is exactly the condition under which a model
-  confabulates from the question alone.
+- **Zero results is a valid, explicit outcome.** `RetrievalService.search` returns a
+  `SearchResult` whose `is_empty` says so, rather than an empty list each caller
+  interprets differently. The model must be told this explicitly, because an empty
+  context is exactly the condition under which it confabulates from the question alone.
 - **Retrieval is exposed as a tool, not as pre-fetching.** The agent decides when to
   search and what to search for. See [Agent design](agent.md).
 
