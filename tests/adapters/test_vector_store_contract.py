@@ -164,6 +164,33 @@ async def has_document_with_unknown_document_should_be_false(store: VectorStore)
     assert await store.has_document("doc-1") is False
 
 
+async def list_documents_should_group_chunks_by_document(store: VectorStore) -> None:
+    # given: two documents, one of them with two chunks
+    await store.add(
+        [
+            *two_chunks(),
+            build_embedded(
+                build_chunk(
+                    chunk_id="c3", document_id="doc-2", source_path="other.md", title="Other"
+                ),
+                [0.0, 0.0, 1.0, 0.0],
+            ),
+        ]
+    )
+
+    # when: the documents are listed
+    documents = await store.list_documents()
+
+    # then: one row per document, with its chunk count and provenance
+    assert [(doc.document_id, doc.chunk_count) for doc in documents] == [("doc-2", 1), ("doc-1", 2)]
+    assert documents[1].title == "Test document"
+
+
+async def list_documents_on_an_empty_index_should_be_empty(store: VectorStore) -> None:
+    # given / when / then: listing nothing is a normal outcome
+    assert await store.list_documents() == []
+
+
 async def delete_by_source_path_should_remove_only_that_files_chunks(
     store: VectorStore,
 ) -> None:

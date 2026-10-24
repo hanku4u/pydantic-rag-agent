@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from pydantic_ai import Agent, BinaryContent, RunContext
 from pydantic_ai.capabilities import Capability
@@ -124,7 +125,7 @@ def build_knowledge_base() -> Capability[AgentDeps]:
     )
 
 
-def build_agent(model: Model[object] | str) -> Agent[AgentDeps, str]:
+def build_agent(model: Model[Any] | str) -> Agent[AgentDeps, str]:
     """Assemble the agent.
 
     ``model`` is a model instance or provider string; constructing providers with

@@ -48,6 +48,7 @@ src/pydantic_rag_agent/
 ├── __init__.py           # docstring only
 ├── cli.py                # typer app — HTTP client          (not built yet)
 ├── config.py             # Settings (pydantic-settings)
+├── runtime.py            # composition root: builds the object graph
 ├── domain/
 │   ├── models.py         # Document, Chunk, RetrievedChunk, Citation
 │   ├── ports.py          # VectorStore protocol
@@ -62,6 +63,7 @@ src/pydantic_rag_agent/
 ├── adapters/
 │   ├── chroma_store.py   # VectorStore implementation
 │   ├── memory_store.py   # test double / small corpora
+│   ├── conversations.py  # in-memory conversation history
 │   ├── image_store.py    # content-addressed image bytes
 │   ├── captioning.py     # vision-model captions, cached by hash
 │   ├── loaders/
@@ -70,7 +72,9 @@ src/pydantic_rag_agent/
 │   │   ├── docx.py       # .docx — paragraphs, tables, media
 │   │   └── pptx.py       # .pptx — slides, notes, tables, pictures
 │   └── agent.py          # knowledge-base capability + turn orchestration
-├── api/                  # FastAPI app and DI              (not built yet)
+├── api/                  # FastAPI app and DI (SSE streaming pending)
+│   ├── app.py            # factory, routes, error mapping
+│   └── schemas.py        # wire models, separate from domain
 └── ui/                   # Streamlit                       (not built yet)
 ```
 
@@ -93,20 +97,17 @@ reading time.
 
 ## Composition
 
-Nothing assembles the object graph yet, and that is deliberate rather than forgotten: if
-the API and the CLI each wire their own, the index guard will run in one and not the
-other on the day it matters.
-
-The intended shape:
+`runtime.py` is the composition root and the one module allowed to import every layer.
+It builds the store, embedder, captioner, image store, loaders, conversation store and
+agent, runs the index guard, and hands back a `Runtime`. The API takes one of those:
 
 ```python
-# store, embedder, captioner, image store, loaders
 def build_runtime(settings: Settings) -> Runtime: ...
-def build_agent(runtime: Runtime) -> Agent[AgentDeps, str]: ...
+def create_app(runtime: Runtime) -> FastAPI: ...
 ```
 
-`build_runtime` also calls `assert_index_compatible` and assembles the capability list
-from settings.
+The API and the CLI call the same builder, so they cannot grow two different object
+graphs — the failure that would let the index guard run in one and not the other.
 
 **Capabilities do not replace this.** They shape one agent's behaviour — tools,
 instructions, model settings, hooks — but cannot own a vector store or resolve

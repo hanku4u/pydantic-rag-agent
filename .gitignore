@@ -34,3 +34,6 @@ htmlcov/
 
 # NOTE: uv.lock is intentionally NOT ignored. It is the reproducible
 # dependency graph and belongs in version control.
+
+# Local index, extracted images, and uploaded copies (PRAGENT_*_DIR defaults)
+data/

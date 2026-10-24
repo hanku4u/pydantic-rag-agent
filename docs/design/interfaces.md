@@ -1,7 +1,7 @@
 # Interfaces
 
-**Status:** draft — the API-first topology and endpoint set are decided; auth, error
-envelopes, and streaming format details are open.
+**Status:** draft — the HTTP API is implemented (API-1…API-3, API-5); SSE streaming, the
+CLI, and Streamlit are not built yet.
 
 Three surfaces over one application core: an HTTP API, a CLI that calls it, and a
 Streamlit chat UI that calls it. For why the API exists rather than an in-process

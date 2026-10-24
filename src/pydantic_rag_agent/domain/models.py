@@ -164,3 +164,14 @@ class StoreStats(BaseModel):
     chunk_count: int = Field(ge=0)
     embedding_model: str | None = None
     embedding_dimensions: int | None = None
+
+
+class DocumentSummary(BaseModel):
+    """One indexed document, as listed to a user."""
+
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str = Field(min_length=1)
+    source_path: str
+    title: str
+    chunk_count: int = Field(ge=0)

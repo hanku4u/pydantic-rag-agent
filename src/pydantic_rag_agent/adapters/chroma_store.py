@@ -18,7 +18,13 @@ import chromadb
 from chromadb.api.collection_configuration import CreateCollectionConfiguration
 from chromadb.config import Settings as ChromaSettings
 
-from pydantic_rag_agent.domain.models import Chunk, EmbeddedChunk, RetrievedChunk, StoreStats
+from pydantic_rag_agent.domain.models import (
+    Chunk,
+    DocumentSummary,
+    EmbeddedChunk,
+    RetrievedChunk,
+    StoreStats,
+)
 
 DEFAULT_COLLECTION_NAME = "chunks"
 _HEADING_SEPARATOR = " > "
@@ -143,6 +149,11 @@ class ChromaVectorStore:
     async def has_document(self, document_id: str) -> bool:
         return await asyncio.to_thread(self._has_document_sync, document_id)
 
+    async def list_documents(self) -> list[DocumentSummary]:
+        # One metadata sweep rather than an index: fine at prototype scale, and the
+        # obvious thing to replace when listing becomes expensive.
+        return await asyncio.to_thread(self._list_documents_sync)
+
     async def delete_by_source_path(self, source_path: str) -> int:
         return await asyncio.to_thread(self._delete_by_source_path_sync, source_path)
 
@@ -224,6 +235,29 @@ class ChromaVectorStore:
     def _has_document_sync(self, document_id: str) -> bool:
         found = self._collection.get(where={"document_id": document_id}, limit=1)
         return bool(found["ids"])
+
+    def _list_documents_sync(self) -> list[DocumentSummary]:
+        result = self._collection.get(include=["metadatas"])
+        counts: dict[str, int] = {}
+        sample: dict[str, Mapping[str, Any]] = {}
+
+        for metadata in result["metadatas"] or []:
+            if metadata is None:
+                continue
+            document_id = str(metadata["document_id"])
+            counts[document_id] = counts.get(document_id, 0) + 1
+            sample.setdefault(document_id, metadata)
+
+        documents = [
+            DocumentSummary(
+                document_id=document_id,
+                source_path=str(sample[document_id]["source_path"]),
+                title=str(sample[document_id]["title"]),
+                chunk_count=count,
+            )
+            for document_id, count in counts.items()
+        ]
+        return sorted(documents, key=lambda document: document.source_path)
 
     def _delete_by_source_path_sync(self, source_path: str) -> int:
         result = self._collection.delete(where={"source_path": source_path})

@@ -64,6 +64,7 @@ class Settings(BaseSettings):
 
     chroma_path: Path = Path("./data/chroma")
     image_dir: Path = Path("./data/images")
+    upload_dir: Path = Path("./data/uploads")
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     api_url: str = "http://127.0.0.1:8000"

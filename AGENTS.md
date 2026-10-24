@@ -55,6 +55,7 @@ uv run ruff format --check .   # formatting
 uv run mypy src                # types
 uv run python scripts/check_docs_links.py   # docs link graph
 uv run python scripts/evaluate_retrieval.py   # retrieval eval (needs API key, costs money)
+uv run uvicorn pydantic_rag_agent.api.app:create_default_app --factory --port 8000   # the API
 ```
 
 The first six are exactly what CI runs, so a green local run means a green pull request.
@@ -63,10 +64,10 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Current state
 
-M4 (agent) is complete: a `knowledge_base` capability bundles `search_knowledge_base` and
-`view_image` with their instructions, and `ask()` returns the answer, its citations, and
-the history for the next turn under a request budget. Verified live — including an
-out-of-corpus question correctly answered with "I couldn't find that in your documents".
-Next is M5: the API, then the CLI and Streamlit. The authoritative accounting is in
+M5 is partially landed: the composition root (`runtime.py`) builds the whole object graph
+once and runs the index guard, and the HTTP API serves health, statistics, document
+upload/list/delete, conversations, and answered turns with citations. SSE streaming, the
+CLI, and Streamlit are next. Verified end to end against the live providers, including an
+uploaded DOCX whose image was captioned and then cited. The authoritative accounting is in
 [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

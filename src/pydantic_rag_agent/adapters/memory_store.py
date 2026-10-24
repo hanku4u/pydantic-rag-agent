@@ -11,7 +11,12 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
-from pydantic_rag_agent.domain.models import EmbeddedChunk, RetrievedChunk, StoreStats
+from pydantic_rag_agent.domain.models import (
+    DocumentSummary,
+    EmbeddedChunk,
+    RetrievedChunk,
+    StoreStats,
+)
 
 
 def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
@@ -92,6 +97,26 @@ class InMemoryVectorStore:
 
     async def has_document(self, document_id: str) -> bool:
         return any(record.chunk.document_id == document_id for record in self._records.values())
+
+    async def list_documents(self) -> list[DocumentSummary]:
+        counts: dict[str, int] = {}
+        sample: dict[str, EmbeddedChunk] = {}
+
+        for record in self._records.values():
+            document_id = record.chunk.document_id
+            counts[document_id] = counts.get(document_id, 0) + 1
+            sample.setdefault(document_id, record)
+
+        documents = [
+            DocumentSummary(
+                document_id=document_id,
+                source_path=sample[document_id].chunk.source_path,
+                title=sample[document_id].chunk.title,
+                chunk_count=count,
+            )
+            for document_id, count in counts.items()
+        ]
+        return sorted(documents, key=lambda document: document.source_path)
 
     async def delete_by_source_path(self, source_path: str) -> int:
         doomed = [

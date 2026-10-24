@@ -38,7 +38,7 @@ stay the canonical list.
 | M2 Ingestion | ING-1…ING-8, IMG-1, IMG-2, IMG-3, IMG-4 | — |
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
 | M4 Agent | AGT-1…AGT-7 | — |
-| M5 Interfaces | — | — |
+| M5 Interfaces | API-1, API-2, API-3, API-5 | API-4 |
 | M6 Hardening | EVAL-1 | — |
 
 FND-2 is partially landed: `config.Settings` and its validation tests exist; loading it at

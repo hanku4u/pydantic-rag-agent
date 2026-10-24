@@ -33,6 +33,7 @@ because `pydantic-ai` reads them itself.
 | `PRAGENT_EMBEDDING_DIMENSIONS` | no | `1024` | Requested output width. The model is natively 4096; 1024 comes from Matryoshka truncation |
 | `PRAGENT_CHROMA_PATH` | no | `./data/chroma` | Persistent Chroma directory |
 | `PRAGENT_IMAGE_DIR` | no | `./data/images` | Root for extracted image bytes and the caption cache |
+| `PRAGENT_UPLOAD_DIR` | no | `./data/uploads` | Where files uploaded through the API are kept, content-addressed, so citations point at something real |
 | `PRAGENT_CHUNK_SIZE` | no | `800` | Target chunk size in tokens |
 | `PRAGENT_CHUNK_OVERLAP` | no | `100` | Token overlap between split chunks |
 | `PRAGENT_TOP_K` | no | `5` | Chunks returned per retrieval |

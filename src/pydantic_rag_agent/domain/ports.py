@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pydantic_rag_agent.domain.extraction import ExtractedDocument, ExtractedImage
-from pydantic_rag_agent.domain.models import EmbeddedChunk, RetrievedChunk, StoreStats
+from pydantic_rag_agent.domain.models import (
+    DocumentSummary,
+    EmbeddedChunk,
+    RetrievedChunk,
+    StoreStats,
+)
 
 
 @runtime_checkable
@@ -90,6 +95,8 @@ class VectorStore(Protocol):
     async def delete_by_source_path(self, source_path: str) -> int: ...
 
     async def has_document(self, document_id: str) -> bool: ...
+
+    async def list_documents(self) -> list[DocumentSummary]: ...
 
     async def count(self) -> int: ...
 

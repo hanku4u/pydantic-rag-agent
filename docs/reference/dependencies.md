@@ -26,6 +26,7 @@ the first sign a boundary is leaking.
 | `rich` | Terminal rendering: Markdown answers, citation tables, progress, spinners. | Interfaces (`cli.py`) |
 | `streamlit` | Chat and ingestion UI. | Interfaces (`ui/`) |
 | `httpx` | HTTP client used by the CLI and Streamlit to reach the API. Declared explicitly even though `openai` pulls it in. | Interfaces (CLI, UI) |
+| `python-multipart` | Parses multipart form uploads. FastAPI needs it for `POST /documents`; it is imported by the framework rather than by us, and still declared because our behaviour depends on it. | Interfaces (`api/`) |
 
 ## Licence constraints
 
