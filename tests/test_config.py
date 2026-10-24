@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from pydantic_rag_agent.config import (
+    DEFAULT_EMBEDDING_DIMENSIONS,
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_MODEL,
     Settings,
@@ -31,7 +32,7 @@ def load_settings_with_valid_environment_should_apply_documented_defaults() -> N
     # then: the documented defaults are what the application actually uses
     assert settings.model == DEFAULT_MODEL
     assert settings.embedding_model == DEFAULT_EMBEDDING_MODEL
-    assert settings.embedding_dimensions == 1024
+    assert settings.embedding_dimensions == DEFAULT_EMBEDDING_DIMENSIONS
     assert settings.embedding_base_url == "https://openrouter.ai/api/v1"
     assert (settings.chunk_size, settings.chunk_overlap) == (800, 100)
     assert settings.top_k == 5

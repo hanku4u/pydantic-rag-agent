@@ -35,8 +35,9 @@ Orientation for automated coding assistants and for anyone joining the project.
   adapter code.
 - **One provider.** OpenRouter serves chat (`openrouter:…`), image captions, and
   embeddings, all with `OPENROUTER_API_KEY`. The embedding model id is
-  `voyageai/voyage-4-large` — a slash, because it is a plain OpenRouter model id routed
+  `qwen/qwen3-embedding-8b` — a slash, because it is a plain OpenRouter model id routed
   through its OpenAI-compatible endpoint, not a `pydantic-ai` provider prefix.
+  Its output is 4096-dimensional; keep `PRAGENT_EMBEDDING_DIMENSIONS` in step with it.
 - **Keep docs in sync.** If your change alters documented behaviour, update the page in
   the same commit.
 - **`uv.lock` is committed.** Change dependencies with `uv add` / `uv remove` only.

@@ -1,8 +1,13 @@
 # 0004 — All model access through OpenRouter
 
-**Status:** Accepted
+**Status:** Accepted — the **embedding model** is superseded by
+[0005](0005-embedding-model-qwen3.md). Single-vendor OpenRouter access and the
+"OpenAI-compatible endpoint" mechanism below still stand.
 **Date:** 2026-10-24
-**Supersedes in part:** [0003](0003-vector-store-and-embeddings.md) (embedding provider only)
+
+> **Note:** `voyage-4-large` below is historical; current embeddings are
+> `qwen/qwen3-embedding-8b` at 4096 dimensions — see
+> [ADR 0005](0005-embedding-model-qwen3.md).
 
 ## Context
 

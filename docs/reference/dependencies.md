@@ -59,7 +59,7 @@ the first sign a boundary is leaking.
 | --- | --- |
 | `langchain`, `llamaindex` | They would become our domain model, inverting the dependency direction. See [ADR 0002](../decisions/0002-agent-framework.md). |
 | `openai` SDK directly | Present transitively and reached only through `pydantic-ai`'s clients. We never call it ourselves: provider switching, retries, and the embedding abstraction live one layer up. |
-| `voyageai` SDK directly | Not installed. Voyage models are reached through OpenRouter's OpenAI-shaped embeddings endpoint, so a Voyage-specific client would add a vendor and a key for no gain. |
+| `voyageai` SDK directly | Not installed. The embedding model is open-weight and reached through OpenRouter, so a vendor-specific client would add a dependency and a key for no gain. |
 | `logfire` | Valuable once there is something to observe. [OPS-1](../features/README.md) covers logging first. |
 | `faiss` | Embedded Chroma covers the prototype; `pgvector` is the planned replacement, not another embedded index. |
 | `python-magic` | File-type detection by extension is sufficient for v1, and `libmagic` is a system dependency. |

@@ -15,9 +15,12 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Defaults live here rather than in documentation so the two cannot drift.
-# Both are pinned deliberately: see docs/decisions/0004-model-providers.md.
+# The chat model is pinned deliberately: see docs/decisions/0004-model-providers.md.
+# The embedding model and its dimension move together — see
+# docs/decisions/0005-embedding-model-qwen3.md.
 DEFAULT_MODEL = "openrouter:deepseek/deepseek-v4.1-flash"
-DEFAULT_EMBEDDING_MODEL = "voyageai/voyage-4-large"
+DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
+DEFAULT_EMBEDDING_DIMENSIONS = 4096
 DEFAULT_EMBEDDING_BASE_URL = "https://openrouter.ai/api/v1"
 
 
@@ -45,7 +48,7 @@ class Settings(BaseSettings):
 
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
     embedding_base_url: str = DEFAULT_EMBEDDING_BASE_URL
-    embedding_dimensions: int = Field(default=1024, gt=0)
+    embedding_dimensions: int = Field(default=DEFAULT_EMBEDDING_DIMENSIONS, gt=0)
 
     chunk_size: int = Field(default=800, gt=0)
     chunk_overlap: int = Field(default=100, ge=0)

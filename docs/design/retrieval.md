@@ -25,12 +25,12 @@ baseline to measure against.
   and is explicitly deferred. It belongs behind a measurement, not a hunch.
 - **`top_k` defaults to 5**, configurable. Enough context to answer, small enough
   that a wrong chunk cannot drown out a right one.
-- **Embedding asymmetry is lost in transit.** Voyage normally embeds queries and
-  documents with different prompts; OpenRouter's OpenAI-shaped endpoint exposes no
-  `input_type`. Embeddings remain mutually compatible, so retrieval still works — it may
-  simply rank slightly worse. This is why EVAL-1 matters, and why returning to the
-  direct VoyageAI API is a documented upgrade path rather than a rewrite.
-  See [ADR 0004](../decisions/0004-model-providers.md).
+- **Query instructions are lost in transit.** Qwen3-Embedding supports an optional
+  instruction prefix for retrieval queries; OpenRouter's OpenAI-shaped endpoint has no
+  field for it. The model is symmetric and performs well without it, so this costs a
+  little quality rather than correctness — and it is invisible in tests, which is exactly
+  the category EVAL-1 exists to catch. See
+  [ADR 0005](../decisions/0005-embedding-model-qwen3.md).
 - **A score floor is applied.** Below-threshold chunks are dropped rather than
   passed along as weak evidence. Passing everything to the model guarantees it will
   find a way to use something irrelevant.

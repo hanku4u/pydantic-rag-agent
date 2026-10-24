@@ -108,17 +108,16 @@ unchanged document is a no-op rather than a duplicate.
 
 - Embed with `Embedder.embed_documents()`, batched. One request per chunk is the
   difference between a usable ingest and a rate-limit incident.
-- **Batch size is bounded by tokens, not by chunk count.** Voyage caps a single request
-  at 1,000 inputs and — for `voyage-4-large` — 120,000 total tokens. Requests routed
-  through OpenRouter still hit those upstream limits, on top of OpenRouter's own rate
-  limits. At 800-token chunks, 64-chunk batches sit around 51K tokens; raising
-  `chunk_size` without lowering the batch size is how an ingest starts failing halfway
-  through a corpus.
-- **Query/document conditioning is likely unavailable.** Voyage normally embeds queries
-  and documents with different prompts via its `input_type` parameter, but OpenRouter's
-  embeddings request is OpenAI-shaped and has no such field. Voyage states the two are
-  compatible, so this costs retrieval quality rather than correctness. Recorded in
-  [ADR 0004](../decisions/0004-model-providers.md); it is a thing to measure, not assume.
+- **Batch size is bounded by tokens, not by chunk count.** OpenRouter publishes no
+  per-request limits for this model, so batching stays conservative: 64 chunks of ~800
+  tokens is roughly 51K tokens per request, comfortably inside the model's 40960-token
+  context per input. Raising `chunk_size` without lowering the batch size is how an
+  ingest starts failing halfway through a corpus.
+- **Instruction prefixes are unavailable.** Qwen3-Embedding supports an optional
+  instruction prefix for retrieval queries, but OpenRouter's OpenAI-shaped request has no
+  field for it, so the model runs unconditioned. It performs well in that mode; this is a
+  quality difference that is invisible to tests. See
+  [ADR 0005](../decisions/0005-embedding-model-qwen3.md).
 - **Idempotency:** `document_id` is the SHA-256 of the file bytes. Ingesting the
   same file again replaces its chunks (`delete_by_document` then add) instead of
   duplicating them.

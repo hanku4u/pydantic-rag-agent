@@ -77,7 +77,7 @@ the rest of that table.
 | **Extracted document** | A loaded document as text blocks plus images, before chunking. |
 | **Chunk** | A contiguous slice of a document, embedded and retrieved as one unit. |
 | **Caption** | A vision-model description of an image, stored as an image chunk. |
-| **Embedding** | A dense vector for a chunk, from `voyageai/voyage-4-large` (1024 dimensions) via OpenRouter by default. |
+| **Embedding** | A dense vector for a chunk, from `qwen/qwen3-embedding-8b` (4096 dimensions) via OpenRouter by default. |
 | **Index** | The persisted collection of chunks and vectors. |
 | **Retrieval** | Selecting chunks relevant to a query by vector similarity. |
 | **Citation** | The document title, page or slide, and path behind a retrieved chunk. |
