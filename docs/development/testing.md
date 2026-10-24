@@ -34,7 +34,9 @@ tests/
 ├── adapters/
 │   ├── loaders/
 │   │   └── test_text_loader.py
+│   ├── test_captioning.py
 │   ├── test_chroma_store.py
+│   ├── test_image_store.py
 │   └── test_vector_store_contract.py
 └── fixtures/
     └── documents/                 # samples for binary formats (ING-5…ING-7)

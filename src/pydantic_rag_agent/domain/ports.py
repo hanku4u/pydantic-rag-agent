@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from pydantic_rag_agent.domain.extraction import ExtractedDocument
+from pydantic_rag_agent.domain.extraction import ExtractedDocument, ExtractedImage
 from pydantic_rag_agent.domain.models import EmbeddedChunk, RetrievedChunk, StoreStats
 
 
@@ -26,6 +26,32 @@ class DocumentLoader(Protocol):
     suffixes: frozenset[str]
 
     def load(self, path: Path, *, document_id: str) -> ExtractedDocument: ...
+
+
+@runtime_checkable
+class ImageStore(Protocol):
+    """Where extracted image bytes live, addressed by content hash.
+
+    Content-addressed rather than per-document: the same logo on forty slides is
+    one file, which is the whole reason identity is the hash of the bytes.
+    """
+
+    def save(self, image: ExtractedImage) -> Path: ...
+
+    def read(self, image_id: str) -> bytes: ...
+
+    def exists(self, image_id: str) -> bool: ...
+
+
+@runtime_checkable
+class ImageCaptioner(Protocol):
+    """Turns an image into searchable text.
+
+    Implementations are expected to cache by ``image_id``: captioning is a paid
+    model call, and re-ingesting a corpus should not pay for it twice.
+    """
+
+    async def caption(self, image: ExtractedImage) -> str: ...
 
 
 @runtime_checkable

@@ -35,7 +35,7 @@ stay the canonical list.
 | --- | --- | --- |
 | M0 Foundation | FND-1, FND-3, FND-4, FND-5, FND-6 | FND-2 |
 | M1 Domain and storage | DOM-1, STO-1, STO-2, STO-3, EMB-1 | — |
-| M2 Ingestion | ING-1, ING-2, ING-3, ING-4, ING-5, ING-6, ING-8 | — |
+| M2 Ingestion | ING-1, ING-2, ING-3, ING-4, ING-5, ING-6, ING-8, IMG-1, IMG-2, IMG-3 | — |
 | M3 Retrieval | — | — |
 | M4 Agent | — | — |
 | M5 Interfaces | — | — |
@@ -85,9 +85,10 @@ testable. See [Ingestion design](../design/ingestion.md).
 | ING-5 | PDF loader | ING-3 | Page text extracted in reading order; page numbers preserved for citations |
 | ING-6 | DOCX loader | ING-3 | Paragraphs and tables extracted; embedded media found |
 | ING-7 | PPTX loader | ING-3 | Slide text and speaker notes extracted; slide numbers preserved |
-| IMG-1 | Image extraction and storage | ING-5, ING-6, ING-7 | Images written to `data/images/<document_id>/<sha>.<ext>`; duplicates collapse by hash; a document containing images but no text is processed rather than skipped as unextractable |
-| IMG-2 | Vision captioning with cache | IMG-1, FND-2 | Each distinct image captioned once; repeat ingests make no duplicate API calls |
+| IMG-1 | Image storage and pipeline wiring | ING-6 | Images written to `<image_dir>/<aa>/<sha>`; duplicates collapse by hash; a document containing images but no text is processed rather than skipped as unextractable |
+| IMG-2 | Vision captioning with cache | IMG-1, FND-2 | Each distinct image captioned once; repeat ingests make no duplicate API calls; a captioning failure degrades to text-only with a warning instead of failing the document |
 | IMG-3 | Image chunks in the index | IMG-2, ING-2 | A question about image content retrieves the caption chunk; `image_id` present in metadata |
+| IMG-4 | PDF embedded images | IMG-1, ING-5 | Images on PDF pages are extracted via `PdfImage.get_bitmap()` and stored like DOCX images |
 | ING-8 | Replace stale chunks when a file changes | ING-4, STO-1 | Re-ingesting an edited file removes the previous version's chunks, so the index does not accumulate superseded text |
 
 ## M3 — Retrieval

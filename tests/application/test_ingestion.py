@@ -10,9 +10,11 @@ from pathlib import Path
 
 import docx
 import pytest
-from factories import build_embedding_service
+from factories import FakeCaptioner, build_embedding_service
 from fixtures.pdf_builder import build_text_pdf
+from PIL import Image
 
+from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
 from pydantic_rag_agent.adapters.loaders.text import TextLoader
 from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
@@ -51,9 +53,21 @@ def write_file(directory: Path, name: str, content: str) -> Path:
 
 
 async def ingest_single(
-    path: Path, *, store: VectorStore, service: EmbeddingService
+    path: Path,
+    *,
+    store: VectorStore,
+    service: EmbeddingService,
+    image_store: object | None = None,
+    captioner: object | None = None,
 ) -> IngestReport:
-    return await ingest_paths([path], store=store, embeddings=service, loaders=default_loaders())
+    return await ingest_paths(
+        [path],
+        store=store,
+        embeddings=service,
+        loaders=default_loaders(),
+        image_store=image_store,  # type: ignore[arg-type]
+        captioner=captioner,  # type: ignore[arg-type]
+    )
 
 
 async def ingest_paths_with_a_docx_should_index_its_sections(tmp_path: Path) -> None:
@@ -308,3 +322,116 @@ async def ingest_paths_with_each_declared_suffix_should_index_the_file(
 
     # then: every declared suffix is picked up
     assert report.indexed == 1
+
+
+def build_docx_with_image(directory: Path, *, prose: bool = True) -> Path:
+    """A DOCX containing one PNG, with prose beside it or not."""
+    picture = directory / "picture.png"
+    Image.new("RGB", (24, 18), "red").save(picture)
+
+    document = docx.Document()
+    if prose:
+        document.add_paragraph("Prose beside the image.")
+    document.add_picture(str(picture))
+
+    path = directory / "illustrated.docx"
+    document.save(path)
+    return path
+
+
+async def ingest_docx_with_an_image_should_store_and_caption_it(tmp_path: Path) -> None:
+    # given: a DOCX with prose and an image, plus a captioner and an image store
+    path = build_docx_with_image(tmp_path)
+    store = build_store()
+    service, _ = build_service()
+    image_store = FileImageStore(tmp_path / "images")
+    captioner = FakeCaptioner()
+
+    # when: it is ingested
+    report = await ingest_single(
+        path, store=store, service=service, image_store=image_store, captioner=captioner
+    )
+
+    # then: the caption became a searchable image chunk, and the bytes are on disk
+    assert report.indexed == 1
+    assert report.results[0].images == 1
+    assert captioner.calls == 1
+    hits = await store.search(await service.embed_query("diagram"), top_k=10)
+    image_hits = [hit for hit in hits if hit.chunk.kind == "image"]
+    assert len(image_hits) == 1
+    assert image_hits[0].chunk.image_id
+    assert image_store.exists(image_hits[0].chunk.image_id or "")
+
+
+async def ingest_document_with_only_an_image_should_index_it(tmp_path: Path) -> None:
+    # given: a DOCX with no text at all, only a picture
+    path = build_docx_with_image(tmp_path, prose=False)
+    store = build_store()
+    service, _ = build_service()
+
+    # when: it is ingested with captioning enabled
+    report = await ingest_single(
+        path,
+        store=store,
+        service=service,
+        image_store=FileImageStore(tmp_path / "images"),
+        captioner=FakeCaptioner(),
+    )
+
+    # then: it is content, not an unextractable file — the IMG-1 requirement
+    assert report.indexed == 1
+    assert report.chunks == 1
+    assert report.results[0].images == 1
+
+
+async def ingest_with_a_failing_captioner_should_still_index_the_text(tmp_path: Path) -> None:
+    # given: a vision model that is unavailable
+    path = build_docx_with_image(tmp_path)
+    store = build_store()
+    service, _ = build_service()
+
+    # when: the document is ingested
+    report = await ingest_single(
+        path,
+        store=store,
+        service=service,
+        image_store=FileImageStore(tmp_path / "images"),
+        captioner=FakeCaptioner(fail=True),
+    )
+
+    # then: the text still lands, and the failure is recorded rather than fatal
+    assert report.results[0].status == "indexed"
+    assert report.results[0].images == 0
+    assert any("skipped" in warning for warning in report.results[0].warnings)
+    hits = await store.search(await service.embed_query("prose"), top_k=10)
+    assert [hit.chunk.kind for hit in hits] == ["text"]
+
+
+async def ingest_without_image_collaborators_should_ignore_images(tmp_path: Path) -> None:
+    # given: a document with an image but no image pipeline configured
+    path = build_docx_with_image(tmp_path)
+    store = build_store()
+    service, _ = build_service()
+
+    # when: it is ingested as before
+    report = await ingest_single(path, store=store, service=service)
+
+    # then: text is indexed, images are silently out of scope, nothing is written
+    assert report.indexed == 1
+    assert report.results[0].images == 0
+    assert not (tmp_path / "images").exists()
+
+
+async def ingest_with_only_one_image_collaborator_should_raise(tmp_path: Path) -> None:
+    # given: a captioner but no store to put the bytes in
+    path = build_docx_with_image(tmp_path)
+
+    # when / then: the misconfiguration is refused up front, not halfway through
+    with pytest.raises(ValueError, match="provided together"):
+        await ingest_paths(
+            [path],
+            store=build_store(),
+            embeddings=build_service()[0],
+            loaders=default_loaders(),
+            captioner=FakeCaptioner(),  # type: ignore[arg-type]
+        )

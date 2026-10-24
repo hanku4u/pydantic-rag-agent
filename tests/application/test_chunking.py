@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from pydantic_rag_agent.application.chunking import chunk_document, count_tokens
-from pydantic_rag_agent.domain.extraction import ExtractedBlock, ExtractedDocument
+from pydantic_rag_agent.application.chunking import chunk_document, count_tokens, image_chunks
+from pydantic_rag_agent.domain.extraction import ExtractedBlock, ExtractedDocument, ExtractedImage
 
 DOCUMENT_ID = "b" * 64
 
@@ -141,3 +141,77 @@ def chunk_document_with_non_positive_size_should_raise() -> None:
     # given / when / then: a budget of zero cannot produce a chunk
     with pytest.raises(ValueError, match="chunk_size"):
         chunk_document(build_document(ExtractedBlock(text="alpha")), chunk_size=0)
+
+
+def build_document_with_images(
+    *,
+    image_ids: tuple[str, ...] = ("img-1",),
+    text: str = "prose",
+) -> ExtractedDocument:
+    return ExtractedDocument(
+        document_id=DOCUMENT_ID,
+        title="Handbook",
+        source_path="handbook.docx",
+        blocks=(ExtractedBlock(text=text),),
+        images=tuple(
+            ExtractedImage(image_id=image_id, data=b"x", media_type="image/png")
+            for image_id in image_ids
+        ),
+    )
+
+
+def image_chunks_with_a_caption_should_produce_an_image_chunk() -> None:
+    # given: a document with one captioned image
+    document = build_document_with_images()
+
+    # when: image chunks are built
+    chunks = image_chunks(document, {"img-1": "A diagram of the rotation."})
+
+    # then: the caption is the searchable text, and the original stays reachable
+    assert len(chunks) == 1
+    assert chunks[0].kind == "image"
+    assert chunks[0].text == "A diagram of the rotation."
+    assert chunks[0].image_id == "img-1"
+
+
+def image_chunks_without_a_caption_should_skip_the_image() -> None:
+    # given: an image that produced no caption
+    document = build_document_with_images()
+
+    # when / then: nothing unsearchable reaches the index
+    assert image_chunks(document, {}) == []
+
+
+def image_chunks_with_a_blank_caption_should_skip_the_image() -> None:
+    # given: a caption that is only whitespace
+    document = build_document_with_images()
+
+    # when / then: it is treated as no caption at all
+    assert image_chunks(document, {"img-1": "   "}) == []
+
+
+def image_chunks_should_continue_the_ordinal_sequence() -> None:
+    # given: two images following three text chunks
+    document = build_document_with_images(image_ids=("img-1", "img-2"))
+
+    # when: image chunks start after the text
+    chunks = image_chunks(
+        document,
+        {"img-1": "first", "img-2": "second"},
+        start_ordinal=3,
+    )
+
+    # then: ordinals keep counting, so ordering is unambiguous
+    assert [chunk.ordinal for chunk in chunks] == [3, 4]
+
+
+def image_chunks_should_be_identified_by_image_hash() -> None:
+    # given: the same image reference produced twice
+    document = build_document_with_images()
+
+    # when: chunks are built twice
+    first = image_chunks(document, {"img-1": "caption"})
+    second = image_chunks(document, {"img-1": "caption"})
+
+    # then: identity is stable, so a re-ingest is an upsert rather than a duplicate
+    assert first[0].chunk_id == second[0].chunk_id

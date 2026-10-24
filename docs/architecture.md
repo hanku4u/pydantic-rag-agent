@@ -61,6 +61,8 @@ src/pydantic_rag_agent/
 ├── adapters/
 │   ├── chroma_store.py   # VectorStore implementation
 │   ├── memory_store.py   # test double / small corpora
+│   ├── image_store.py    # content-addressed image bytes
+│   ├── captioning.py     # vision-model captions, cached by hash
 │   ├── loaders/
 │   │   ├── text.py       # .txt and .md
 │   │   ├── pdf.py        # .pdf via PDFium

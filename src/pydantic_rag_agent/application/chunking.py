@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Mapping
 
 import tiktoken
 
@@ -85,6 +86,49 @@ def _chunk_id(document_id: str, heading_path: tuple[str, ...], ordinal: int) -> 
     """
     material = f"{document_id}:{'/'.join(heading_path)}:{ordinal}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def image_chunks(
+    document: ExtractedDocument,
+    captions: Mapping[str, str],
+    *,
+    start_ordinal: int = 0,
+) -> list[Chunk]:
+    """Turn captions into retrievable chunks.
+
+    Keyed by image hash rather than position, so the same image referenced twice
+    is one chunk; the caption is the searchable text, and ``image_id`` lets a tool
+    fetch the original later.
+    """
+    chunks: list[Chunk] = []
+    ordinal = start_ordinal
+
+    for image in document.images:
+        caption = (captions.get(image.image_id) or "").strip()
+        if not caption:
+            continue
+
+        chunks.append(
+            Chunk(
+                chunk_id=_image_chunk_id(document.document_id, image.image_id),
+                document_id=document.document_id,
+                text=caption,
+                title=document.title,
+                source_path=document.source_path,
+                kind="image",
+                ordinal=ordinal,
+                page=image.page,
+                slide=image.slide,
+                image_id=image.image_id,
+            )
+        )
+        ordinal += 1
+
+    return chunks
+
+
+def _image_chunk_id(document_id: str, image_id: str) -> str:
+    return hashlib.sha256(f"{document_id}:image:{image_id}".encode()).hexdigest()
 
 
 def _pack(paragraphs: list[str], *, chunk_size: int, chunk_overlap: int) -> list[str]:

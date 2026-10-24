@@ -17,10 +17,16 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from pydantic_rag_agent.application.chunking import chunk_document
+from pydantic_rag_agent.application.chunking import chunk_document, image_chunks
 from pydantic_rag_agent.application.embedding import EmbeddingService
+from pydantic_rag_agent.domain.extraction import ExtractedDocument
 from pydantic_rag_agent.domain.models import EmbeddedChunk
-from pydantic_rag_agent.domain.ports import DocumentLoader, VectorStore
+from pydantic_rag_agent.domain.ports import (
+    DocumentLoader,
+    ImageCaptioner,
+    ImageStore,
+    VectorStore,
+)
 
 IngestStatus = Literal["indexed", "skipped", "failed"]
 
@@ -36,7 +42,7 @@ class IngestResult(BaseModel):
     chunks: int = 0
     # How many chunks of a previous version of this file were removed first.
     replaced: int = 0
-    # Reserved: populated once image extraction lands (IMG-2).
+    # Images stored and captioned into searchable chunks.
     images: int = 0
     warnings: tuple[str, ...] = ()
     error: str | None = None
@@ -78,13 +84,22 @@ async def ingest_paths(
     loaders: Sequence[DocumentLoader],
     chunk_size: int = 800,
     chunk_overlap: int = 100,
+    image_store: ImageStore | None = None,
+    captioner: ImageCaptioner | None = None,
 ) -> IngestReport:
     """Ingest files and directories into ``store``.
 
     Directories are walked recursively and filtered to supported suffixes;
     unsupported files passed *explicitly* are reported as skipped rather than
     ignored, because a user who names a file deserves to hear about it.
+
+    ``image_store`` and ``captioner`` are supplied together or not at all. Without
+    them, images are ignored — which keeps text-only ingestion and its tests free
+    of image machinery.
     """
+    if (image_store is None) != (captioner is None):
+        raise ValueError("image_store and captioner must be provided together")
+
     results: list[IngestResult] = []
     for path in _expand(paths, loaders):
         results.append(
@@ -95,6 +110,8 @@ async def ingest_paths(
                 loaders=loaders,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
+                image_store=image_store,
+                captioner=captioner,
             )
         )
     return IngestReport(results=tuple(results))
@@ -108,6 +125,8 @@ async def _ingest_one(
     loaders: Sequence[DocumentLoader],
     chunk_size: int,
     chunk_overlap: int,
+    image_store: ImageStore | None,
+    captioner: ImageCaptioner | None,
 ) -> IngestResult:
     try:
         payload = path.read_bytes()
@@ -140,7 +159,9 @@ async def _ingest_one(
             )
 
         document = loader.load(path, document_id=document_id)
-        if not document.blocks:
+        # An image-only document is still worth indexing once captioning is on:
+        # a slide deck with no text boxes is content, not an error.
+        if not document.blocks and not document.images:
             return IngestResult(
                 source_path=str(path),
                 document_id=document_id,
@@ -153,18 +174,30 @@ async def _ingest_one(
         # versions that would keep matching searches next to the current one.
         replaced = await store.delete_by_source_path(str(path))
 
-        chunks = chunk_document(
+        warnings: list[str] = []
+        text_chunks = chunk_document(
             document,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
+        captions = await _caption_images(
+            document,
+            image_store=image_store,
+            captioner=captioner,
+            warnings=warnings,
+        )
+        chunks = [
+            *text_chunks,
+            *image_chunks(document, captions, start_ordinal=len(text_chunks)),
+        ]
+
         if not chunks:
             return IngestResult(
                 source_path=str(path),
                 document_id=document_id,
                 status="skipped",
                 replaced=replaced,
-                warnings=("no chunks produced",),
+                warnings=tuple(warnings) or ("no chunks produced",),
             )
 
         vectors = await embeddings.embed_documents([chunk.embedding_text for chunk in chunks])
@@ -184,7 +217,9 @@ async def _ingest_one(
             document_id=document_id,
             status="indexed",
             chunks=len(chunks),
+            images=len(captions),
             replaced=replaced,
+            warnings=tuple(warnings),
         )
 
     except Exception as exc:  # noqa: BLE001 - containment is the requirement here
@@ -195,6 +230,39 @@ async def _ingest_one(
             status="failed",
             error=f"{type(exc).__name__}: {exc}",
         )
+
+
+async def _caption_images(
+    document: ExtractedDocument,
+    *,
+    image_store: ImageStore | None,
+    captioner: ImageCaptioner | None,
+    warnings: list[str],
+) -> dict[str, str]:
+    """Store and caption a document's images, returning ``image_id -> caption``.
+
+    A captioning failure degrades rather than aborts: the document's text is
+    still worth indexing, and a vision-model outage should not cost the user
+    their corpus. Each failure is recorded as a warning on the result.
+    """
+    if image_store is None or captioner is None:
+        return {}
+
+    captions: dict[str, str] = {}
+    for image in document.images:
+        try:
+            image_store.save(image)
+            caption = (await captioner.caption(image)).strip()
+        except Exception as exc:  # noqa: BLE001 - degradation is the requirement
+            warnings.append(f"image {image.image_id[:12]} skipped: {exc}")
+            continue
+
+        if caption:
+            captions[image.image_id] = caption
+        else:
+            warnings.append(f"image {image.image_id[:12]} produced an empty caption")
+
+    return captions
 
 
 def _expand(paths: Sequence[Path], loaders: Sequence[DocumentLoader]) -> list[Path]:

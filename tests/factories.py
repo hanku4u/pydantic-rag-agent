@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from types import SimpleNamespace
 
 from pydantic_rag_agent.application.embedding import EmbeddingService
+from pydantic_rag_agent.domain.extraction import ExtractedImage
 from pydantic_rag_agent.domain.models import Chunk, EmbeddedChunk
 
 
@@ -92,3 +93,24 @@ def build_embedding_service(
     """
     embedder = FakeEmbedder(native_dimensions=native_dimensions or dimensions)
     return EmbeddingService(embedder, dimensions=dimensions), embedder  # type: ignore[arg-type]
+
+
+class FakeCaptioner:
+    """Deterministic captioner that records how often it was asked.
+
+    The call count is the point: captioning is the one part of ingestion that
+    costs money, so "did we caption this twice?" must be an assertion.
+    """
+
+    def __init__(
+        self, caption: str = "A diagram of the backup rotation.", *, fail: bool = False
+    ) -> None:
+        self._caption = caption
+        self._fail = fail
+        self.calls = 0
+
+    async def caption(self, image: ExtractedImage) -> str:
+        self.calls += 1
+        if self._fail:
+            raise RuntimeError("vision model unavailable")
+        return f"{self._caption} [{image.image_id[:6]}]"

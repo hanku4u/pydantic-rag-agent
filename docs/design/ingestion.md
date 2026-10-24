@@ -1,7 +1,8 @@
 # Ingestion design
 
-**Status:** draft — text, Markdown, PDF text and DOCX ingest end to end (ING-1…ING-6,
-ING-8). PPTX and image captioning are designed but not built.
+**Status:** draft — text, Markdown, PDF text, DOCX text and DOCX images ingest end to end
+(ING-1…ING-6, ING-8, IMG-1…IMG-3). PPTX and PDF-embedded images are designed but not
+built.
 
 The **write path**: from a user-supplied file to vectors in the store. For the read
 path see [Retrieval design](retrieval.md); for where this code lives see
@@ -60,22 +61,27 @@ with no multimodal index, and the caption is usually better at answering natural
 language questions than a CLIP vector would be.
 
 ```text
-image bytes → sha256 → stored at data/images/<document_id>/<sha>.<ext>
+image bytes → sha256 → stored at <image_dir>/<aa>/<sha>
                      → caption via vision model (cached by sha256)
                      → text chunk with kind="image", image_id=<sha>
                      → embedded with surrounding text
 ```
 
-Three deliberate consequences:
+Four deliberate consequences:
 
 - **Original images are retained.** A `view_image` tool can hand the bytes back to a
   vision model later, so the agent can look at what the caption summarised away.
-- **Captions are cached by content hash.** The same logo on forty slides is
-  captioned once, not forty times. Without this, ingest cost scales with image count
-  rather than with distinct images.
-- **Captioning is optional and degradable.** If the configured model lacks vision
-  support, ingestion must record a warning and index a placeholder caption rather
-  than failing the document.
+- **Captions are cached by content hash**, next to the image as
+  `<image_dir>/captions/<aa>/<sha>.txt`. The same logo on forty slides is captioned
+  once, not forty times. Without this, ingest cost scales with image count rather
+  than with distinct images.
+- **Captioning is optional and degradable.** A captioning failure — a vision-model
+  outage, a rate limit — records a warning and indexes the document's text without
+  that image. A model problem should not cost the user their corpus.
+- **Storage is content-addressed, not per-document.** `<aa>/<sha>` rather than
+  `<document_id>/<sha>.<ext>`: identical bytes in two documents are one file, which
+  is the whole point of hashing them. No extension either — the media type lives in
+  metadata, and a filename that encodes it would have to be guessed at read time.
 
 Scanned PDFs with no text layer are **out of scope for v1**. They need real OCR, and
 pretending a vision caption is an OCR substitute produces quietly wrong indexes. A
