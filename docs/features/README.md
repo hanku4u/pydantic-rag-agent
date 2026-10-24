@@ -38,7 +38,7 @@ stay the canonical list.
 | M2 Ingestion | ING-1…ING-8, IMG-1, IMG-2, IMG-3, IMG-4 | — |
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
 | M4 Agent | AGT-1…AGT-7 | — |
-| M5 Interfaces | API-1, API-2, API-3, API-4, API-5 | — |
+| M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3 | — |
 | M6 Hardening | EVAL-1 | — |
 
 FND-2 is partially landed: `config.Settings` and its validation tests exist; loading it at
@@ -135,6 +135,7 @@ See [Interfaces](../design/interfaces.md).
 | UI-1 | Streamlit chat | API-4 | A question streams into the chat window |
 | UI-2 | Streamlit ingest sidebar | API-2 | Files upload and ingest from the browser; document list reflects reality |
 | UI-3 | Citation rendering | API-3 | Each answer exposes its sources in an expander |
+| DX-1 | `dev` command: API and UI together | CLI-1, UI-1 | One command starts the API and Streamlit, so a first run is not "open three terminals" |
 
 ## M6 — Hardening
 

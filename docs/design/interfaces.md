@@ -1,7 +1,7 @@
 # Interfaces
 
-**Status:** draft — the HTTP API is implemented (API-1…API-5), including SSE streaming.
-The CLI and Streamlit are not built yet.
+**Status:** draft — the HTTP API and the CLI are implemented (API-1…API-5, CLI-1…CLI-3).
+Streamlit is not built yet.
 
 Three surfaces over one application core: an HTTP API, a CLI that calls it, and a
 Streamlit chat UI that calls it. For why the API exists rather than an in-process

@@ -27,13 +27,16 @@ uv sync
 cp .env.example .env
 $EDITOR .env            # set OPENROUTER_API_KEY
 
-uv run pydantic-rag-agent
+# Start the API (the CLI is a client for it).
+uv run pydantic-rag-agent serve
 ```
 
-Expected output:
+In a second terminal:
 
-```text
-Hello from pydantic-rag-agent!
+```bash
+uv run pydantic-rag-agent ingest ./docs
+uv run pydantic-rag-agent ask "How long are backups retained?"
+uv run pydantic-rag-agent --help
 ```
 
 `uv sync` does four things in one step: creates `.venv`, resolves the dependency

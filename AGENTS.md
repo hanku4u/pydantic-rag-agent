@@ -48,14 +48,16 @@ Orientation for automated coding assistants and for anyone joining the project.
 
 ```bash
 uv sync                        # create/refresh the environment
-uv run pydantic-rag-agent --help   # CLI
+uv run pydantic-rag-agent --help   # every CLI command
+uv run pydantic-rag-agent serve    # the API (terminal 1; everything else is a client)
+uv run pydantic-rag-agent ingest ./docs        # index documents
+uv run pydantic-rag-agent ask "…"              # one streamed answer
 uv run pytest                  # tests (offline; model requests disabled)
 uv run ruff check .            # lint
 uv run ruff format --check .   # formatting
 uv run mypy src                # types
 uv run python scripts/check_docs_links.py   # docs link graph
 uv run python scripts/evaluate_retrieval.py   # retrieval eval (needs API key, costs money)
-uv run uvicorn pydantic_rag_agent.api.app:create_default_app --factory --port 8000   # the API
 ```
 
 The first six are exactly what CI runs, so a green local run means a green pull request.
@@ -64,10 +66,9 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Current state
 
-M5 is mostly landed: the composition root (`runtime.py`) builds the whole object graph
-once and runs the index guard, and the HTTP API serves health, statistics, document
-upload/list/delete, conversations, and answered turns — both as a single response and as
-an SSE stream with token, tool-call, citation and completion events. The CLI and
-Streamlit are next. Verified end to end against the live providers. The authoritative
-accounting is in [docs/overview.md](docs/overview.md#current-state) and
+M5 is nearly complete: the composition root builds the object graph once, the HTTP API
+serves documents, conversations, answered turns and SSE streaming, and the CLI wraps all of
+it — `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, with a `--json` mode for
+scripts. Streamlit and the `dev` command (DX-1) remain. The authoritative accounting is in
+[docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

@@ -41,15 +41,18 @@ uv sync
 cp .env.example .env
 # then edit .env and set OPENROUTER_API_KEY
 
-# Run the CLI
-uv run pydantic-rag-agent
+# Terminal 1 — the API that every other command talks to
+uv run pydantic-rag-agent serve
+
+# Terminal 2 — index some documents, then ask about them
+uv run pydantic-rag-agent ingest ./docs
+uv run pydantic-rag-agent ask "How long are backups retained?"
 ```
 
-You should see:
+The answer streams to the terminal and ends with a table of the sources it cited.
 
-```text
-Hello from pydantic-rag-agent!
-```
+A `dev` command that starts the API and the UI together is planned (DX-1); until then,
+the two-terminal split is the honest picture.
 
 ## Day-to-day commands
 

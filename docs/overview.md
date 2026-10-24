@@ -70,7 +70,8 @@ Accurate as of the planning commit:
 | Evaluation: recall@5, MRR, floor calibration | Done — EVAL-1 |
 | Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7 |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
-| CLI and Streamlit | Not started — CLI-1…CLI-3, UI-1…UI-3 |
+| CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `--json` | Done — CLI-1…CLI-3 |
+| Streamlit UI | Not started — UI-1…UI-3 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 
 The CLI still prints a greeting. [Features](features/README.md) is the ordered plan for
