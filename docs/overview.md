@@ -63,7 +63,8 @@ Accurate as of the planning commit:
 | Embeddings: width adaptation, MRL truncation, index guard | Done — EMB-1 |
 | Ingestion: text and Markdown, end to end | Done — ING-1…ING-4, ING-8 |
 | Ingestion: PDF text and page numbers | Done — ING-5 |
-| Ingestion: DOCX, PPTX | Not started — ING-6, ING-7 |
+| Ingestion: DOCX — paragraphs, tables, embedded media found | Done — ING-6 |
+| Ingestion: PPTX | Not started — ING-7 |
 | Ingestion: images and captions | Not started — IMG-1…IMG-3 |
 | Retrieval | Not started — M3 |
 | Agent | Not started — M4 |

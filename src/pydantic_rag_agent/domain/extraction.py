@@ -26,6 +26,24 @@ class ExtractedBlock(BaseModel):
     slide: int | None = Field(default=None, ge=1)
 
 
+class ExtractedImage(BaseModel):
+    """An image found during extraction, before storage or captioning.
+
+    The bytes travel with the model because the pipeline writes them to disk
+    before captioning; keeping only an id would force a second read of the source.
+    Identity is the hash of the bytes, so the same logo on forty slides is one
+    image, captioned once.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    image_id: str = Field(min_length=1)
+    data: bytes
+    media_type: str
+    page: int | None = Field(default=None, ge=1)
+    slide: int | None = Field(default=None, ge=1)
+
+
 class ExtractedDocument(BaseModel):
     """A source file after extraction and before chunking."""
 
@@ -36,3 +54,4 @@ class ExtractedDocument(BaseModel):
     source_path: str
     media_type: str | None = None
     blocks: tuple[ExtractedBlock, ...] = ()
+    images: tuple[ExtractedImage, ...] = ()

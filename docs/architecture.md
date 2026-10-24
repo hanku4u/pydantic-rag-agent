@@ -63,8 +63,8 @@ src/pydantic_rag_agent/
 │   ├── memory_store.py   # test double / small corpora
 │   ├── loaders/
 │   │   ├── text.py       # .txt and .md
-│   │   ├── pdf.py        # (not built yet)
-│   │   ├── docx.py       # (not built yet)
+│   │   ├── pdf.py        # .pdf via PDFium
+│   │   ├── docx.py       # .docx — paragraphs, tables, media
 │   │   └── pptx.py       # (not built yet)
 │   └── agent.py          # Agent, AgentDeps, tools         (not built yet)
 ├── api/                  # FastAPI app and DI              (not built yet)

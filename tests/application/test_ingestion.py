@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import docx
 import pytest
 from factories import build_embedding_service
 from fixtures.pdf_builder import build_text_pdf
@@ -53,6 +54,28 @@ async def ingest_single(
     path: Path, *, store: VectorStore, service: EmbeddingService
 ) -> IngestReport:
     return await ingest_paths([path], store=store, embeddings=service, loaders=default_loaders())
+
+
+async def ingest_paths_with_a_docx_should_index_its_sections(tmp_path: Path) -> None:
+    # given: a Word document with two headed sections
+    path = tmp_path / "handbook.docx"
+    document = docx.Document()
+    document.core_properties.title = "Operations Handbook"
+    document.add_heading("Operations", level=1)
+    document.add_paragraph("Welcome to the handbook.")
+    document.add_heading("Backups", level=2)
+    document.add_paragraph("Backups run nightly at 02:00 UTC.")
+    document.save(path)
+
+    store, (service, _) = build_store(), build_service()
+
+    # when: it is ingested
+    report = await ingest_single(path, store=store, service=service)
+
+    # then: heading paths reach the index, so citations can name a section
+    assert report.indexed == 1
+    hits = await store.search(await service.embed_query("backups"))
+    assert any("Backups" in hit.citation.label for hit in hits)
 
 
 async def ingest_paths_with_a_pdf_should_index_one_chunk_per_page(tmp_path: Path) -> None:

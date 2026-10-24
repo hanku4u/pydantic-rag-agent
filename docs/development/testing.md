@@ -49,9 +49,9 @@ their inputs to `tmp_path`, which is cheaper than committing fixtures and equall
 
 PDF fixtures are **generated** by `tests/fixtures/pdf_builder.py` — a dependency-free
 minimal-PDF writer. A two-page document written inline is reviewable; an opaque binary
-blob is not. DOCX and PPTX will use committed samples, because writing those formats by
-hand would be a project in itself; each sample should be the smallest file that
-reproduces that format's awkwardness, such as an image in a slide or a table in a docx.
+blob is not. DOCX fixtures are built with `python-docx` itself, which states the document
+shape in the test rather than hiding it in a file, and PPTX will do the same with
+`python-pptx`. No committed binary fixtures are needed anywhere so far.
 
 ## Naming
 
