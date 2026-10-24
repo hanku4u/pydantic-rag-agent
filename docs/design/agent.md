@@ -114,6 +114,48 @@ contents or credentials.
 4. What happens when the model answers with no tool calls at all — is a
    zero-retrieval answer allowed, or is it forced to search first?
 
+## Capabilities
+
+`pydantic-ai` capabilities are the framework's primary extension point: a reusable,
+composable unit of **agent behaviour** bundling tools, lifecycle hooks, instructions,
+model settings, and model selection. They are passed once to `Agent(...)`, and they are
+where framework-provided behaviour should come from rather than being hand-rolled here.
+
+They are **not** an application wiring mechanism. A capability cannot construct a vector
+store, an embedder, a provider holding credentials, or the image store — it shapes one
+agent's behaviour. The composition root still owns the object graph; see
+[Architecture](../architecture.md).
+
+### Planned for this project
+
+| Capability | Replaces | Why it fits |
+| --- | --- | --- |
+| `Instrumentation` | OPS-1 hand-rolled logging | OTel spans for every model and tool call |
+| `SpendLimits` | part of AGT-4 | Cross-window USD and token budgets, per-response cost |
+| `PromptInjectionDefender` | most of SEC-1 | Classifies **tool results** for indirect injection and can withhold high-risk ones. Retrieved chunks are tool results, so this is our threat model as shipped code |
+| `Compaction` | ad-hoc context trimming (AGT-6) | Long conversations otherwise outgrow the window |
+| `Caching` | nothing yet | Provider-adaptive prompt caching |
+
+### Retrieval as a capability
+
+`search_knowledge_base`, `view_image`, and their instructions are a natural `Capability`:
+one import, self-describing, and reusable by a future subagent. That keeps
+`adapters/agent.py` to wiring instead of tool declarations, and makes the tool surface
+reviewable as a unit.
+
+### Deliberately not adopted
+
+Web search, MCP, sandboxes, subagents, code mode, and image generation are capable and
+out of scope: this agent answers from a corpus it was given. Adopting any of them is a
+product decision, not a convenience.
+
+### Dependency note
+
+Core `pydantic-ai` ships some of the above; guardrails, spend limits, prompt-injection
+defence, and the model-agnostic compaction strategies live in **`pydantic-ai-harness`**,
+a separate package. Taking it is a decision with its own surface and dependency cost, so
+it warrants a decision record before it lands.
+
 ## Related
 
 - [Retrieval design](retrieval.md) — what `search_knowledge_base` calls.

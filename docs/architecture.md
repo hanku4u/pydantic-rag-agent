@@ -90,6 +90,26 @@ Everything else is constructed directly. Abstraction is not free, and a protocol
 one implementation and no test double is a layer of indirection that only costs
 reading time.
 
+## Composition
+
+Nothing assembles the object graph yet, and that is deliberate rather than forgotten: if
+the API and the CLI each wire their own, the index guard will run in one and not the
+other on the day it matters.
+
+The intended shape:
+
+```python
+def build_runtime(settings: Settings) -> Runtime: ...   # store, embedder, captioner, image store, loaders
+def build_agent(runtime: Runtime) -> Agent[AgentDeps, str]: ...
+```
+
+`build_runtime` also calls `assert_index_compatible` and assembles the capability list
+from settings.
+
+**Capabilities do not replace this.** They shape one agent's behaviour — tools,
+instructions, model settings, hooks — but cannot own a vector store or resolve
+credentials. See [Agent design](design/agent.md#capabilities).
+
 ## Dependency direction
 
 ```text

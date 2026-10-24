@@ -115,7 +115,7 @@ See [Agent design](../design/agent.md).
 | AGT-3 | Instructions and citation discipline | AGT-2 | Answers cite document and page; "not in the documents" is said when retrieval is empty |
 | AGT-4 | Usage budget | AGT-1 | A model that loops is stopped at the configured limit and the user is told |
 | AGT-5 | `view_image` tool | IMG-3, AGT-1 | A vision-capable model can view a retrieved image; unknown ids return a message, not an exception |
-| AGT-6 | Multi-turn history | AGT-1 | A follow-up question resolves its referent from the previous turn; history is server-side |
+| AGT-6 | Multi-turn history | AGT-1 | A follow-up question resolves its referent from the previous turn; history is server-side; `Compaction` handles conversations that outgrow the window |
 | AGT-7 | Offline agent tests | AGT-2 | `TestModel` drives a tool call and an answer with no network |
 
 ## M5 — Interfaces
@@ -142,9 +142,9 @@ See [Interfaces](../design/interfaces.md).
 | --- | --- | --- | --- |
 | EVAL-1 | Retrieval evaluation set | RET-1 | A fixed set of question/expected-chunk pairs scores retrieval quality; regressions are visible |
 | TST-1 | Coverage of the offline suite | M2–M4 | Loaders, chunker, store, and agent loop have tests; suite runs in CI without network |
-| OPS-1 | Structured logging | API-1 | Each run logs tool calls, token counts, and latency; no document text or secrets |
-| OPS-2 | Cost visibility | AGT-4 | Token usage per conversation is retrievable |
-| SEC-1 | Prompt-injection review | AGT-3, IMG-3 | A malicious document cannot alter agent instructions; the attempt is documented as a test |
+| OPS-1 | Structured logging | API-1 | Each run logs tool calls, token counts, and latency; no document text or secrets. Prefer the framework's `Instrumentation` capability over a hand-rolled logger |
+| OPS-2 | Cost visibility | AGT-4 | Token usage per conversation is retrievable; `SpendLimits` may satisfy this outright |
+| SEC-1 | Prompt-injection review | AGT-3, IMG-3 | A malicious document cannot alter agent instructions; the attempt is documented as a test. Prefer `PromptInjectionDefender`, which classifies tool results, over a hand-rolled filter |
 
 ---
 
