@@ -99,7 +99,8 @@ other on the day it matters.
 The intended shape:
 
 ```python
-def build_runtime(settings: Settings) -> Runtime: ...   # store, embedder, captioner, image store, loaders
+# store, embedder, captioner, image store, loaders
+def build_runtime(settings: Settings) -> Runtime: ...
 def build_agent(runtime: Runtime) -> Agent[AgentDeps, str]: ...
 ```
 
