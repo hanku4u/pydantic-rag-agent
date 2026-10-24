@@ -41,8 +41,9 @@ stay the canonical list.
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3 | — |
 | M6 Hardening | EVAL-1 | — |
 
-FND-2 is partially landed: `config.Settings` and its validation tests exist; loading it at
-startup arrives with the API (API-1). M0 is otherwise closed.
+M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
+runs `ensure_index_compatible`, which is what FND-2 was waiting for. The remaining M5 work
+is the Streamlit UI (UI-1…UI-3) and the `dev` command (DX-1).
 
 ---
 
