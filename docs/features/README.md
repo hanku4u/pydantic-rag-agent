@@ -89,6 +89,7 @@ testable. See [Ingestion design](../design/ingestion.md).
 | IMG-2 | Vision captioning with cache | IMG-1, FND-2 | Each distinct image captioned once; repeat ingests make no duplicate API calls; a captioning failure degrades to text-only with a warning instead of failing the document |
 | IMG-3 | Image chunks in the index | IMG-2, ING-2 | A question about image content retrieves the caption chunk; `image_id` present in metadata |
 | IMG-4 | PDF embedded images | IMG-1, ING-5 | Images on PDF pages are extracted via `PdfImage.get_bitmap()` and stored like DOCX images |
+| IMG-5 | Invalidate captions when the caption model changes | IMG-2 | The cache key includes the caption model, so switching models re-captions instead of silently serving descriptions from the old one |
 | ING-8 | Replace stale chunks when a file changes | ING-4, STO-1 | Re-ingesting an edited file removes the previous version's chunks, so the index does not accumulate superseded text |
 
 ## M3 — Retrieval
