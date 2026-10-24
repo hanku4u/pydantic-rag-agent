@@ -85,7 +85,7 @@ testable. See [Ingestion design](../design/ingestion.md).
 | ING-5 | PDF loader | ING-3 | Page text extracted in reading order; page numbers preserved for citations |
 | ING-6 | DOCX loader | ING-3 | Paragraphs and tables extracted; embedded media found |
 | ING-7 | PPTX loader | ING-3 | Slide text and speaker notes extracted; slide numbers preserved |
-| IMG-1 | Image extraction and storage | ING-5, ING-6, ING-7 | Images written to `data/images/<document_id>/<sha>.<ext>`; duplicates collapse by hash |
+| IMG-1 | Image extraction and storage | ING-5, ING-6, ING-7 | Images written to `data/images/<document_id>/<sha>.<ext>`; duplicates collapse by hash; a document containing images but no text is processed rather than skipped as unextractable |
 | IMG-2 | Vision captioning with cache | IMG-1, FND-2 | Each distinct image captioned once; repeat ingests make no duplicate API calls |
 | IMG-3 | Image chunks in the index | IMG-2, ING-2 | A question about image content retrieves the caption chunk; `image_id` present in metadata |
 | ING-8 | Replace stale chunks when a file changes | ING-4, STO-1 | Re-ingesting an edited file removes the previous version's chunks, so the index does not accumulate superseded text |
