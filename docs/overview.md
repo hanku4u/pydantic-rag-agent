@@ -69,8 +69,7 @@ Accurate as of the planning commit:
 | Retrieval: query embedding, ranking, score floor, explicit empty results | Done — RET-1…RET-4 |
 | Evaluation: recall@5, MRR, floor calibration | Done — EVAL-1 |
 | Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7 |
-| API: health, documents, conversations, messages, error mapping | Done — API-1…API-3, API-5 |
-| API: SSE streaming | Not started — API-4 |
+| API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | CLI and Streamlit | Not started — CLI-1…CLI-3, UI-1…UI-3 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 

@@ -64,10 +64,10 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Current state
 
-M5 is partially landed: the composition root (`runtime.py`) builds the whole object graph
+M5 is mostly landed: the composition root (`runtime.py`) builds the whole object graph
 once and runs the index guard, and the HTTP API serves health, statistics, document
-upload/list/delete, conversations, and answered turns with citations. SSE streaming, the
-CLI, and Streamlit are next. Verified end to end against the live providers, including an
-uploaded DOCX whose image was captioned and then cited. The authoritative accounting is in
-[docs/overview.md](docs/overview.md#current-state) and
+upload/list/delete, conversations, and answered turns — both as a single response and as
+an SSE stream with token, tool-call, citation and completion events. The CLI and
+Streamlit are next. Verified end to end against the live providers. The authoritative
+accounting is in [docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

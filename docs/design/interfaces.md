@@ -1,7 +1,7 @@
 # Interfaces
 
-**Status:** draft — the HTTP API is implemented (API-1…API-3, API-5); SSE streaming, the
-CLI, and Streamlit are not built yet.
+**Status:** draft — the HTTP API is implemented (API-1…API-5), including SSE streaming.
+The CLI and Streamlit are not built yet.
 
 Three surfaces over one application core: an HTTP API, a CLI that calls it, and a
 Streamlit chat UI that calls it. For why the API exists rather than an in-process
@@ -51,19 +51,30 @@ API change.
 
 ### Streaming
 
-Server-Sent Events, because the traffic is one-directional text and SSE needs no
-extra protocol. An event sequence of roughly:
+Server-Sent Events — the traffic is one-directional text, so SSE needs no extra protocol.
 
-```text
-event: token      data: {"text": "Deposits are "}
-event: tool_call  data: {"name": "search_knowledge_base", "args": {...}}
-event: citations  data: {"citations": [...]}
-event: done       data: {"usage": {...}}
-```
+| Event | Payload | Meaning |
+| --- | --- | --- |
+| `token` | `{"text": "..."}` | A chunk of generated text |
+| `tool_call` | `{"name": "...", "args": {...}}` | The model asked a tool to act |
+| `citations` | `{"citations": [...]}` | Everything retrieved for this turn |
+| `done` | `{"answer", "budget_exhausted", "citations_valid", "uncited"}` | The turn finished |
+| `error` | `{"code", "detail"}` | The turn failed; the stream still terminates cleanly |
 
-`tool_call` events matter for the UX: a two-second silence while the agent searches
-looks like a hang, and showing "searching the knowledge base…" is the difference
-between a responsive product and a broken one.
+`tool_call` events matter for the UX: a two-second silence while the agent searches looks
+like a hang, and "searching the knowledge base…" is the difference between a responsive
+product and a broken one.
+
+**Tokens are not the answer.** The stream carries everything the model emits, which
+normally includes a sentence of narration before it calls a tool ("I'll search the
+documents for that…"). `done.answer` is the final response only, and is authoritative for
+history and citation auditing. A client should render the tokens and treat `answer` as the
+record; swapping one for the other mid-flight makes text appear to vanish. Measured on a
+real turn, the stream was 734 characters against a 669-character answer.
+
+A failure mid-stream emits `error` rather than dropping the connection, because a client
+cannot tell a truncated answer from a slow one. A budget-exhausted turn finishes with
+`done` and `budget_exhausted: true`.
 
 ### Errors
 

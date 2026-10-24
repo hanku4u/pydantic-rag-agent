@@ -8,16 +8,26 @@ uses, and is the only place that builds the real graph.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic_ai.exceptions import ModelAPIError
+from pydantic_ai.messages import ModelMessage
 
-from pydantic_rag_agent.adapters.agent import AgentDeps, AgentTurn, ask
+from pydantic_rag_agent.adapters.agent import (
+    AgentDeps,
+    AgentTurn,
+    TokenEvent,
+    ToolCallEvent,
+    TurnCompleted,
+    ask,
+    stream_turn,
+)
 from pydantic_rag_agent.api.schemas import (
     AnswerResponse,
     AskRequest,
@@ -31,6 +41,7 @@ from pydantic_rag_agent.api.schemas import (
     StatsResponse,
 )
 from pydantic_rag_agent.application.ingestion import IngestReport, ingest_paths
+from pydantic_rag_agent.domain.models import Citation
 from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
 
 API_TITLE = "pydantic-rag-agent"
@@ -129,6 +140,23 @@ def create_app(runtime: Runtime) -> FastAPI:
         runtime.conversations.record(conversation_id, turn.messages)
         return _to_answer_response(turn)
 
+    @app.post("/conversations/{conversation_id}/messages/stream")
+    async def stream_message(conversation_id: str, request: AskRequest) -> StreamingResponse:
+        conversation = runtime.conversations.get(conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail=f"unknown conversation {conversation_id!r}")
+
+        return StreamingResponse(
+            _stream_turn(runtime, conversation_id, request.question, list(conversation.history)),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                # Proxies that buffer would deliver the whole stream at once, which
+                # defeats the point of streaming.
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     @app.exception_handler(ModelAPIError)
     async def model_provider_failed(_: Request, exc: ModelAPIError) -> JSONResponse:
         # The provider's message can contain request detail, so only the category is
@@ -144,6 +172,71 @@ def create_app(runtime: Runtime) -> FastAPI:
 def create_default_app() -> FastAPI:
     """Entry point for an ASGI server (``uvicorn ... --factory``)."""
     return create_app(build_runtime())
+
+
+async def _stream_turn(
+    runtime: Runtime,
+    conversation_id: str,
+    question: str,
+    history: list[ModelMessage],
+) -> AsyncIterator[str]:
+    """Translate agent updates into Server-Sent Events.
+
+    Every path through this generator ends with a well-formed stream: a failure emits an
+    ``error`` event rather than dropping the connection mid-sentence, because a client
+    cannot tell a truncated answer from a slow one.
+    """
+    deps = AgentDeps(retrieval=runtime.retrieval, images=runtime.images)
+
+    try:
+        async for update in stream_turn(
+            runtime.agent,
+            deps,
+            question,
+            history=history,
+            request_limit=runtime.settings.max_tool_calls,
+        ):
+            if isinstance(update, TokenEvent):
+                yield _sse("token", {"text": update.text})
+            elif isinstance(update, ToolCallEvent):
+                yield _sse("tool_call", {"name": update.name, "args": update.args})
+            elif isinstance(update, TurnCompleted):
+                turn = update.turn
+                runtime.conversations.record(conversation_id, turn.messages)
+                yield _sse(
+                    "citations",
+                    {
+                        "citations": [
+                            _citation_response(citation).model_dump() for citation in turn.citations
+                        ]
+                    },
+                )
+                yield _sse(
+                    "done",
+                    {
+                        "answer": turn.text,
+                        "budget_exhausted": turn.budget_exhausted,
+                        "citations_valid": turn.citation_audit.is_clean,
+                        "uncited": turn.citation_audit.is_uncited,
+                    },
+                )
+    except Exception as exc:  # noqa: BLE001 - the stream must still terminate cleanly
+        yield _sse("error", {"code": type(exc).__name__, "detail": "the turn failed"})
+
+
+def _sse(event: str, data: dict[str, object]) -> str:
+    """One Server-Sent Event frame."""
+    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+def _citation_response(citation: Citation) -> CitationResponse:
+    return CitationResponse(
+        label=citation.label,
+        document_id=citation.document_id,
+        source_path=citation.source_path,
+        locator=citation.locator,
+        heading_path=list(citation.heading_path),
+    )
 
 
 def _spool(upload: UploadFile, directory: Path) -> Path:
@@ -191,16 +284,7 @@ def _to_ingest_response(report: IngestReport) -> IngestReportResponse:
 def _to_answer_response(turn: AgentTurn) -> AnswerResponse:
     return AnswerResponse(
         answer=turn.text,
-        citations=[
-            CitationResponse(
-                label=citation.label,
-                document_id=citation.document_id,
-                source_path=citation.source_path,
-                locator=citation.locator,
-                heading_path=list(citation.heading_path),
-            )
-            for citation in turn.citations
-        ],
+        citations=[_citation_response(citation) for citation in turn.citations],
         budget_exhausted=turn.budget_exhausted,
         citations_valid=turn.citation_audit.is_clean,
         uncited=turn.citation_audit.is_uncited,

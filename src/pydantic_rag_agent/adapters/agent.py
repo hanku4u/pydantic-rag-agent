@@ -11,14 +11,23 @@ The loop orchestration lives here too, because it is made of framework types
 
 from __future__ import annotations
 
+import json
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic_ai import Agent, BinaryContent, RunContext
+from pydantic_ai import Agent, AgentRunResultEvent, BinaryContent, RunContext
 from pydantic_ai.capabilities import Capability
 from pydantic_ai.exceptions import UsageLimitExceeded
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import (
+    FunctionToolCallEvent,
+    ModelMessage,
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+)
 from pydantic_ai.models import Model
 from pydantic_ai.usage import UsageLimits
 
@@ -185,23 +194,7 @@ async def ask(
 
     citations = dedupe_citations(deps.citations)
     audit = audit_citations(result.output, available=len(citations))
-    if audit.out_of_range:
-        # Logged rather than raised: a hallucinated reference is a quality signal,
-        # not a reason to throw away an otherwise useful answer. Whoever is
-        # watching can count these and act.
-        _logger.warning(
-            "answer cited %s but only %d passage(s) were retrieved",
-            ", ".join(f"[{marker}]" for marker in audit.out_of_range),
-            len(citations),
-        )
-    elif citations and audit.is_uncited:
-        # The other half of the same failure: passages were retrieved and the
-        # answer ignored them. Silent citation neglect is how a "cite everything"
-        # instruction quietly stops being true.
-        _logger.warning(
-            "answer cited nothing, though %d passage(s) were retrieved",
-            len(citations),
-        )
+    log_citation_problems(audit, available=len(citations))
 
     return AgentTurn(
         text=result.output,
@@ -209,6 +202,132 @@ async def ask(
         messages=result.all_messages(),
         citation_audit=audit,
     )
+
+
+@dataclass(frozen=True)
+class TokenEvent:
+    """A chunk of the answer as it is generated."""
+
+    text: str
+
+
+@dataclass(frozen=True)
+class ToolCallEvent:
+    """The model asked a tool to do something."""
+
+    name: str
+    args: dict[str, object]
+
+
+@dataclass(frozen=True)
+class TurnCompleted:
+    """The turn finished; this carries exactly what ``ask`` would have returned."""
+
+    turn: AgentTurn
+
+
+AgentStreamUpdate = TokenEvent | ToolCallEvent | TurnCompleted
+
+
+async def stream_turn(
+    agent: Agent[AgentDeps, str],
+    deps: AgentDeps,
+    question: str,
+    *,
+    history: list[ModelMessage] | None = None,
+    request_limit: int = 8,
+) -> AsyncIterator[AgentStreamUpdate]:
+    """Run one turn, yielding text deltas and tool activity as they happen.
+
+    The final update carries the same ``AgentTurn`` that ``ask`` returns, so a caller
+    records history and audits citations identically whether the turn was streamed or
+    not — one behaviour, one set of rules.
+    """
+    try:
+        async with agent.run_stream_events(
+            question,
+            deps=deps,
+            message_history=history or None,
+            usage_limits=UsageLimits(request_limit=request_limit),
+        ) as events:
+            async for event in events:
+                # Real providers put the first chunk of a text part in the *start*
+                # event, not a delta. Handling only deltas silently drops the opening
+                # words of every response; TestModel hides this because its start part
+                # is empty.
+                if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart):
+                    if event.part.content:
+                        yield TokenEvent(text=event.part.content)
+                elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+                    if event.delta.content_delta:
+                        yield TokenEvent(text=event.delta.content_delta)
+                elif isinstance(event, FunctionToolCallEvent):
+                    yield ToolCallEvent(
+                        name=event.part.tool_name,
+                        args=normalise_tool_args(event.part.args),
+                    )
+                elif isinstance(event, AgentRunResultEvent):
+                    yield TurnCompleted(turn=_completed_turn(event.result, deps))
+    except UsageLimitExceeded:
+        message = BUDGET_EXHAUSTED_MESSAGE.format(limit=request_limit)
+        yield TurnCompleted(
+            turn=AgentTurn(
+                text=message,
+                citations=(),
+                messages=list(history or []),
+                citation_audit=audit_citations(message, available=0),
+                budget_exhausted=True,
+            )
+        )
+
+
+def _completed_turn(result: Any, deps: AgentDeps) -> AgentTurn:
+    citations = dedupe_citations(deps.citations)
+    audit = audit_citations(result.output, available=len(citations))
+    log_citation_problems(audit, available=len(citations))
+    return AgentTurn(
+        text=result.output,
+        citations=citations,
+        messages=result.all_messages(),
+        citation_audit=audit,
+    )
+
+
+def normalise_tool_args(args: object) -> dict[str, object]:
+    """Present tool arguments as a mapping for logging and streaming.
+
+    Providers deliver them as a JSON string mid-stream and as a mapping through the test
+    model, so both shapes have to be accepted. Anything unparseable is passed through
+    under ``raw`` rather than dropped — a malformed call is worth seeing.
+    """
+    if isinstance(args, dict):
+        return {str(key): value for key, value in args.items()}
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+        except json.JSONDecodeError:
+            return {"raw": args}
+        if isinstance(parsed, dict):
+            return {str(key): value for key, value in parsed.items()}
+    return {"raw": args}
+
+
+def log_citation_problems(audit: CitationAudit, *, available: int) -> None:
+    """Report both ways an answer can betray its citations.
+
+    Shared by the streamed and non-streamed paths so the two cannot drift.
+    """
+    if audit.out_of_range:
+        _logger.warning(
+            "answer cited %s but only %d passage(s) were retrieved",
+            ", ".join(f"[{marker}]" for marker in audit.out_of_range),
+            available,
+        )
+    elif available and audit.is_uncited:
+        _logger.warning(
+            "answer cited nothing, though %d passage(s) were retrieved",
+            available,
+        )
 
 
 def dedupe_citations(citations: list[Citation]) -> tuple[Citation, ...]:

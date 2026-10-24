@@ -6,6 +6,7 @@ captioner, ``TestModel`` agent — so the HTTP layer is exercised without a netw
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -216,3 +217,90 @@ def post_message_with_an_empty_question_should_be_rejected(client: TestClient) -
         json={"question": ""},
     )
     assert response.status_code == 422
+
+
+def read_events(response: object) -> list[tuple[str, dict]]:
+    """Parse an SSE response body into (event name, payload) pairs."""
+    events: list[tuple[str, dict]] = []
+    name: str | None = None
+    for line in response.iter_lines():  # type: ignore[attr-defined]
+        if line.startswith("event: "):
+            name = line[len("event: ") :]
+        elif line.startswith("data: ") and name:
+            events.append((name, json.loads(line[len("data: ") :])))
+            name = None
+    return events
+
+
+def stream_message_with_an_unknown_conversation_should_404(client: TestClient) -> None:
+    # given / when: a conversation id that was never issued
+    response = client.post(
+        "/conversations/nope/messages/stream",
+        json={"question": "anything"},
+    )
+
+    # then: refused before a stream is opened
+    assert response.status_code == 404
+
+
+def stream_message_should_emit_tokens_citations_and_done(client: TestClient) -> None:
+    # given: an indexed document and a conversation
+    upload(client, "handbook.md", DOCUMENT)
+    conversation_id = client.post("/conversations").json()["conversation_id"]
+
+    # when: the turn is streamed
+    with client.stream(
+        "POST",
+        f"/conversations/{conversation_id}/messages/stream",
+        json={"question": "When do backups run?"},
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        events = read_events(response)
+
+    # then: the answer arrives incrementally and ends with a well-formed completion
+    names = [name for name, _ in events]
+    assert "token" in names
+    assert names[-1] == "done"
+    assert "".join(data["text"] for name, data in events if name == "token") == ANSWER
+
+    citations = next(data for name, data in events if name == "citations")["citations"]
+    assert citations
+    assert events[-1][1]["citations_valid"] is True
+
+
+def stream_message_should_report_tool_activity(client: TestClient) -> None:
+    # given: an indexed document
+    upload(client, "handbook.md", DOCUMENT)
+    conversation_id = client.post("/conversations").json()["conversation_id"]
+
+    # when: the turn is streamed
+    with client.stream(
+        "POST",
+        f"/conversations/{conversation_id}/messages/stream",
+        json={"question": "When do backups run?"},
+    ) as response:
+        events = read_events(response)
+
+    # then: the client can show what the agent is doing instead of an apparent hang
+    tool_calls = [data for name, data in events if name == "tool_call"]
+    assert any(call["name"] == "search_knowledge_base" for call in tool_calls)
+
+
+def stream_message_should_record_history(runtime: Runtime, client: TestClient) -> None:
+    # given: an indexed document and a conversation
+    upload(client, "handbook.md", DOCUMENT)
+    conversation_id = client.post("/conversations").json()["conversation_id"]
+
+    # when: a turn is streamed to completion
+    with client.stream(
+        "POST",
+        f"/conversations/{conversation_id}/messages/stream",
+        json={"question": "When do backups run?"},
+    ) as response:
+        read_events(response)
+
+    # then: the server kept the history, exactly as the non-streaming path does
+    conversation = runtime.conversations.get(conversation_id)
+    assert conversation is not None
+    assert conversation.history

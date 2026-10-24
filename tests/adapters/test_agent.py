@@ -13,7 +13,16 @@ from types import SimpleNamespace
 import pytest
 from factories import build_chunk, build_embedded, build_embedding_service
 from pydantic_ai import BinaryContent
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
@@ -21,11 +30,14 @@ from pydantic_rag_agent.adapters.agent import (
     BUDGET_EXHAUSTED_MESSAGE,
     NO_RESULTS_MESSAGE,
     AgentDeps,
+    TokenEvent,
     ask,
     build_agent,
     build_knowledge_base,
+    normalise_tool_args,
     render_hits,
     search_knowledge_base,
+    stream_turn,
     view_image,
 )
 from pydantic_rag_agent.adapters.image_store import FileImageStore
@@ -378,3 +390,65 @@ async def test_ask_stops_at_any_small_request_limit(tmp_path: Path, limit: int) 
     # when / then: every budget is honoured, not just one convenient value
     turn = await ask(agent, deps, "anything", request_limit=limit)
     assert turn.budget_exhausted is True
+
+
+def normalise_tool_args_with_a_json_string_should_parse_it() -> None:
+    # given: arguments as providers deliver them mid-stream
+    # when / then: a client sees a mapping, not escaped JSON inside a string
+    assert normalise_tool_args('{"query": "rack b7"}') == {"query": "rack b7"}
+
+
+def normalise_tool_args_with_a_mapping_should_copy_it() -> None:
+    # given: arguments as the test model delivers them
+    assert normalise_tool_args({"query": "rack b7"}) == {"query": "rack b7"}
+
+
+def normalise_tool_args_with_unparseable_text_should_keep_it_raw() -> None:
+    # given: a malformed call
+    # when / then: it is surfaced rather than dropped, because it is worth seeing
+    assert normalise_tool_args("not json") == {"raw": "not json"}
+
+
+class _FakeEventStream:
+    def __init__(self, events: list[object]) -> None:
+        self._events = events
+
+    async def __aenter__(self) -> object:
+        return self._iterate()
+
+    async def __aexit__(self, *_: object) -> bool:
+        return False
+
+    async def _iterate(self) -> object:
+        for event in self._events:
+            yield event
+
+
+class _FakeStreamingAgent:
+    """Yields a scripted event sequence, so translation can be tested directly."""
+
+    def __init__(self, events: list[object]) -> None:
+        self._events = events
+
+    def run_stream_events(self, *_: object, **__: object) -> _FakeEventStream:
+        return _FakeEventStream(self._events)
+
+
+async def stream_turn_should_emit_the_first_chunk_from_the_start_event(tmp_path: Path) -> None:
+    # given: a stream whose opening text arrives on the start event, as real providers
+    # do — TestModel sends an empty start, which is why this bug survived its tests
+    events = [
+        PartStartEvent(index=0, part=TextPart(content="Hello ")),
+        PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="world")),
+    ]
+    deps = build_deps(tmp_path, build_store())
+
+    # when: the stream is translated
+    tokens = [
+        update.text
+        async for update in stream_turn(_FakeStreamingAgent(events), deps, "q")  # type: ignore[arg-type]
+        if isinstance(update, TokenEvent)
+    ]
+
+    # then: nothing is dropped
+    assert tokens == ["Hello ", "world"]
