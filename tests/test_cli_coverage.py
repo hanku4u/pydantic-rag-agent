@@ -40,7 +40,7 @@ class ExplodingClient:
         raise ClientError("the API is down")
 
     stats = documents = ingest = _fail
-    create_conversation = ask = _fail
+    create_conversation = ask = delete_document = _fail
 
 
 class RecordingClient:
@@ -319,3 +319,191 @@ def test_chat_reports_a_client_error_without_a_traceback(failing: None) -> None:
     assert result.exit_code == 1
     assert "the API is down" in result.stdout
     assert "Traceback" not in result.stdout
+
+
+# --- help is answered locally, not by the model -----------------------------------
+
+
+def test_chat_answers_help_without_asking_the_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`help` used to be sent to the model, which talked about the documents."""
+    ChatClient.asked = []
+    monkeypatch.setattr(cli, "_client", lambda _url: ChatClient())
+
+    for word in ["help", "/help", "?", "/?", "HELP"]:
+        result = runner.invoke(cli.app, ["chat"], input=f"{word}\nexit\n")
+        assert result.exit_code == 0, word
+        assert "Ctrl-C" in result.stdout, word
+
+    assert ChatClient.asked == []
+
+
+def test_chat_still_asks_a_question_that_merely_contains_help(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only an exact match is a command; 'what does the help page say?' is a question."""
+    ChatClient.asked = []
+    monkeypatch.setattr(cli, "_client", lambda _url: ChatClient())
+
+    runner.invoke(cli.app, ["chat"], input="what does the help page say?\nexit\n")
+
+    assert ChatClient.asked == ["what does the help page say?"]
+
+
+# --- delete ----------------------------------------------------------------------
+
+
+class DeleteClient:
+    """Records deletions; can be told to reject specific IDs."""
+
+    deleted: list[str] = []
+    reject: set[str] = set()
+    chunks: int = 3
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def __enter__(self) -> DeleteClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def delete_document(self, document_id: str) -> dict[str, Any]:
+        if document_id in type(self).reject:
+            raise ClientError("no such document")
+        type(self).deleted.append(document_id)
+        return {"deleted": type(self).chunks}
+
+
+@pytest.fixture
+def deleting(monkeypatch: pytest.MonkeyPatch) -> type[DeleteClient]:
+    DeleteClient.deleted = []
+    DeleteClient.reject = set()
+    DeleteClient.chunks = 3
+    monkeypatch.setattr(cli, "_client", lambda _url: DeleteClient())
+    return DeleteClient
+
+
+def test_delete_removes_every_named_document(deleting: type[DeleteClient]) -> None:
+    result = runner.invoke(cli.app, ["delete", "d1", "d2", "-y"])
+
+    assert result.exit_code == 0
+    assert deleting.deleted == ["d1", "d2"]
+
+
+def test_delete_refuses_without_confirmation(deleting: type[DeleteClient]) -> None:
+    """Declining the prompt must delete nothing and exit non-zero."""
+    result = runner.invoke(cli.app, ["delete", "d1"], input="n\n")
+
+    assert result.exit_code == 1
+    assert deleting.deleted == []
+    assert "nothing deleted" in result.stdout
+
+
+def test_delete_proceeds_when_confirmed(deleting: type[DeleteClient]) -> None:
+    result = runner.invoke(cli.app, ["delete", "d1"], input="y\n")
+
+    assert result.exit_code == 0
+    assert deleting.deleted == ["d1"]
+
+
+def test_delete_continues_past_a_bad_id_but_exits_non_zero(
+    deleting: type[DeleteClient],
+) -> None:
+    """One missing ID must not abandon the others, and must still be a failure."""
+    deleting.reject = {"missing"}
+
+    result = runner.invoke(cli.app, ["delete", "d1", "missing", "d2", "-y"])
+
+    assert deleting.deleted == ["d1", "d2"]
+    assert result.exit_code == 1
+    assert "no such document" in result.stdout
+
+
+def test_delete_reports_a_client_error_without_a_traceback(failing: None) -> None:
+    result = runner.invoke(cli.app, ["delete", "d1", "-y"])
+
+    assert result.exit_code == 1
+    assert "the API is down" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+# --- documents lists the ID that delete needs -------------------------------------
+
+
+def test_documents_shows_the_id_and_only_the_leaf_filename(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stored path is content-addressed, so only its last component is useful."""
+
+    class DocClient(RecordingClient):
+        def documents(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "document_id": "abc123",
+                    "title": "Report",
+                    "chunk_count": 4,
+                    "source_path": "data/uploads/ab/abcdef/report.pdf",
+                }
+            ]
+
+    monkeypatch.setattr(cli, "_client", lambda _url: DocClient())
+
+    result = runner.invoke(cli.app, ["documents"])
+
+    assert result.exit_code == 0
+    assert "abc123" in result.stdout
+    assert "report.pdf" in result.stdout
+    # the content-addressed directories are not shown
+    assert "uploads" not in result.stdout
+
+
+def test_documents_json_still_carries_the_full_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DocClient(RecordingClient):
+        def documents(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "document_id": "abc123",
+                    "title": "Report",
+                    "chunk_count": 4,
+                    "source_path": "data/uploads/ab/abcdef/report.pdf",
+                }
+            ]
+
+    monkeypatch.setattr(cli, "_client", lambda _url: DocClient())
+
+    result = runner.invoke(cli.app, ["documents", "--json"])
+
+    assert "data/uploads/ab/abcdef/report.pdf" in result.stdout
+
+
+# --- the API URL can come from .env -----------------------------------------------
+
+
+def test_api_url_is_read_from_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`PRAGENT_API_URL` in .env used to be ignored by the client commands."""
+    (tmp_path / ".env").write_text("PRAGENT_API_URL=http://from-dotenv:9999\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert cli._default_api_url() == "http://from-dotenv:9999"
+
+
+def test_api_url_falls_back_when_dotenv_has_no_such_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("OPENROUTER_API_KEY=sk-not-a-real-key\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert cli._default_api_url() == "http://127.0.0.1:8000"
+
+
+def test_api_url_falls_back_when_there_is_no_dotenv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert cli._default_api_url() == "http://127.0.0.1:8000"

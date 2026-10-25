@@ -132,7 +132,7 @@ See [Interfaces](../design/interfaces.md).
 | API-4 | SSE streaming | API-3 | Tokens arrive incrementally; tool activity is visible as an event |
 | API-5 | Error mapping | API-1 | Provider errors return `502` with a categorised code; no traceback leaks |
 | CLI-1 | `typer` + `rich` skeleton and `serve` | API-1 | `--help` lists every command; `serve` runs the API; all output goes through one injected `Console`; `--no-color` and `NO_COLOR` are honoured |
-| CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output; answers render as Markdown with a numbered citation table; ingest shows progress per file |
+| CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats`, `delete` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output; answers render as Markdown with a numbered citation table; ingest shows progress per file. `delete` arrived later — the API had it since API-2 but the CLI did not, so removing a document meant the UI or a hand-made request |
 | CLI-3 | Plain and JSON output modes | CLI-2 | Piped output contains no ANSI escapes or box drawing; `--json` emits one parseable object per result so the CLI is usable from scripts |
 | UI-1 | Streamlit chat | API-4 | A question streams into the chat window |
 | UI-2 | Streamlit ingest sidebar | API-2 | Files upload and ingest from the browser; document list reflects reality |

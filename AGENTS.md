@@ -53,7 +53,10 @@ uv run pydantic-rag-agent serve    # the API (terminal 1; everything else is a c
 uv run pydantic-rag-agent dev      # the API and the Streamlit UI together (DX-1)
 uv run pydantic-rag-agent ingest ./docs        # index documents
 uv run pydantic-rag-agent ask "…"              # one streamed answer
+uv run pydantic-rag-agent documents            # list the index, with document IDs
+uv run pydantic-rag-agent delete <id>          # remove a document (asks first; -y skips)
 uv run pytest                  # tests (offline; model requests disabled)
+uv run pytest --cov            # tests plus coverage; CI fails below 85%
 uv run ruff check .            # lint
 uv run ruff format --check .   # formatting
 uv run mypy src                # types
@@ -83,9 +86,9 @@ Next two tasks, in order — the reasoning for the order is in the M6 table and 
    offline: `tests/conftest.py` sets `ALLOW_MODEL_REQUESTS = False` so a forgotten fake
    fails rather than spends.
 
-Known debts, each small: no `delete` command in the CLI, `help` in `chat` is sent to the
-model, `documents` prints content-addressed storage paths,
-and `PRAGENT_API_URL` in `.env` is not read by the CLI (only the shell environment).
+Known debts: none outstanding at this handoff. The four that were listed here — no `delete`
+command, `help` reaching the model, `documents` printing content-addressed paths, and
+`PRAGENT_API_URL` being ignored in `.env` — are all fixed.
 
 Practical notes:
 

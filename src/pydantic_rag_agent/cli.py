@@ -30,7 +30,29 @@ from pydantic_rag_agent.client import UPLOAD_SUFFIXES, ClientError, RagClient
 if TYPE_CHECKING:
     import uvicorn
 
-DEFAULT_API_URL = "http://127.0.0.1:8000"
+
+def _default_api_url() -> str:
+    """Where the API is, honouring ``.env`` as well as the shell.
+
+    ``Settings`` is the only thing that reads ``.env``, and the CLI deliberately does not
+    build a ``Settings`` — that would demand ``OPENROUTER_API_KEY`` just to run
+    ``documents`` against a remote server. The consequence was that ``PRAGENT_API_URL``
+    in ``.env`` did nothing for the client commands while working for the server, which
+    is the kind of asymmetry that wastes an afternoon.
+
+    Reading only this one key closes it without loading the rest of the configuration.
+    The precedence stays as a user would expect: ``--api-url`` beats the shell
+    environment, which beats ``.env``, which beats the built-in default.
+    """
+    import dotenv
+
+    from_env = dotenv.dotenv_values(".env").get("PRAGENT_API_URL")
+    if from_env:
+        return from_env
+    return "http://127.0.0.1:8000"
+
+
+DEFAULT_API_URL = _default_api_url()
 
 # The prompt is needed twice: once for `console.input`, once — plain — to work out how
 # many columns the echoed line occupied.
@@ -130,7 +152,8 @@ def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
             console.print(
                 Panel(
                     Text(
-                        "Ask about your documents. 'exit' leaves; Ctrl-C works too.",
+                        "Ask about your documents. 'help' for commands, "
+                        "'exit' to leave; Ctrl-C works too.",
                         style="dim",
                     ),
                     border_style="dim",
@@ -145,6 +168,11 @@ def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
                     return
                 if question.strip().lower() in {"exit", "quit", ""}:
                     return
+                if question.strip().lower().lstrip("/") in {"help", "?"}:
+                    # `help` used to be sent to the model, which answered about the
+                    # documents rather than about the commands. Answer it here.
+                    console.print(_chat_help())
+                    continue
                 if console.is_terminal:
                     # The terminal echoed what was just typed. Clear it, so the turn
                     # appears once — in the panel — rather than twice.
@@ -153,6 +181,52 @@ def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
     except ClientError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def delete(
+    document_ids: Annotated[list[str], typer.Argument(help="IDs of the documents to remove.")],
+    api_url: ApiUrl = DEFAULT_API_URL,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+) -> None:
+    """Remove documents from the index by ID.
+
+    The API has supported this since API-2; without a command the only way to drop a
+    document was to delete it from the UI or call the endpoint by hand.
+    """
+    console = Console()
+
+    if not yes:
+        confirmed = typer.confirm(
+            f"Remove {len(document_ids)} document(s) from the index?", default=False
+        )
+        if not confirmed:
+            console.print("[dim]nothing deleted[/dim]")
+            raise typer.Exit(code=1)
+
+    removed: list[str] = []
+    try:
+        with _client(api_url) as client:
+            for document_id in document_ids:
+                try:
+                    result = client.delete_document(document_id)
+                except ClientError as exc:
+                    # One bad ID must not abandon the rest of the list, but it does
+                    # have to be visible and it does have to affect the exit code.
+                    console.print(f"[red]{document_id}: {exc}[/red]")
+                    continue
+                removed.append(document_id)
+                # `deleted` is the number of chunks dropped, not documents — a name
+                # worth not confusing with the count of successful calls.
+                chunks = result.get("deleted")
+                notes = f" ({chunks} chunks)" if isinstance(chunks, int) and chunks else ""
+                console.print(f"[green]deleted[/green] {document_id}{notes}")
+    except ClientError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if len(removed) != len(document_ids):
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -170,12 +244,22 @@ def documents(api_url: ApiUrl = DEFAULT_API_URL, as_json: AsJson = False) -> Non
         typer.echo(json.dumps(rows, indent=2))
         return
 
+    # The ID is shown because every other command needs it — `delete` takes one — and
+    # the source is shown as a leaf name: an upload's stored path is content-addressed
+    # (`uploads/ab/abcdef…/report.pdf`), which is an implementation detail, not something
+    # a person can act on. The full path is still in `--json` for anything that needs it.
     table = Table(title="Indexed documents")
+    table.add_column("ID", overflow="fold")
     table.add_column("Title", overflow="fold")
     table.add_column("Chunks", justify="right")
-    table.add_column("Source", overflow="fold")
+    table.add_column("File", overflow="fold")
     for row in rows:
-        table.add_row(str(row["title"]), str(row["chunk_count"]), str(row["source_path"]))
+        table.add_row(
+            str(row["document_id"]),
+            str(row["title"]),
+            str(row["chunk_count"]),
+            Path(str(row["source_path"])).name,
+        )
     console.print(table if rows else "[dim]No documents indexed yet.[/dim]")
 
 
@@ -285,6 +369,23 @@ def _ui_script() -> Path:
     import pydantic_rag_agent.ui as ui_package
 
     return Path(ui_package.__file__).parent / "streamlit_app.py"
+
+
+def _chat_help() -> Panel:
+    """What `chat` can do, answered locally instead of by the model."""
+    body = Text()
+    body.append("exit", style="bold")
+    body.append(", ")
+    body.append("quit", style="bold")
+    body.append(", or an empty line leaves. Ctrl-C and Ctrl-D also work.\n")
+    body.append("help", style="bold")
+    body.append(" or ")
+    body.append("?", style="bold")
+    body.append(" shows this. Any other line is asked about your documents.\n")
+    body.append("For the full command list, run ")
+    body.append("pydantic-rag-agent --help", style="bold")
+    body.append(" outside chat.")
+    return Panel(Text.assemble(body), border_style="dim", padding=(0, 1))
 
 
 def _client(api_url: str) -> RagClient:
