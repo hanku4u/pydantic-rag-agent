@@ -92,6 +92,8 @@ RagAgent(
 | `ingest(sources)` | Index files or directories; copies each original; returns `IngestReport` |
 | `ingest_files(files)` | Index `(name, bytes)` uploads, as an API or UI has them |
 | `ask(question, *, conversation_id=None)` | One answered turn, carrying `conversation_id` |
+| `chat(messages)` | One turn over a caller-owned thread; nothing is stored |
+| `stream_chat(messages)` | The same, streamed |
 | `stream(question, *, conversation_id=None)` | Async iterator of tokens, tool calls, completion |
 | `documents()` | Indexed documents with IDs |
 | `delete_document(document_id)` | Remove chunks and return how many; zero means no such document |
@@ -171,6 +173,23 @@ app.include_router(create_router(agent), prefix="/knowledge")
 The host owns the lifecycle: `create_router` registers no startup or shutdown hook, so
 `check_index()` and `aclose()` are the host's to call. Skipping the first means `/health`
 and `/stats` are served from an index nothing validated.
+
+### Any chat UI, without writing one
+
+Mount the OpenAI-compatible router too, and point the client at `<prefix>/v1`:
+
+```python
+from pydantic_rag_agent.integrations.fastapi import create_openai_router
+
+app.include_router(create_openai_router(agent, model_id="acme-knowledge"), prefix="/openai")
+# base URL for the client: https://host/openai/v1
+```
+
+The model id is whatever the deployment wants the picker to show. The endpoint is
+stateless, drops caller-supplied system messages, and puts citations in a `Sources:`
+footer — see [Interfaces](interfaces.md#openai-compatible-endpoint) and
+[ADR 0014](../decisions/0014-openai-compatible-endpoint.md). `serve` already exposes it at
+`/v1`, so a chat UI can be pointed at a running server with no code at all.
 
 `create_app(agent)` is the standalone server that `serve` runs: the same routes, plus
 the startup index check and the agent's shutdown. The router owns neither, because a host

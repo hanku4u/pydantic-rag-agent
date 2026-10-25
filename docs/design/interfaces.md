@@ -88,6 +88,39 @@ A failure mid-stream emits `error` rather than dropping the connection, because 
 cannot tell a truncated answer from a slow one. A budget-exhausted turn finishes with
 `done` and `budget_exhausted: true`.
 
+### OpenAI-compatible endpoint
+
+`create_openai_router(agent)` serves the same agent to any OpenAI-speaking chat client —
+Open WebUI, Chatbox, LibreChat — at `/v1`. `serve` includes it already; mounting the
+factory is for a host app:
+
+| Path | Purpose |
+| --- | --- |
+| `GET /v1/models` | One model card; the id is the `model_id` passed to the factory |
+| `GET /v1/models/{id}` | The same card, or a 404 in the OpenAI error envelope |
+| `POST /v1/chat/completions` | The conversation, with `stream: true` supported |
+
+Four differences from a general-purpose endpoint, all deliberate
+([ADR 0014](../decisions/0014-openai-compatible-endpoint.md)):
+
+- **Stateless.** The request's `messages` are the thread; nothing is stored. Two users can
+  share the endpoint. Session resume is future work.
+- **No instructions from the caller.** `system` and `developer` messages are dropped, not
+  obeyed; `ChatMessage` has no role for them.
+- **Citations are text.** The answer ends with a `Sources:` footer, because the OpenAI
+  envelope has nowhere to put them and no client renders a custom field.
+- **The caller's tools are ignored.** `tools`/`functions` are accepted and ignored: the
+  agent's retrieval is not a function the caller can invoke.
+
+`temperature`, `max_tokens`, `stop`, `n`, `response_format` and `model` are accepted and
+ignored for the same reason — rejecting them would break clients that always send them.
+
+Two rendering details a user will notice. The footer names the **stored original** (the
+`file://` locator) rather than the path the document was ingested from, because that is
+the copy that still exists. And a streamed answer includes the model's pre-tool narration,
+exactly as the SSE stream does; the non-streamed answer is the final text only. That is a
+property of streaming, not a difference in what was retrieved.
+
 ### Errors
 
 - Validation failure → `422` with Pydantic's error structure, unmodified.

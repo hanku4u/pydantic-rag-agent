@@ -37,6 +37,10 @@ from pydantic_rag_agent.agent import RagAgent
 from pydantic_rag_agent.application.ingestion import IngestReport
 from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
+from pydantic_rag_agent.integrations.fastapi.openai import (
+    DEFAULT_MODEL_ID,
+    create_openai_router,
+)
 from pydantic_rag_agent.integrations.fastapi.schemas import (
     AnswerResponse,
     AskRequest,
@@ -164,11 +168,14 @@ def create_router(agent: RagAgent) -> APIRouter:
     return router
 
 
-def create_app(agent: RagAgent) -> FastAPI:
-    """The standalone server: the router, its startup check, and the agent's lifecycle.
+def create_app(agent: RagAgent, *, openai_model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
+    """The standalone server: our routes, the OpenAI-compatible ones, and the lifecycle.
 
     This app owns the agent. A host that mounts ``create_router`` keeps that
     responsibility — which is why the router does not register a shutdown hook.
+
+    ``/v1`` is included so ``serve`` is immediately usable by an OpenAI-speaking chat UI.
+    ``openai_model_id`` is the label such a client will display and echo back.
     """
 
     @asynccontextmanager
@@ -184,6 +191,7 @@ def create_app(agent: RagAgent) -> FastAPI:
 
     app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
     app.include_router(create_router(agent))
+    app.include_router(create_openai_router(agent, model_id=openai_model_id))
     return app
 
 

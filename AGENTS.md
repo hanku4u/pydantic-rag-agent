@@ -73,6 +73,9 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 ## Where to pick up
 
 State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
+**API-6 (post-M7) is done:** `create_openai_router` serves any OpenAI-speaking chat UI
+(`integrations/fastapi/openai.py`; ADR 0014).
+
 **M7 — distribution and embedding — is underway.** Done: **CFG-1** (settings tree),
 **CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
 **CORE-1** (`RagAgent` façade), **CORE-2** (`KnowledgeClient`; the CLI and UI need no

@@ -92,6 +92,7 @@ src/pydantic_rag_agent/
 ├── integrations/
 │   └── fastapi/          # optional: create_router(agent), create_app(agent)
 │       ├── app.py        # routes (incl. SSE), error mapping
+│       ├── openai.py     # /v1 chat completions for OpenAI-speaking clients (API-6)
 │       └── schemas.py    # wire models, separate from domain
 └── ui/                   # Streamlit
     └── streamlit_app.py  # chat UI, in-process or over the API

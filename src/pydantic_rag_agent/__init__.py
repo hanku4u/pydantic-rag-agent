@@ -35,8 +35,13 @@ from pydantic_rag_agent.config import (
     VectorStoreSettings,
     load_settings,
 )
-from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
+from pydantic_rag_agent.domain.errors import (
+    IndexMismatchError,
+    InvalidThreadError,
+    UnknownConversationError,
+)
 from pydantic_rag_agent.domain.models import (
+    ChatMessage,
     Citation,
     DocumentSummary,
     StoreStats,
@@ -68,6 +73,7 @@ __all__ = [
     "VectorStore",
     "EmbeddingService",
     # Results
+    "ChatMessage",
     "Citation",
     "DocumentSummary",
     "IngestReport",
@@ -75,6 +81,7 @@ __all__ = [
     "TurnUsage",
     # Failures a caller is expected to handle
     "IndexMismatchError",
+    "InvalidThreadError",
     "UnknownConversationError",
     "MissingExtraError",
 ]

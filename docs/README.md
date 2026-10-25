@@ -87,6 +87,7 @@ rather than inventing one and writing it down as fact.
 - [0011 — Public façade](decisions/0011-public-facade.md) — `RagAgent` as the surface; FastAPI becomes optional.
 - [0012 — Source documents](decisions/0012-source-documents.md) — keep originals locally or in S3, and cite them by locator.
 - [0013 — Packaging and release](decisions/0013-packaging-and-release.md) — extras, 0.1.0, trusted publishing.
+- [0014 — OpenAI-compatible endpoint](decisions/0014-openai-compatible-endpoint.md) — stateless history, no caller instructions, citations as text.
 - [0009 — Conversation compaction](decisions/0009-conversation-compaction.md) — trim whole turns, never mid tool round trip, and do not summarise.
 
 ## For coding agents

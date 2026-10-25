@@ -52,8 +52,9 @@ real value.
 | [0011](0011-public-facade.md) | A public façade, with FastAPI optional | Accepted | 2026-10-25 |
 | [0012](0012-source-documents.md) | Keep the original document, and cite it | Accepted | 2026-10-25 |
 | [0013](0013-packaging-and-release.md) | Publish as `pydantic-rag-agent`, 0.1.0, with optional extras | Accepted | 2026-10-25 |
+| [0014](0014-openai-compatible-endpoint.md) | An OpenAI-compatible endpoint, stateless first | Accepted | 2026-10-25 |
 
-Next number: **0014**.
+Next number: **0015**.
 
 ## Writing one
 

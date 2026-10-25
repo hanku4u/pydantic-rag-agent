@@ -220,3 +220,21 @@ class TurnUsage(BaseModel):
     def is_empty(self) -> bool:
         """True when nothing was measured — a provider that reports no usage."""
         return self.total_tokens == 0 and self.requests == 0
+
+
+ChatRole = Literal["user", "assistant"]
+
+
+class ChatMessage(BaseModel):
+    """One turn supplied by a caller, for stateless chat.
+
+    The roles are deliberately limited to the two a client owns. There is no ``system``
+    value, because instructions are the agent's and client-supplied ones are untrusted
+    data — the same rule that keeps retrieved text out of the system prompt. A caller that
+    wants a different persona is asking for a different agent, not a different message.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    role: ChatRole
+    content: str = Field(min_length=1)

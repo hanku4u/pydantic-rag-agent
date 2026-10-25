@@ -22,6 +22,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, TypeVar
 
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
 from pydantic_ai.models import Model
 
 from pydantic_rag_agent.adapters.agent import (
@@ -34,6 +41,7 @@ from pydantic_rag_agent.adapters.agent import (
     ask,
     stream_turn,
 )
+from pydantic_rag_agent.adapters.compaction import compact
 from pydantic_rag_agent.adapters.conversations import Conversation
 from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.application.ingestion import (
@@ -42,8 +50,8 @@ from pydantic_rag_agent.application.ingestion import (
     ingest_uploads,
 )
 from pydantic_rag_agent.config import Settings
-from pydantic_rag_agent.domain.errors import UnknownConversationError
-from pydantic_rag_agent.domain.models import DocumentSummary, StoreStats
+from pydantic_rag_agent.domain.errors import InvalidThreadError, UnknownConversationError
+from pydantic_rag_agent.domain.models import ChatMessage, DocumentSummary, StoreStats
 from pydantic_rag_agent.domain.ports import DocumentStore, VectorStore
 from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
 
@@ -192,6 +200,52 @@ class RagAgent:
             else:
                 yield update
 
+    async def chat(self, messages: Sequence[ChatMessage]) -> AgentTurn:
+        """Answer the last message, treating the earlier ones as context.
+
+        Stateless by design: the caller owns the thread and nothing is stored. That is what
+        an OpenAI-compatible client expects, and it keeps untrusted history out of the
+        conversation store. ``ChatMessage`` has no system role on purpose — the
+        instructions are the agent's, never the caller's.
+
+        Raises ``ValueError`` when the thread cannot be answered: empty, or not ending
+        with a user message.
+        """
+        await self.check_index()
+        history, question = _chat_parts(
+            messages, keep_turns=self._runtime.settings.agent.history_turns
+        )
+        return await ask(
+            self._runtime.agent,
+            self._deps(),
+            question,
+            history=history,
+            request_limit=self._runtime.settings.agent.max_tool_calls,
+        )
+
+    async def stream_chat(
+        self, messages: Sequence[ChatMessage]
+    ) -> AsyncGenerator[AgentStreamUpdate, None]:
+        """``chat`` as a stream: the caller owns the thread, nothing is stored.
+
+        Same rules as ``chat``: the last message must be the user's, and there is no
+        system role to supply. Errors raised before the first update are the caller's to
+        map — an index mismatch and a bad thread look the same at the first ``anext``.
+        """
+        await self.check_index()
+        history, question = _chat_parts(
+            messages, keep_turns=self._runtime.settings.agent.history_turns
+        )
+
+        async for update in stream_turn(
+            self._runtime.agent,
+            self._deps(),
+            question,
+            history=history,
+            request_limit=self._runtime.settings.agent.max_tool_calls,
+        ):
+            yield update
+
     async def ingest(self, sources: Path | str | Iterable[Path | str]) -> IngestReport:
         """Index files or directories, returning a report rather than raising per file.
 
@@ -282,15 +336,15 @@ class RagAgent:
         the caller as they arrive rather than in one burst at the end. Refuses inside a
         running loop, like the other sync helpers.
         """
-        stream = self.stream(question, conversation_id=conversation_id)
-        try:
-            while True:
-                try:
-                    yield self._run_sync(_advance(stream))
-                except StopAsyncIteration:
-                    return
-        finally:
-            self._run_sync(stream.aclose())
+        yield from self._iter_sync(self.stream(question, conversation_id=conversation_id))
+
+    def chat_sync(self, messages: Sequence[ChatMessage]) -> AgentTurn:
+        """``chat`` for synchronous code. Refuses inside a running loop."""
+        return self._run_sync(self.chat(messages))
+
+    def stream_chat_sync(self, messages: Sequence[ChatMessage]) -> Iterator[AgentStreamUpdate]:
+        """``stream_chat`` for synchronous code. Refuses inside a running loop."""
+        return self._iter_sync(self.stream_chat(messages))
 
     def documents_sync(self) -> list[DocumentSummary]:
         """``documents`` for synchronous code."""
@@ -340,6 +394,19 @@ class RagAgent:
         # Compaction happens in the store, so what is kept is what the next turn sends.
         self._runtime.conversations.record(conversation.conversation_id, turn.messages)
 
+    def _iter_sync(
+        self, stream: AsyncGenerator[AgentStreamUpdate, None]
+    ) -> Iterator[AgentStreamUpdate]:
+        """Drive an async generator one step per turn of the agent's loop."""
+        try:
+            while True:
+                try:
+                    yield self._run_sync(_advance(stream))
+                except StopAsyncIteration:
+                    return
+        finally:
+            self._run_sync(stream.aclose())
+
     def _run_sync(self, coroutine: Coroutine[Any, Any, _T]) -> _T:
         """Run a coroutine on the agent's sync loop, refusing inside a running loop.
 
@@ -364,6 +431,38 @@ class RagAgent:
         return self._sync_loop.run_until_complete(coroutine)
 
 
+def _chat_parts(
+    messages: Sequence[ChatMessage], *, keep_turns: int
+) -> tuple[list[ModelMessage], str]:
+    """Validate a caller-owned thread, and split it into history and the question.
+
+    The history is trimmed to ``keep_turns`` whole turns for the same reason a stored
+    conversation is: a client that resends a year of chat should not grow the context
+    without bound. It bounds *turns*, not bytes — a single enormous message is still
+    whatever the client sent. It is the same compactor as the stored path, so the two
+    modes cannot disagree about what a turn is.
+    """
+    turns = list(messages)
+    if not turns:
+        raise InvalidThreadError("at least one message is required")
+    if turns[-1].role != "user":
+        raise InvalidThreadError("the last message must be from the user")
+
+    history = compact(_to_model_messages(turns[:-1]), keep_turns=keep_turns)
+    return history, turns[-1].content
+
+
+def _to_model_messages(turns: Sequence[ChatMessage]) -> list[ModelMessage]:
+    """Translate caller-supplied turns into the framework's history type."""
+    messages: list[ModelMessage] = []
+    for turn in turns:
+        if turn.role == "user":
+            messages.append(ModelRequest(parts=[UserPromptPart(turn.content)]))
+        else:
+            messages.append(ModelResponse(parts=[TextPart(turn.content)]))
+    return messages
+
+
 async def _advance(stream: AsyncGenerator[AgentStreamUpdate, None]) -> AgentStreamUpdate:
     """One step of an async generator, wrapped so ``_run_sync`` has a coroutine."""
     return await stream.__anext__()
@@ -382,6 +481,7 @@ def _as_paths(sources: Path | str | Iterable[Path | str]) -> list[Path]:
 
 __all__ = [
     "RagAgent",
+    "ChatMessage",
     "AgentTurn",
     "AgentStreamUpdate",
     "TokenEvent",

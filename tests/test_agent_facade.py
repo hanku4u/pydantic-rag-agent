@@ -39,7 +39,12 @@ from pydantic_rag_agent.config import (
     StorageSettings,
     VectorStoreSettings,
 )
-from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
+from pydantic_rag_agent.domain.errors import (
+    IndexMismatchError,
+    InvalidThreadError,
+    UnknownConversationError,
+)
+from pydantic_rag_agent.domain.models import ChatMessage
 
 DOCUMENT = "# Handbook\n\n## Backups\n\nBackups run nightly at 02:00 UTC.\n"
 
@@ -400,3 +405,90 @@ def agent_should_be_constructible_from_code_with_no_environment(
     # then: nothing needed the environment — the library case, not the app case
     assert agent.settings.require_provider_api_key() == "explicit"
     assert agent.settings.vector_store.backend == "memory"
+
+
+async def chat_should_answer_with_the_caller_s_history() -> None:
+    # given: a thread the caller owns, as an OpenAI client sends it
+    model, lengths = history_lengths_model()
+    agent = build_facade(model=model)
+    thread = [
+        ChatMessage(role="user", content="When do backups run?"),
+        ChatMessage(role="assistant", content="Nightly at 02:00."),
+        ChatMessage(role="user", content="And for how long?"),
+    ]
+
+    # when: the last message is answered
+    turn = await agent.chat(thread)
+
+    # then: the earlier turns reached the model, and there is no conversation to return
+    assert turn.conversation_id is None
+    assert lengths == [3]
+
+
+async def chat_should_trim_a_caller_supplied_thread_to_the_history_bound() -> None:
+    # given: ten turns (twenty messages), more than the configured six
+    model, lengths = history_lengths_model()
+    agent = build_facade(model=model)
+    thread: list[ChatMessage] = []
+    for index in range(10):
+        thread.append(ChatMessage(role="user", content=f"question {index}"))
+        thread.append(ChatMessage(role="assistant", content=f"answer {index}"))
+    thread.append(ChatMessage(role="user", content="the real question"))
+
+    # when: it is answered
+    await agent.chat(thread)
+
+    # then: six turns of history plus the question — cut on a boundary, not mid-turn
+    assert lengths == [13]
+
+
+async def chat_should_be_stateless_between_calls() -> None:
+    # given: the same thread sent twice, as a client that resends everything does
+    model, lengths = history_lengths_model()
+    agent = build_facade(model=model)
+    thread = [
+        ChatMessage(role="user", content="first"),
+        ChatMessage(role="assistant", content="answer"),
+        ChatMessage(role="user", content="second"),
+    ]
+
+    # when: it is answered twice
+    await agent.chat(thread)
+    await agent.chat(thread)
+
+    # then: the second call saw the same history, not the first call's — nothing accumulated
+    assert lengths == [3, 3]
+
+
+async def chat_with_a_thread_that_does_not_end_with_the_user_should_be_rejected() -> None:
+    # given: nothing for the agent to answer
+    agent = build_facade()
+
+    # when / then: a typed failure, not a turn about nothing
+    with pytest.raises(InvalidThreadError, match="last message"):
+        await agent.chat([ChatMessage(role="assistant", content="hello")])
+
+
+async def chat_with_no_messages_should_be_rejected() -> None:
+    # given: an empty request
+    agent = build_facade()
+
+    # when / then: refused before any model call
+    with pytest.raises(InvalidThreadError, match="at least one"):
+        await agent.chat([])
+
+
+async def chat_with_consecutive_user_messages_should_still_answer() -> None:
+    # given: two user turns with no assistant reply between them, which some clients send
+    agent = build_facade()
+
+    # when: the last one is answered
+    turn = await agent.chat(
+        [
+            ChatMessage(role="user", content="one"),
+            ChatMessage(role="user", content="two"),
+        ]
+    )
+
+    # then: the framework accepts it and the turn completes
+    assert turn.text == ANSWER

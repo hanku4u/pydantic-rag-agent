@@ -26,3 +26,12 @@ class UnknownConversationError(LookupError):
 
     def __str__(self) -> str:
         return f"unknown conversation {self.conversation_id!r}"
+
+
+class InvalidThreadError(ValueError):
+    """A caller-supplied chat thread cannot be answered.
+
+    Its own type rather than a bare ``ValueError``: an interface maps this to a 400, and
+    catching ``ValueError`` would also swallow unrelated validation failures from deeper
+    in the turn and report them as the caller's mistake.
+    """

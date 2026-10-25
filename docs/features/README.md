@@ -39,6 +39,7 @@ stay the canonical list.
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
+| API-6 (post-M7) | API-6 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 | M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, SRC-1, PKG-1 | CORE-4 |
 
@@ -132,6 +133,7 @@ See [Interfaces](../design/interfaces.md).
 | API-3 | Conversation and message endpoints | AGT-2 | A question returns an answer with citations |
 | API-4 | SSE streaming | API-3 | Tokens arrive incrementally; tool activity is visible as an event |
 | API-5 | Error mapping | API-1 | Provider errors return `502` with a categorised code; no traceback leaks |
+| API-6 | OpenAI-compatible chat endpoint | CORE-3 | A stock OpenAI client completes a streamed, cited, multi-turn exchange against a mounted router. **Done (post-M7):** `create_openai_router` serves `/v1/models` and `/v1/chat/completions`; stateless history, system messages dropped, citations as a text footer, configurable model id — see [ADR 0014](../decisions/0014-openai-compatible-endpoint.md) |
 | CLI-1 | `typer` + `rich` skeleton and `serve` | API-1 | `--help` lists every command; `serve` runs the API; all output goes through one injected `Console`; `--no-color` and `NO_COLOR` are honoured |
 | CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats`, `delete` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output; answers render as Markdown with a numbered citation table; ingest shows progress per file. `delete` arrived later — the API had it since API-2 but the CLI did not, so removing a document meant the UI or a hand-made request |
 | CLI-3 | Plain and JSON output modes | CLI-2 | Piped output contains no ANSI escapes or box drawing; `--json` emits one parseable object per result so the CLI is usable from scripts |
