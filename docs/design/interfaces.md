@@ -157,6 +157,7 @@ show.
 
 | Command | Purpose |
 | --- | --- |
+| `configure` | Walk through provider, models and storage; write `.env` |
 | `serve` | Run the API for remote clients and integrations (uvicorn) |
 | `ingest PATH...` | Upload and ingest files or directories |
 | `ask "QUESTION"` | One question, streamed to the terminal |

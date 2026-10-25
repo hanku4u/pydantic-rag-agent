@@ -40,6 +40,7 @@ stay the canonical list.
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | API-6 (post-M7) | API-6 | — |
+| DX-2 (post-M7) | DX-2 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 | M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1, PKG-2, PKG-3, PKG-4, PKG-5 | — |
 | M8 Storage, metadata and citation ergonomics | — | SRC-4, SRC-5, RET-5, CIT-1 |
@@ -142,6 +143,7 @@ See [Interfaces](../design/interfaces.md).
 | UI-2 | Streamlit ingest sidebar | API-2 | Files upload and ingest from the browser; document list reflects reality |
 | UI-3 | Citation rendering | API-3 | Each answer exposes its sources in an expander |
 | DX-1 | `dev` command: API and UI together | CLI-1, UI-1 | One command starts the API and Streamlit, so a first run is not "open three terminals" |
+| DX-2 | Interactive setup wizard | CFG-1 | A new user goes from install to a working `.env` with one command; every value it writes is the same environment variable the package reads; an existing `.env` is merged, not overwritten, and backed up. **Done (post-M7):** `pydantic-rag-agent configure` uses `rich` prompts for provider (six presets), models, embeddings and dimensions, Chroma or memory, local or S3 originals, with an optional one-call embedding check. Tests cover presets, the variable mapping, merge/backup and file permissions |
 
 ## M6 — Hardening
 

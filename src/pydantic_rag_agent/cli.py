@@ -328,6 +328,20 @@ def main() -> None:
 
 
 @app.command()
+def configure(
+    env_file: Annotated[
+        Path, typer.Option("--env-file", help="Where to write the configuration.")
+    ] = Path(".env"),
+) -> None:
+    """Set up provider, models and storage, and write a .env."""
+    # Imported late: the wizard pulls the settings model and pydantic-ai, and `--help`
+    # should stay instant.
+    from pydantic_rag_agent.configure import run
+
+    raise typer.Exit(code=run(Console(), env_file))
+
+
+@app.command()
 def dev(
     host: Annotated[str, typer.Option(help="Interface the API binds to.")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port for the API.")] = 8000,

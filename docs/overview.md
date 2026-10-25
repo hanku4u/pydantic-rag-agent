@@ -90,7 +90,7 @@ Accurate as of 2026-10-25.
 | OpenAI-compatible endpoint for chat UIs (`/v1`) | Done — API-6 |
 | Packaging: lean core, extras, metadata, typed package | Done — PKG-1…PKG-3 |
 | Cost visibility: per-turn tokens, requests and cost on every answer | Done — OPS-2 |
-| CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev`; in-process by default | Done — CLI-1…CLI-3, DX-1, CORE-2 |
+| CLI: `configure`, `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev`; in-process by default | Done — CLI-1…CLI-3, DX-1, CORE-2, DX-2 |
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |

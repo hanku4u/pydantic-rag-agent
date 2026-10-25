@@ -7,6 +7,12 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `pydantic-rag-agent configure`: an interactive setup wizard (rich prompts) for the
+  provider, chat and embedding models, vector store and document storage. It merges into an
+  existing `.env`, backs the old file up, and can test the embedding endpoint.
+
 ### Fixed
 
 - The README no longer claims the package is unpublished. The 0.1.0 metadata on PyPI keeps

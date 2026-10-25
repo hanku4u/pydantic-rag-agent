@@ -51,6 +51,7 @@ Orientation for automated coding assistants and for anyone joining the project.
 ```bash
 uv sync                        # create/refresh the environment
 uv run pydantic-rag-agent --help   # every CLI command
+uv run pydantic-rag-agent configure   # interactive .env setup
 uv run pydantic-rag-agent serve    # the API, for remote clients and integrations
 uv run pydantic-rag-agent dev      # the API and the Streamlit UI together (DX-1)
 uv run pydantic-rag-agent ingest ./docs        # index documents

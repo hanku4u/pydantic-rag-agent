@@ -48,6 +48,13 @@ Published as **0.1.0** — see the [changelog](https://github.com/hanku4u/pydant
 for what is in it. Before 1.0 the public API may change in a minor release, with a
 migration note.
 
+Then let the wizard write your `.env` — provider, models, where documents live, which
+vector store — so the first run is configuration rather than reading a reference table:
+
+```bash
+pydantic-rag-agent configure
+```
+
 As a library, from the repository today (and from PyPI once published):
 
 ```python

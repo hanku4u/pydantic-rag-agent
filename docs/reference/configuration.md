@@ -4,7 +4,8 @@
 are implemented.
 
 How the application is configured, where values come from, and what fails when they are
-wrong. Decisions behind it: [ADR 0010](../decisions/0010-configuration-tree.md); the
+wrong. `pydantic-rag-agent configure` asks for the important ones and writes a `.env`
+(merging into an existing file, with a backup); this page is the reference behind it. Decisions behind it: [ADR 0010](../decisions/0010-configuration-tree.md); the
 programmatic surface is in [Public API](../design/public-api.md).
 
 ## Rules
