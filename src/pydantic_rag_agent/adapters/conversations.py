@@ -24,6 +24,7 @@ Two separate bounds, and both are needed:
 
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from uuid import uuid4
@@ -33,6 +34,8 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_rag_agent.adapters.compaction import DEFAULT_KEEP_TURNS, compact
 
 DEFAULT_MAX_CONVERSATIONS = 500
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -92,9 +95,16 @@ class InMemoryConversationStore:
         send. A conversation that outgrows the window therefore stops growing instead
         of failing on some later request.
         """
-        self._conversations[conversation_id].history = compact(
-            list(history), keep_turns=self._keep_turns
-        )
+        conversation = self._conversations.get(conversation_id)
+        if conversation is None:
+            # Evicted while this turn was in flight: enough new conversations were
+            # created to push this one out. The answer is already on its way to the
+            # caller, so dropping its history beats failing the request after the fact —
+            # and the next turn gets the same 404 as any unknown id.
+            _logger.warning("dropping history for evicted conversation %s", conversation_id)
+            return
+
+        conversation.history = compact(list(history), keep_turns=self._keep_turns)
         self._conversations.move_to_end(conversation_id)
 
     def __len__(self) -> int:

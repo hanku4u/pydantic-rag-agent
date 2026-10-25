@@ -109,6 +109,23 @@ def test_a_held_reference_still_works_after_eviction() -> None:
     assert held.history == [], "the caller's object is still readable"
 
 
+def test_recording_history_for_an_evicted_conversation_does_not_raise() -> None:
+    """A turn in flight when its conversation is evicted must not fail the request.
+
+    The answer is already on its way to the caller; losing the stored history is the
+    lesser harm, and the next turn gets the same 404 as any unknown id. Without this the
+    handler raises ``KeyError`` and the client sees a 500 after a perfectly good answer.
+    """
+    store = InMemoryConversationStore(max_conversations=1)
+
+    in_flight = store.create()
+    store.create()  # evicts `in_flight` while its turn is still running
+
+    store.record(in_flight.conversation_id, [])
+
+    assert len(store) == 1, "nothing was resurrected"
+
+
 def test_the_default_bound_is_finite() -> None:
     """Guards against the bound silently becoming unlimited."""
     assert DEFAULT_MAX_CONVERSATIONS > 0
