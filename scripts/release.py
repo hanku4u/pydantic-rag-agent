@@ -310,6 +310,10 @@ def _rehearse(version: str, *, assume_yes: bool) -> None:
             *(str(path) for path in sorted(DIST.glob("*"))),
             "--publish-url",
             TESTPYPI,
+            # A rehearsal is often re-run after a fix. Skip files whose hashes already
+            # match rather than failing on TestPyPI's immutability.
+            "--check-url",
+            TESTPYPI_SIMPLE,
         )
     except ReleaseError as exc:
         raise ReleaseError(
@@ -332,6 +336,12 @@ def _rehearse(version: str, *, assume_yes: bool) -> None:
             TESTPYPI_SIMPLE,
             "--extra-index-url",
             PYPI_SIMPLE,
+            # The same name exists on PyPI (an older version). uv's default strategy
+            # considers only the first index that has the package, so it would refuse the
+            # TestPyPI-only version without this. Both indexes are equally trusted in a
+            # throwaway virtualenv, which is what the flag is for.
+            "--index-strategy",
+            "unsafe-best-match",
             "--refresh",
             f"pydantic-rag-agent=={version}",
         )
