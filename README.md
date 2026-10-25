@@ -3,9 +3,11 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** foundation complete (M0). Dependencies are installed and locked, settings
-> and the offline test harness exist, and CI runs. Domain models, ingestion, retrieval,
-> the agent, the API, and the Streamlit UI are not built yet. The ordered plan is in
+> **Status:** feature-complete for a local, single-user deployment. M0–M5 are done and
+> M6 is closed apart from OPS-1 (instrumentation), which is deliberately out of scope.
+> Ingestion, retrieval, the agent, the API, the CLI and the Streamlit UI all work; the
+> suite runs offline at 92% branch coverage. `main` is the state described in
+> [`docs/overview.md`](docs/overview.md#current-state); the ordered plan behind it is in
 > [`docs/features/`](docs/features/README.md) and
 > [`docs/roadmap.md`](docs/roadmap.md).
 

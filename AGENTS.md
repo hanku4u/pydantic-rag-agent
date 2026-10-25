@@ -94,8 +94,10 @@ Practical notes:
 
 ## Current state
 
-M6 hardening has started with SEC-1: retrieved text is framed as quoted data in the tool
-output, fenced so a hostile document cannot close the quotation, and never promoted to a
-system prompt. Verified against a live poisoned document. OPS-1, OPS-2 and TST-1 remain. The
-authoritative accounting is in [docs/overview.md](docs/overview.md#current-state) and
+M6 hardening is closed apart from OPS-1. SEC-1 frames retrieved text as quoted data in the
+tool output, fenced so a hostile document cannot close the quotation, and never promoted to
+a system prompt — verified against a live poisoned document. OPS-2 puts per-turn tokens and
+cost on every answer; TST-1 measured and gated the suite at 92% branch coverage. OPS-1
+(instrumentation) is deliberately out of scope. The authoritative accounting is in
+[docs/overview.md](docs/overview.md#current-state) and
 [docs/roadmap.md](docs/roadmap.md).

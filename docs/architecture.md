@@ -46,7 +46,7 @@ what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 ```text
 src/pydantic_rag_agent/
 ├── __init__.py           # docstring only
-├── cli.py                # typer app — HTTP client          (not built yet)
+├── cli.py                # typer app — HTTP client
 ├── config.py             # Settings (pydantic-settings)
 ├── runtime.py            # composition root: builds the object graph
 ├── domain/
@@ -57,9 +57,10 @@ src/pydantic_rag_agent/
 │   ├── embedding.py      # EmbeddingService + width adaptation
 │   ├── index_guard.py    # refuse a mismatched index
 │   ├── chunking.py       # structure-aware splitting
+│   ├── citations.py      # citation assembly and validation
 │   ├── ingestion.py      # load → chunk → embed → index
 │   ├── retrieval.py      # query → ranked, cited chunks
-│   └── conversations.py  # history ownership               (not built yet)
+│   └── evaluation.py     # recall@k and MRR over a labelled set
 ├── adapters/
 │   ├── chroma_store.py   # VectorStore implementation
 │   ├── memory_store.py   # test double / small corpora
@@ -72,10 +73,11 @@ src/pydantic_rag_agent/
 │   │   ├── docx.py       # .docx — paragraphs, tables, media
 │   │   └── pptx.py       # .pptx — slides, notes, tables, pictures
 │   └── agent.py          # knowledge-base capability + turn orchestration
-├── api/                  # FastAPI app and DI (SSE streaming pending)
-│   ├── app.py            # factory, routes, error mapping
+├── api/                  # FastAPI app and DI
+│   ├── app.py            # factory, routes (incl. SSE), error mapping
 │   └── schemas.py        # wire models, separate from domain
-└── ui/                   # Streamlit                       (not built yet)
+└── ui/                   # Streamlit
+    └── streamlit_app.py  # chat UI over the API
 ```
 
 `api/schemas.py` is deliberately separate from `domain/models.py`. The wire contract
