@@ -1,6 +1,7 @@
 # Roadmap
 
-**Status:** draft — milestone scope agreed; only M0 is actionable today.
+**Status:** stable — M0–M6 complete; M7 in progress (PKG-4 and PKG-5 remain). One
+feature, API-6, landed after M7 started.
 
 The order in which the backlog gets built, and what "done" means for each stage. The
 granular work is in [Features](features/README.md); this page is the narrative.
@@ -20,9 +21,10 @@ it is a bet.
 | 2 | Ingestion | Text files index end to end; then PDF, DOCX, PPTX, images | ING-1…ING-7, IMG-1…IMG-3 |
 | 3 | Retrieval | A query returns ranked, cited chunks — **no LLM involved** | RET-1…RET-4 |
 | 4 | Agent | A question over the index produces a cited answer | AGT-1…AGT-7 |
-| 5 | Interfaces | CLI and Streamlit both work over the API | API-1…API-5, CLI-1…CLI-2, UI-1…UI-3 |
+| 5 | Interfaces | CLI and Streamlit both work over the API | API-1…API-5, CLI-1…CLI-3, UI-1…UI-3, DX-1 |
 | 6 | Hardening | Evaluation, coverage, cost visibility, security review — instrumentation out of scope | EVAL-1, TST-1, OPS-2, SEC-1 |
 | 7 | Distribution | Installable library, optional API, first PyPI release | CFG-1…CFG-3, SRC-1…SRC-3, CORE-1…CORE-4, PKG-1…PKG-5 |
+| — | API-6 (post-M7) | Any OpenAI-speaking chat UI can use the agent | API-6 |
 
 Milestones 0–6 are complete. **OPS-1** (instrumentation) is the one feature deliberately
 not built: this is a personal, single-user tool and nobody reads the traces. It is listed in
@@ -34,6 +36,14 @@ by it; it changes how the code is reached. That is why it precedes any further f
 — the configuration tree and the façade are the shape every later feature will be written
 against. See [Public API](design/public-api.md) and
 [ADR 0013](decisions/0013-packaging-and-release.md).
+
+**Where it stands:** thirteen of M7's fifteen features are done — configuration (CFG-1…3),
+the façade and its transports (CORE-1…4), original documents (SRC-1…3) and packaging
+metadata (PKG-1…3). What remains is the release itself: the workflow (PKG-4) and the
+runbook rehearsal (PKG-5). API-6, the OpenAI-compatible endpoint, was added afterwards
+because it needed the integration that M7 built. The per-feature record is
+[the progress table](features/README.md#progress); the authoritative accounting of the
+whole project is [the overview](overview.md#current-state).
 
 ## The two milestones that matter
 
@@ -67,11 +77,13 @@ persistent conversations are the three most likely to be pulled forward.
 
 ## Open questions
 
-1. Is there a demo date that reorders M5 ahead of some of M2?
-2. Does Streamlit need to ship before the CLI, or after? The API serves both, so the
-   order is a preference, not a dependency.
-3. What does "good answer" mean measurably? EVAL-1 cannot be judged without it, and
-   it is the one thing worth defining before M3.
+1. **When is the first tag?** PKG-4 can be written now; PKG-5 needs a PyPI trusted
+   publisher registered and someone other than the author to follow the runbook.
+2. **Does the first release include session persistence?** Not built. A chat UI can use
+   the stateless endpoint today; resuming a conversation needs the design in
+   [ADR 0014](decisions/0014-openai-compatible-endpoint.md) to be extended.
+3. **Which Python versions are supported?** CI tests 3.11 only, and the classifiers say
+   so. A matrix is a deliberate decision, not an omission.
 
 ## Related
 

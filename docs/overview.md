@@ -59,14 +59,16 @@ configuration. That is the project's organising idea, and the reason for its nam
 
 ## Current state
 
-Accurate as of the planning commit:
+Accurate as of 2026-10-25.
 
 | Area | State |
 | --- | --- |
 | Repository, docs, decision records | Done |
 | `uv` project, lockfile, full dependency stack | Done — FND-1 |
 | Settings model (`config.Settings`) | Done — FND-2; restructured as a tree of six nodes — CFG-1 |
-| Public library surface (`RagAgent`) | Done — CORE-1; FastAPI becomes an optional integration |
+| Public library surface (`RagAgent`) | Done — CORE-1; FastAPI is an optional integration |
+| Transport: `KnowledgeClient`, HTTP and in-process | Done — CORE-2 |
+| Composition: one builder behind the façade | Done — CORE-4 |
 | Original documents stored and cited | Done — SRC-1…SRC-3; local and S3 stores, locators in every surface |
 | Test harness and offline guard | Done — FND-3 |
 | Docs link check in CI | Done — FND-5 |
@@ -86,18 +88,20 @@ Accurate as of the planning commit:
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | FastAPI integration: `create_router(agent)`, `create_app(agent)` | Done — CORE-3 |
 | OpenAI-compatible endpoint for chat UIs (`/v1`) | Done — API-6 |
+| Packaging: lean core, extras, metadata, typed package | Done — PKG-1…PKG-3 |
 | Cost visibility: per-turn tokens, requests and cost on every answer | Done — OPS-2 |
 | CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev`; in-process by default | Done — CLI-1…CLI-3, DX-1, CORE-2 |
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
+| Release: workflow and first PyPI publication | **Not started** — PKG-4, PKG-5 |
 
-**Milestone 7 has started.** Configuration is a tree of six nodes (CFG-1…3) and the
-`RagAgent` façade exists (CORE-1); the rest is planned, not built. M7 turns the
-application into a published package:
-a configuration tree instead of one flat settings class, a `RagAgent` façade with FastAPI
-as an optional integration, original documents kept locally or in S3 with stable locators
-in citations, and a 0.1.0 release on PyPI. See
+**Milestone 7 is thirteen of fifteen features done.** Configuration is a tree of six
+nodes (CFG-1…3); the `RagAgent` façade exists and is the only builder (CORE-1…4); originals
+are kept locally or in S3 and cited by locator (SRC-1…3); the package installs lean and
+carries real metadata (PKG-1…3). What remains is the release itself — the workflow
+(PKG-4) and the runbook rehearsal (PKG-5) — so **0.1.0 is not on PyPI yet**. API-6, the
+OpenAI-compatible endpoint, landed after M7 began and is done. See
 [Public API](design/public-api.md) and [ADR 0010](decisions/0010-configuration-tree.md)
 onwards.
 
