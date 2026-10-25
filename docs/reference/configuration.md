@@ -38,9 +38,11 @@ because `pydantic-ai` reads them itself.
 | `PRAGENT_CHUNK_OVERLAP` | no | `100` | Token overlap between split chunks |
 | `PRAGENT_TOP_K` | no | `5` | Chunks returned per retrieval |
 | `PRAGENT_MIN_SCORE` | no | — (no floor) | Minimum similarity for a chunk to be returned. **0.59 measured** on the `eval/` corpus (0.6 is a safe rounding) — see [Evaluation](../development/evaluation.md); re-measure if the corpus or embedding model changes |
+| `PRAGENT_HISTORY_TURNS` | no | `6` | Recent turns kept per conversation. History is trimmed on write, whole turns only — see [ADR 0009](../decisions/0009-conversation-compaction.md) |
+| `PRAGENT_MAX_CONVERSATIONS` | no | `500` | Conversations retained before the least recently used is evicted |
 | `PRAGENT_MAX_TOOL_CALLS` | no | `8` | Request limit per turn; bounds the agent loop |
 | `PRAGENT_LOG_LEVEL` | no | `INFO` | Log verbosity |
-| `PRAGENT_API_URL` | no | `http://127.0.0.1:8000` | Base URL used by the CLI and Streamlit client |
+| `PRAGENT_API_URL` | no | `http://127.0.0.1:8000` | Base URL the CLI and Streamlit client call. Read from the shell environment or `.env` (searched upward from the working directory); `--api-url` overrides it |
 
 **One vendor, one key.** OpenRouter serves chat, image captioning, and embeddings, so
 `OPENROUTER_API_KEY` covers everything — see
@@ -77,6 +79,8 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=100, ge=0)
     top_k: int = Field(default=5, gt=0)
     min_score: float | None = Field(default=None, ge=-1.0, le=1.0)
+    history_turns: int = Field(default=6, gt=0)
+    max_conversations: int = Field(default=500, gt=0)
     max_tool_calls: int = Field(default=8, gt=0)
 ```
 
