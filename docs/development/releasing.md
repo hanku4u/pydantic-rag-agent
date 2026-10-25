@@ -6,6 +6,31 @@ that is **PKG-5**, and it needs PyPI access and a tag.
 How a version gets from `main` to PyPI. Decisions behind it:
 [ADR 0013](../decisions/0013-packaging-and-release.md).
 
+## One command: `scripts/release.py`
+
+The script runs the preflight every mode shares — clean tree, `main`, up to date with
+origin, green CI for `HEAD`, the full gate set, `uv build`, `twine check`, and a smoke
+install of the wheel — and then does one of three things:
+
+| Command | After the preflight | Publishes |
+| --- | --- | --- |
+| `--dry-run` *(default)* | Prints what would happen | **nothing** |
+| `--rehearse` | Publishes to TestPyPI, then installs it back from there | TestPyPI only |
+| `--release` | Creates and pushes `vX.Y.Z` | PyPI, via the workflow |
+
+```bash
+uv run python scripts/release.py --dry-run
+UV_PUBLISH_TOKEN=<testpypi token> uv run python scripts/release.py --rehearse
+uv run python scripts/release.py --release
+```
+
+The asymmetry is deliberate. A TestPyPI token is disposable, so a local rehearsal can use
+one and skip the approval dance. A PyPI token would not be, so the real upload stays in
+GitHub Actions over OIDC (ADR 0013) and this script never holds a production credential.
+
+`--skip-ci` relaxes the green-CI requirement for offline work; `--yes` skips the
+confirmation prompt.
+
 ## Triggers
 
 | Trigger | Publishes to | Use it for |
@@ -60,26 +85,23 @@ the artefact and the runtime string cannot disagree.
 ## Rehearsal, then release
 
 ```bash
-# 1. Everything green locally
-uv run ruff format --check . && uv run ruff check . && uv run mypy src scripts
-uv run pytest --cov
-uv run python scripts/check_docs_links.py
+# 1. Preflight: gates, build, twine check, smoke install. Publishes nothing.
+uv run python scripts/release.py --dry-run
 
-# 2. Bump the version in pyproject.toml and update CHANGELOG.md
-# 3. Commit the bump
-git commit -am "chore(release): v0.1.0"
+# 2. Bump the version in pyproject.toml and update CHANGELOG.md, if this is not the
+#    first release. Commit the bump; the tree must be clean.
 
-# 4. Rehearse on TestPyPI: dispatch the Release workflow from the Actions tab.
-#    It builds the same artefacts and publishes them to test.pypi.org.
+# 3. Rehearse on TestPyPI, then install it back to prove the upload.
+UV_PUBLISH_TOKEN=<testpypi token> uv run python scripts/release.py --rehearse
 
-# 5. Install the rehearsal build somewhere clean
-uv pip install --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ pydantic-rag-agent==0.1.0
-
-# 6. Tag and push — this publishes to PyPI
-git tag v0.1.0
-git push origin main --tags
+# 4. Release: creates vX.Y.Z, pushes it, and prints the Actions run.
+#    Approve the publish job; GitHub publishes to PyPI over OIDC.
+uv run python scripts/release.py --release
 ```
+
+Dispatching the Release workflow by hand still exists and still goes to TestPyPI. Use it
+when the thing you want to rehearse is **the workflow itself** (gates, tag guard, OIDC);
+use `--rehearse` when you want a fast loop on the package.
 
 A rehearsal consumes the version on TestPyPI. If the index rejects a second attempt as
 already existing, bump the patch version for the rehearsal rather than fighting it.

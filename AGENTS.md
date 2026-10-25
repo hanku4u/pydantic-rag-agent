@@ -64,6 +64,7 @@ uv run ruff format --check .   # formatting
 uv run mypy src scripts        # types
 uv run python scripts/check_docs_links.py   # docs link graph
 uv run python scripts/evaluate_retrieval.py   # retrieval eval (needs API key, costs money)
+uv run python scripts/release.py --dry-run    # release preflight (see development/releasing.md)
 ```
 
 The first six are exactly what CI runs, so a green local run means a green pull request.
