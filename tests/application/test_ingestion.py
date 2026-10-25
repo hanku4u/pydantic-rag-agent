@@ -6,6 +6,7 @@ faked, because that is the only part that would cost money or need a network.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import docx
@@ -14,6 +15,7 @@ from factories import FakeCaptioner, build_embedding_service
 from fixtures.pdf_builder import build_text_pdf
 from PIL import Image
 
+from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
 from pydantic_rag_agent.adapters.loaders.text import TextLoader
@@ -59,6 +61,7 @@ async def ingest_single(
     service: EmbeddingService,
     image_store: object | None = None,
     captioner: object | None = None,
+    document_store: object | None = None,
 ) -> IngestReport:
     return await ingest_paths(
         [path],
@@ -67,6 +70,7 @@ async def ingest_single(
         loaders=default_loaders(),
         image_store=image_store,  # type: ignore[arg-type]
         captioner=captioner,  # type: ignore[arg-type]
+        document_store=document_store,  # type: ignore[arg-type]
     )
 
 
@@ -142,6 +146,69 @@ async def ingest_paths_with_the_same_file_twice_should_skip_the_second_time(
     assert "already indexed" in report.results[0].warnings
     assert await store.count() == count_after_first
     assert embedder.calls == calls_after_first
+
+
+async def ingest_paths_should_copy_the_original_and_stamp_its_locator(
+    tmp_path: Path,
+) -> None:
+    # given: a document and a store to keep its original
+    path = write_file(tmp_path, "notes.md", "# Notes\n\nalpha\n")
+    store = build_store()
+    service, _ = build_service()
+    documents = LocalDocumentStore(tmp_path / "documents")
+
+    # when: it is ingested
+    await ingest_single(path, store=store, service=service, document_store=documents)
+
+    # then: the bytes are kept, and the chunk that cites them knows where
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert documents.exists(document_id=digest, filename="notes.md")
+    hit = await store.search([1.0] + [0.0] * (DIMENSIONS - 1))
+    assert hit
+    assert hit[0].chunk.locator == documents.locate(document_id=digest, filename="notes.md")
+
+
+class UnwritableDocumentStore:
+    """A store that cannot save, to prove the index is not damaged on the way out."""
+
+    def save(self, **_kwargs: object) -> str:
+        raise OSError("disk is full")
+
+    def locate(self, **_kwargs: object) -> str:
+        raise AssertionError("locate is not part of this test")
+
+    def read(self, **_kwargs: object) -> bytes:
+        raise AssertionError("read is not part of this test")
+
+    def exists(self, **_kwargs: object) -> bool:
+        return False
+
+
+async def ingest_paths_when_the_original_cannot_be_stored_should_keep_the_previous_version(
+    tmp_path: Path,
+) -> None:
+    # given: a document already indexed, then edited
+    path = tmp_path / "notes.md"
+    path.write_text("# Notes\n\nalpha\n", encoding="utf-8")
+    store = build_store()
+    service, _ = build_service()
+    await ingest_single(path, store=store, service=service)
+    indexed_before = await store.count()
+    assert indexed_before == 1
+
+    # when: the edited file is ingested but the copy cannot be written
+    path.write_text("# Notes\n\nreplacement\n", encoding="utf-8")
+    report = await ingest_single(
+        path,
+        store=store,
+        service=service,
+        document_store=UnwritableDocumentStore(),
+    )
+
+    # then: the new version failed, and the old one is still searchable — a failed copy
+    # must not clear the index on its way out
+    assert report.results[0].status == "failed"
+    assert await store.count() == indexed_before
 
 
 async def ingest_paths_with_an_edited_file_should_replace_its_previous_chunks(

@@ -11,7 +11,7 @@ import pytest
 from factories import build_chunk, build_embedded
 from pydantic import ValidationError
 
-from pydantic_rag_agent.domain.models import Chunk
+from pydantic_rag_agent.domain.models import Chunk, Citation
 
 
 def chunk_with_negative_ordinal_should_raise_validation_error() -> None:
@@ -32,28 +32,28 @@ def chunk_with_page_below_one_should_raise_validation_error() -> None:
         build_chunk(page=0)
 
 
-def chunk_locator_with_page_should_format_as_page_reference() -> None:
+def chunk_position_with_page_should_format_as_page_reference() -> None:
     # given: a chunk from a paginated source
     chunk = build_chunk(page=4)
 
     # when / then: the locator reads the way a citation should
-    assert chunk.locator == "p. 4"
+    assert chunk.position == "p. 4"
 
 
-def chunk_locator_with_slide_should_format_as_slide_reference() -> None:
+def chunk_position_with_slide_should_format_as_slide_reference() -> None:
     # given: a chunk from a slide deck
     chunk = build_chunk(slide=12)
 
     # when / then: slides are named, not numbered as pages
-    assert chunk.locator == "slide 12"
+    assert chunk.position == "slide 12"
 
 
-def chunk_locator_with_neither_page_nor_slide_should_be_none() -> None:
+def chunk_position_with_neither_page_nor_slide_should_be_none() -> None:
     # given: a chunk from a source with no pagination
     chunk = build_chunk()
 
     # when / then: absent is expressed as None rather than a placeholder string
-    assert chunk.locator is None
+    assert chunk.position is None
 
 
 def citation_label_with_title_heading_and_locator_should_join_all_three() -> None:
@@ -123,3 +123,23 @@ def embedded_chunk_with_empty_embedding_should_raise_validation_error() -> None:
     # when / then: it cannot describe a position in embedding space
     with pytest.raises(ValidationError):
         build_embedded(chunk, [])
+
+
+def citation_label_should_name_the_position_and_never_the_locator() -> None:
+    # given: a citation with both a page reference and a stored-original URI
+    citation = Citation(
+        document_id="d1",
+        title="Handbook",
+        source_path="/docs/handbook.md",
+        locator="file:///data/documents/ab/abcdef/handbook.md",
+        position="p. 4",
+        heading_path=("Backups",),
+    )
+
+    # when: it is rendered as one line
+    label = citation.label
+
+    # then: the position is part of the sentence and the URI is not — an interface puts
+    # the locator where a link belongs, not mid-sentence
+    assert "p. 4" in label
+    assert "file://" not in label

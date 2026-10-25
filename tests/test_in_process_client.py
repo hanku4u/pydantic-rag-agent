@@ -129,34 +129,61 @@ def health_and_stats_on_an_empty_index_should_report_nothing_indexed() -> None:
     assert client.documents() == []
 
 
-def ingest_files_should_spool_them_and_report_what_happened(tmp_path: Path) -> None:
+def ingest_files_should_copy_the_original_and_cite_it(tmp_path: Path) -> None:
     # given: an upload held in memory, the way Streamlit hands one over
     client = build_client()
 
-    # when: it is ingested
-    report = client.ingest_files([("handbook.md", b"# Handbook\n\nBackups run nightly.\n")])
+    # when: it is ingested and then cited
+    report = client.ingest_files(
+        [("handbook.md", b"# Handbook\n\n## Backups\n\nBackups run nightly.\n")]
+    )
+    answer = client.ask(client.create_conversation(), "When do backups run?")
 
-    # then: the file was written to the configured directory, indexed, and reported
+    # then: the source is the name the user gave, and the locator is a durable copy
     assert report["indexed"] == 1
     assert report["failed"] == 0
-    documents = client.documents()
-    assert len(documents) == 1
-    assert (tmp_path / "uploads") in Path(str(documents[0]["source_path"])).parents
+    assert client.documents()[0]["source_path"] == "handbook.md"
+    locator = str(answer["citations"][0]["locator"])  # type: ignore[index]
+    assert locator.startswith("file://")
+    stored = Path(locator.removeprefix("file://"))
+    assert stored.name == "handbook.md"
+    assert (tmp_path / "uploads") in stored.parents
+    assert stored.read_bytes().startswith(b"# Handbook")
 
 
-def ingest_files_with_a_traversing_name_should_stay_inside_the_upload_directory(
+def ingest_files_with_a_traversing_name_should_stay_inside_the_store(
     tmp_path: Path,
 ) -> None:
-    # given: a filename that tries to escape the upload directory
+    # given: a filename that tries to escape the store
     client = build_client()
 
-    # when: it is ingested
-    client.ingest_files([("../../etc/handbook.md", b"# Handbook\n\nBackups run nightly.\n")])
+    # when: it is ingested and cited
+    client.ingest_files(
+        [("../../etc/handbook.md", b"# Handbook\n\n## Backups\n\nBackups run nightly.\n")]
+    )
+    answer = client.ask(client.create_conversation(), "When do backups run?")
 
-    # then: only the leaf name is kept, and the bytes land under the configured root
-    source = Path(str(client.documents()[0]["source_path"]))
-    assert source.name == "handbook.md"
-    assert (tmp_path / "uploads") in source.parents
+    # then: only the leaf name is kept, and the copy lands under the configured root
+    stored = Path(str(answer["citations"][0]["locator"]).removeprefix("file://"))  # type: ignore[index]
+    assert stored.name == "handbook.md"
+    assert (tmp_path / "uploads") in stored.parents
+
+
+def ingest_files_twice_with_the_same_name_should_replace_the_previous_version() -> None:
+    # given: one upload already indexed
+    client = build_client()
+    client.ingest_files([("handbook.md", b"# Handbook\n\n## A\n\nold text\n")])
+    first = client.documents()[0]
+
+    # when: the same name arrives with different bytes
+    report = client.ingest_files([("handbook.md", b"# Handbook\n\n## A\n\nnew text\n")])
+
+    # then: the new version replaced the old rather than sitting beside it — the source
+    # key is the name, not the content hash
+    assert report["indexed"] == 1
+    assert report["files"][0]["replaced"] > 0  # type: ignore[index]
+    assert len(client.documents()) == 1
+    assert client.documents()[0]["document_id"] != first["document_id"]
 
 
 def ingest_files_without_a_filename_should_be_a_client_error() -> None:

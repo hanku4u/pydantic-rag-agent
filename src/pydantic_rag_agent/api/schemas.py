@@ -67,6 +67,7 @@ class CitationResponse(BaseModel):
     document_id: str
     source_path: str
     locator: str | None = None
+    position: str | None = None
     heading_path: list[str] = Field(default_factory=list)
 
 

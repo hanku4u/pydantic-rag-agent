@@ -17,7 +17,7 @@ docs/design/public-api.md, and the examples there are what CFG/CORE work is meas
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Coroutine, Iterable, Iterator
+from collections.abc import AsyncGenerator, Coroutine, Iterable, Iterator, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, TypeVar
@@ -37,11 +37,15 @@ from pydantic_rag_agent.adapters.agent import (
 from pydantic_rag_agent.adapters.conversations import Conversation
 from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.application.index_guard import assert_index_compatible
-from pydantic_rag_agent.application.ingestion import IngestReport, ingest_paths
+from pydantic_rag_agent.application.ingestion import (
+    IngestReport,
+    ingest_paths,
+    ingest_uploads,
+)
 from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.errors import UnknownConversationError
 from pydantic_rag_agent.domain.models import DocumentSummary, StoreStats
-from pydantic_rag_agent.domain.ports import VectorStore
+from pydantic_rag_agent.domain.ports import DocumentStore, VectorStore
 from pydantic_rag_agent.runtime import Runtime, build_runtime
 
 _T = TypeVar("_T")
@@ -56,8 +60,9 @@ class RagAgent:
     and a library user has no lifespan hook to hang it on.
 
     Injection seams are for host applications and tests: pass a store you already run, an
-    embedding service you have already authenticated, or a ``pydantic-ai`` model that is
-    already instrumented. Anything omitted is built from ``settings``.
+    embedding service you have already authenticated, a ``pydantic-ai`` model that is
+    already instrumented, or a document store that keeps originals where you keep them.
+    Anything omitted is built from ``settings``.
 
     One agent belongs to one loop and one thread. Its conversation store is in memory and
     its lazy index check uses an ``asyncio.Lock``; neither is synchronised across event
@@ -72,12 +77,14 @@ class RagAgent:
         vector_store: VectorStore | None = None,
         embeddings: EmbeddingService | None = None,
         model: Model[Any] | None = None,
+        document_store: DocumentStore | None = None,
     ) -> None:
         self._runtime: Runtime = build_runtime(
             settings,
             vector_store=vector_store,
             embeddings=embeddings,
             model=model,
+            document_store=document_store,
         )
         # Guards the lazy index check without serialising every question behind a lock.
         self._index_checked = False
@@ -202,6 +209,26 @@ class RagAgent:
             chunk_overlap=self._runtime.settings.ingestion.chunk_overlap,
             image_store=self._runtime.images,
             captioner=self._runtime.captioner,
+            document_store=self._runtime.documents,
+        )
+
+    async def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> IngestReport:
+        """Index files that arrived as bytes, the way an upload does.
+
+        The bytes are copied into the document store and the user's filename becomes the
+        source on every chunk, so a citation does not expose a temporary path.
+        """
+        await self.check_index()
+        return await ingest_uploads(
+            files,
+            store=self._runtime.store,
+            embeddings=self._runtime.embeddings,
+            loaders=self._runtime.loaders,
+            chunk_size=self._runtime.settings.ingestion.chunk_size,
+            chunk_overlap=self._runtime.settings.ingestion.chunk_overlap,
+            image_store=self._runtime.images,
+            captioner=self._runtime.captioner,
+            document_store=self._runtime.documents,
         )
 
     async def documents(self) -> list[DocumentSummary]:
@@ -212,8 +239,9 @@ class RagAgent:
         """Remove one document's chunks and return how many were removed.
 
         Zero means no such document. Deleting is deliberately not an error: the caller
-        decides whether that is worth reporting. The stored original is untouched —
-        purging it arrives with the document store (SRC-1).
+        decides whether that is worth reporting. The stored original is untouched, and
+        stays that way: losing the only copy as a side effect of tidying an index is the
+        destructive convenience ADR 0012 refuses. Purging would need an explicit flag.
         """
         return await self._runtime.store.delete_by_document(document_id)
 
@@ -241,6 +269,10 @@ class RagAgent:
     def ingest_sync(self, sources: Path | str | Iterable[Path | str]) -> IngestReport:
         """``ingest`` for synchronous code. Refuses inside a running loop."""
         return self._run_sync(self.ingest(sources))
+
+    def ingest_files_sync(self, files: Sequence[tuple[str, bytes]]) -> IngestReport:
+        """``ingest_files`` for synchronous code. Refuses inside a running loop."""
+        return self._run_sync(self.ingest_files(files))
 
     def stream_sync(
         self, question: str, *, conversation_id: str | None = None

@@ -75,9 +75,10 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
 **M7 — distribution and embedding — is underway.** Done: **CFG-1** (settings tree),
 **CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
-**CORE-1** (`RagAgent` façade in `agent.py`) and **CORE-2** (`KnowledgeClient` with HTTP
-and in-process transports; the CLI and UI need no server). The router still uses the
-wiring directly, which CORE-3/CORE-4 fix; SRC-1…SRC-3 add stored originals and locators.
+**CORE-1** (`RagAgent` façade in `agent.py`), **CORE-2** (`KnowledgeClient` with HTTP and
+in-process transports; the CLI and UI need no server) and **SRC-1** (originals copied to a
+local `DocumentStore`, cited by `file://` locator). The router still uses the wiring
+directly, which CORE-3/CORE-4 fix; SRC-2/SRC-3 add S3 and locators in every surface.
 
 Read these before touching anything:
 
@@ -90,10 +91,9 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: **SRC-1** (the document store and local adapter) and **PKG-1**
-(extras) next, then **CORE-3** (FastAPI as an integration over the façade), then **CORE-4**
-(one composition root), **SRC-2/SRC-3** (S3 and locators everywhere) and the remaining PKG
-features.
+Suggested order: **PKG-1** (extras) next, then **CORE-3** (FastAPI as an integration over
+the façade), then **SRC-2/SRC-3** (S3 and locators in every surface), **CORE-4** (one
+composition root) and the remaining PKG features.
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

@@ -1,0 +1,120 @@
+"""The local document store.
+
+What matters here is not that files are written — that is trivial — but that a locator is
+stable, unique per bytes, and cannot be steered outside the root by a filename or a
+document id. Those are the properties citations depend on.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
+from pydantic_rag_agent.domain.ports import DocumentStore
+
+DIGEST = "ab" * 32
+OTHER_DIGEST = "cd" * 32
+DATA = b"# Handbook\n\nBackups run nightly.\n"
+
+
+def build_store(tmp_path: Path) -> LocalDocumentStore:
+    return LocalDocumentStore(tmp_path / "documents")
+
+
+def save_document_should_return_a_file_locator_pointing_at_the_content(
+    tmp_path: Path,
+) -> None:
+    # given: a store and a document
+    store = build_store(tmp_path)
+
+    # when: it is saved
+    locator = store.save(document_id=DIGEST, filename="handbook.md", data=DATA)
+
+    # then: the locator is a file URI, and it names something that exists with the bytes
+    assert locator.startswith("file://")
+    assert locator.endswith(f"/{DIGEST[:2]}/{DIGEST}/handbook.md")
+    assert store.exists(document_id=DIGEST, filename="handbook.md")
+    assert store.read(document_id=DIGEST, filename="handbook.md") == DATA
+
+
+def save_document_twice_should_be_idempotent(tmp_path: Path) -> None:
+    # given: a document already stored
+    store = build_store(tmp_path)
+    first = store.save(document_id=DIGEST, filename="handbook.md", data=DATA)
+
+    # when: the same bytes arrive again, as a re-ingest would
+    second = store.save(document_id=DIGEST, filename="handbook.md", data=DATA)
+
+    # then: the locator is unchanged and so is the content
+    assert second == first
+    assert store.read(document_id=DIGEST, filename="handbook.md") == DATA
+
+
+def locate_without_saving_should_describe_where_it_would_live(tmp_path: Path) -> None:
+    # given: a store with nothing in it
+    store = build_store(tmp_path)
+
+    # when: a locator is asked for anyway
+    locator = store.locate(document_id=DIGEST, filename="handbook.md")
+
+    # then: nothing was created, and it is the address `save` produces
+    assert not (tmp_path / "documents").exists()
+    assert locator == store.save(document_id=DIGEST, filename="handbook.md", data=DATA)
+    assert store.exists(document_id=OTHER_DIGEST, filename="handbook.md") is False
+
+
+def save_document_with_a_traversing_filename_should_keep_only_the_leaf(
+    tmp_path: Path,
+) -> None:
+    # given: a name that tries to escape the store root
+    store = build_store(tmp_path)
+
+    # when: it is saved
+    locator = store.save(document_id=DIGEST, filename="../../etc/passwd", data=b"x")
+
+    # then: the bytes are inside the root under the leaf name
+    assert locator.endswith(f"/{DIGEST[:2]}/{DIGEST}/passwd")
+    assert (tmp_path / "documents") in Path(locator.removeprefix("file://")).parents
+
+
+def save_document_with_an_empty_filename_should_be_rejected(tmp_path: Path) -> None:
+    # given: an upload with no usable name
+    store = build_store(tmp_path)
+
+    # when / then: refused, rather than writing to the directory itself
+    with pytest.raises(ValueError):
+        store.save(document_id=DIGEST, filename="", data=DATA)
+
+
+def save_document_with_an_id_that_is_not_a_digest_should_be_rejected(
+    tmp_path: Path,
+) -> None:
+    # given: an id shaped like a path rather than a content hash
+    store = build_store(tmp_path)
+
+    # when / then: the id becomes a path component, so it is validated, not trusted
+    with pytest.raises(ValueError):
+        store.save(document_id="../../escape", filename="handbook.md", data=DATA)
+
+
+def save_document_with_a_filename_containing_spaces_should_produce_a_valid_uri(
+    tmp_path: Path,
+) -> None:
+    # given: a name a person would actually use
+    store = build_store(tmp_path)
+
+    # when: it is saved
+    locator = store.save(document_id=DIGEST, filename="annual report.md", data=DATA)
+
+    # then: the URI is percent-encoded rather than broken
+    assert "annual%20report.md" in locator
+
+
+def test_the_local_store_should_satisfy_the_document_store_protocol(tmp_path: Path) -> None:
+    # given: the local adapter
+    store = build_store(tmp_path)
+
+    # when / then: the application depends on the protocol, not on the adapter
+    assert isinstance(store, DocumentStore)

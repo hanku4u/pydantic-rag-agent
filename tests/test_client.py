@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 import pytest
@@ -26,7 +27,29 @@ def build_client(handler: Callable[[httpx.Request], httpx.Response]) -> RagClien
     return RagClient("http://api.test", transport=httpx.MockTransport(handler))
 
 
-def ask_with_a_successful_response_should_return_the_payload() -> None:
+def ingest_should_send_the_path_as_the_source_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given: two files with the same leaf name in different directories
+    monkeypatch.chdir(tmp_path)
+    nested = tmp_path / "docs" / "a"
+    nested.mkdir(parents=True)
+    (nested / "report.pdf").write_bytes(b"%PDF-not-really")
+
+    bodies: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.content)
+        return httpx.Response(
+            200, json={"indexed": 1, "skipped": 0, "failed": 0, "chunks": 1, "files": []}
+        )
+
+    # when: the client uploads it
+    build_client(handler).ingest([Path("docs/a/report.pdf")])
+
+    # then: the full path travels as the source — a leaf would collide with
+    # `docs/b/report.pdf` and one of the two would replace the other
+    assert b'filename="docs/a/report.pdf"' in bodies[0]
     # given: a server that answers
     client = build_client(
         lambda request: httpx.Response(200, json={"answer": "yes", "citations": []})

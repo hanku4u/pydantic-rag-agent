@@ -113,7 +113,7 @@ so a citation can outlive the request that produced it.
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `PRAGENT_STORAGE__DOCUMENTS__BACKEND` | no | `local` | `local` (implemented) or `s3` (SRC-2, not yet) |
-| `PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH` | no | `./data/uploads` | Root for content-addressed originals |
+| `PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH` | no | `./data/documents` | Root for the copies taken at ingest, addressed `<aa>/<sha256>/<name>` |
 | `PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET` | when `backend=s3` | — | Bucket that holds the originals — **not read yet** |
 | `PRAGENT_STORAGE__DOCUMENTS__S3_PREFIX` | no | `documents/` | Key prefix inside the bucket — **not read yet** |
 | `PRAGENT_STORAGE__DOCUMENTS__S3_REGION` | no | SDK default | Region for the S3 client — **not read yet** |
@@ -199,9 +199,12 @@ migrating one variable at a time is safe.
 | `PRAGENT_MAX_CONVERSATIONS` | `PRAGENT_AGENT__MAX_CONVERSATIONS` |
 | `PRAGENT_LOG_LEVEL` | `PRAGENT_LOG_LEVEL` (unchanged) |
 
-One behaviour change comes with the move: `PRAGENT_MODEL` used to require the
-`openrouter:` prefix. Strip it when migrating — the prefix is now redundant, and the
-example in `.env.example` shows the bare form.
+Two behaviour changes come with the move. `PRAGENT_MODEL` used to require the
+`openrouter:` prefix; strip it when migrating, as `.env.example` shows. And
+`PRAGENT_UPLOAD_DIR` still works but now names the **originals** root rather than an upload
+spool: the default moved from `./data/uploads` to `./data/documents`, and files are laid out
+`<aa>/<sha256>/<name>`. An old `.env` that sets it explicitly keeps writing there, so the
+old spool directory quietly becomes the permanent store — fine, but worth knowing.
 
 ## Shape
 

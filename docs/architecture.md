@@ -35,7 +35,7 @@ How the code is organised, what may depend on what, and where the seams are.
 | --- | --- | --- |
 | **Domain** | `Document`, `Chunk`, `RetrievedChunk`, `Citation`, `IngestReport`. Pure Python + Pydantic. | Pydantic only |
 | **Application** | Use cases: ingest a document, answer a question, run a turn. Protocols for what it needs. | Domain |
-| **Adapters** | Loaders, `ChromaVectorStore`, captioner, image and document stores, `pydantic-ai` agent wiring. | Domain, third-party libraries |
+| **Adapters** | Loaders, `ChromaVectorStore`, captioner, image store, `LocalDocumentStore`, `pydantic-ai` agent wiring. | Domain, third-party libraries |
 | **Façade** | `RagAgent`: builds the graph from settings and exposes ingest/ask/stream/documents. The public surface. | Application, adapters (wiring only) |
 | **Integrations** | FastAPI router and app, CLI, Streamlit. All are optional; the CLI and UI reach the façade through a `KnowledgeClient`. | Façade |
 
@@ -77,6 +77,8 @@ src/pydantic_rag_agent/
 │   ├── chroma_store.py   # VectorStore implementation
 │   ├── memory_store.py   # test double / small corpora
 │   ├── conversations.py  # in-memory conversation history
+│   ├── document_store/
+│   │   └── local.py      # originals on disk, file:// locators (SRC-1)
 │   ├── image_store.py    # content-addressed image bytes
 │   ├── captioning.py     # vision-model captions, cached by hash
 │   ├── loaders/
@@ -105,7 +107,7 @@ src/pydantic_rag_agent/
 ├── domain/
 ├── application/
 ├── adapters/
-│   └── document_store/   # local.py (SRC-1), s3.py (SRC-2)
+│   └── document_store/   # local.py (SRC-1, done), s3.py (SRC-2)
 ├── integrations/
 │   └── fastapi/          # create_router, create_app, schemas (CORE-3)
 └── ui/                   # Streamlit, same transport choice as the CLI

@@ -393,7 +393,7 @@ def dedupe_citations(citations: list[Citation]) -> tuple[Citation, ...]:
     seen: set[tuple[str, str | None, tuple[str, ...]]] = set()
     unique: list[Citation] = []
     for citation in citations:
-        key = (citation.document_id, citation.locator, citation.heading_path)
+        key = (citation.document_id, citation.position, citation.heading_path)
         if key not in seen:
             seen.add(key)
             unique.append(citation)

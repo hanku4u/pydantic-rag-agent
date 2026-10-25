@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from pydantic_rag_agent.adapters.agent import build_agent
 from pydantic_rag_agent.adapters.conversations import InMemoryConversationStore
+from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
 from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
@@ -35,7 +36,6 @@ def _settings_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("PRAGENT_EMBEDDING_MODEL", "test/embedding-model")
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", str(DIMENSIONS))
-    monkeypatch.setenv("PRAGENT_UPLOAD_DIR", str(tmp_path / "uploads"))
 
 
 def build_runtime(tmp_path: Path) -> Runtime:
@@ -51,6 +51,7 @@ def build_runtime(tmp_path: Path) -> Runtime:
         embeddings=service,
         retrieval=RetrievalService(store=store, embeddings=service, top_k=5),
         images=FileImageStore(tmp_path / "images"),
+        documents=LocalDocumentStore(tmp_path / "documents"),
         captioner=FakeCaptioner(),
         loaders=default_loaders(),
         agent=build_agent(_test_model()),
@@ -109,6 +110,25 @@ def upload_markdown_should_index_and_list_it(client: TestClient) -> None:
     assert len(documents) == 1
     assert documents[0]["title"] == "Handbook"
     assert documents[0]["chunk_count"] == report["chunks"]
+
+
+def upload_should_copy_the_original_and_cite_its_locator(client: TestClient) -> None:
+    # given: a Markdown upload
+    upload(client, "handbook.md", DOCUMENT)
+    conversation = client.post("/conversations").json()["conversation_id"]
+
+    # when: its content is cited
+    answer = client.post(
+        f"/conversations/{conversation}/messages",
+        json={"question": "When do backups run?"},
+    ).json()
+
+    # then: the citation carries a locator to a real copy of the uploaded bytes
+    citation = answer["citations"][0]
+    assert citation["locator"].startswith("file://")
+    assert citation["source_path"] == "handbook.md"
+    stored = Path(citation["locator"].removeprefix("file://"))
+    assert stored.read_bytes() == DOCUMENT
 
 
 def upload_with_an_unreadable_file_should_return_partial_success(client: TestClient) -> None:

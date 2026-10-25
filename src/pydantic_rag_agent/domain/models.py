@@ -42,15 +42,22 @@ class Citation(BaseModel):
     document_id: str = Field(min_length=1)
     title: str
     source_path: str
+    # The stored original: file:///… or s3://…, stable across a moved source file.
     locator: str | None = None
+    # Where inside the document: "p. 4", "slide 12".
+    position: str | None = None
     heading_path: tuple[str, ...] = ()
 
     @property
     def label(self) -> str:
-        """One-line reference suitable for display: title, section, position."""
+        """One-line reference suitable for display: title, section, position.
+
+        Deliberately not the locator: a URI in the middle of a sentence is noise. The
+        locator is a separate field so an interface can render it as a link.
+        """
         parts = list(context_parts(self.title, self.heading_path))
-        if self.locator:
-            parts.append(self.locator)
+        if self.position:
+            parts.append(self.position)
         return " — ".join(parts)
 
 
@@ -87,6 +94,9 @@ class Chunk(BaseModel):
     text: str = Field(min_length=1)
     title: str
     source_path: str
+    # Where the original is kept: a file:// or s3:// address. Denormalised onto the chunk
+    # for the same reason as source_path — a citation needs no second lookup.
+    locator: str | None = None
     kind: ChunkKind = "text"
     ordinal: int = Field(ge=0)
     page: int | None = Field(default=None, ge=1)
@@ -95,8 +105,8 @@ class Chunk(BaseModel):
     image_id: str | None = None
 
     @property
-    def locator(self) -> str | None:
-        """Position within the source, phrased for a reader."""
+    def position(self) -> str | None:
+        """Where in the source the chunk sits, phrased for a reader."""
         if self.page is not None:
             return f"p. {self.page}"
         if self.slide is not None:
@@ -122,6 +132,7 @@ class Chunk(BaseModel):
             title=self.title,
             source_path=self.source_path,
             locator=self.locator,
+            position=self.position,
             heading_path=self.heading_path,
         )
 

@@ -103,3 +103,28 @@ class VectorStore(Protocol):
     async def stats(self) -> StoreStats: ...
 
     async def close(self) -> None: ...
+
+
+@runtime_checkable
+class DocumentStore(Protocol):
+    """Keeps the original bytes of an ingested document, and says where they are.
+
+    The point is a citation that outlives the request: a user reads an answer, follows the
+    locator, and finds the file. That is why ``save`` copies rather than referencing — a
+    store pointing at a path the user later moves is a store that silently 404s.
+
+    ``document_id`` is the content hash of ``data``: re-ingesting the same bytes is the
+    same object, and the stored path is stable. Implementations must reject an id that is
+    not a sha256 hex digest, because it becomes a path component.
+
+    ``locator`` is a URI (``file:///…`` or ``s3://…``), never a bare path: it has to mean
+    the same thing to a reader who is not the process that wrote it.
+    """
+
+    def save(self, *, document_id: str, filename: str, data: bytes) -> str: ...
+
+    def locate(self, *, document_id: str, filename: str) -> str: ...
+
+    def read(self, *, document_id: str, filename: str) -> bytes: ...
+
+    def exists(self, *, document_id: str, filename: str) -> bool: ...

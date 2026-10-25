@@ -25,6 +25,7 @@ from pydantic_rag_agent.adapters.agent import AgentDeps, build_agent
 from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
 from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
 from pydantic_rag_agent.adapters.conversations import InMemoryConversationStore
+from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
 from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
@@ -34,6 +35,7 @@ from pydantic_rag_agent.application.retrieval import RetrievalService
 from pydantic_rag_agent.config import Settings, load_settings
 from pydantic_rag_agent.domain.ports import (
     DocumentLoader,
+    DocumentStore,
     ImageCaptioner,
     ImageStore,
     VectorStore,
@@ -49,6 +51,7 @@ class Runtime:
     embeddings: EmbeddingService
     retrieval: RetrievalService
     images: ImageStore
+    documents: DocumentStore
     captioner: ImageCaptioner
     loaders: Sequence[DocumentLoader]
     agent: Agent[AgentDeps, str]
@@ -61,6 +64,7 @@ def build_runtime(
     vector_store: VectorStore | None = None,
     embeddings: EmbeddingService | None = None,
     model: Model[Any] | None = None,
+    document_store: DocumentStore | None = None,
 ) -> Runtime:
     """Construct the object graph from configuration.
 
@@ -104,6 +108,18 @@ def build_runtime(
     image_dir = Path(settings.storage.images.directory)
     images = FileImageStore(image_dir)
 
+    if document_store is not None:
+        documents = document_store
+    elif settings.storage.documents.backend == "local":
+        documents = LocalDocumentStore(settings.storage.documents.local_path)
+    else:
+        # Configured but unbuilt. Failing here beats silently indexing without the
+        # originals a citation promises.
+        raise NotImplementedError(
+            "the s3 document store is not implemented yet (SRC-2); "
+            "set PRAGENT_STORAGE__DOCUMENTS__BACKEND=local"
+        )
+
     def chat_model(model_id: str) -> OpenAIChatModel:
         return OpenAIChatModel(
             model_id,
@@ -132,6 +148,7 @@ def build_runtime(
             min_score=settings.agent.min_score,
         ),
         images=images,
+        documents=documents,
         captioner=captioner,
         loaders=default_loaders(),
         agent=agent,

@@ -32,7 +32,7 @@ from pydantic_rag_agent.adapters.agent import (
     TurnCompleted,
 )
 from pydantic_rag_agent.agent import RagAgent
-from pydantic_rag_agent.application.ingestion import IngestReport, spool_upload
+from pydantic_rag_agent.application.ingestion import IngestReport
 from pydantic_rag_agent.client import ClientError
 from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
@@ -116,19 +116,14 @@ class InProcessClient:
         return self._ingest_paths(paths)
 
     def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]:
-        """Spool uploads to the configured directory, then index them.
-
-        Written to disk rather than held in memory because ingestion records a source
-        path on every chunk, and a citation has to point at something that still exists.
-        """
-        directory = Path(self._agent.settings.storage.documents.local_path)
+        """Index uploads held in memory, copying each original into the document store."""
         try:
-            paths = [
-                spool_upload(data=data, filename=name, directory=directory) for name, data in files
-            ]
+            report = self._agent.ingest_files_sync(list(files))
         except ValueError as exc:
             raise ClientError(str(exc), status_code=400) from exc
-        return self._ingest_paths(paths)
+        except Exception as exc:  # noqa: BLE001 - HTTP maps these too
+            raise _as_client_error(exc) from exc
+        return _ingest_payload(report)
 
     def create_conversation(self) -> str:
         return self._agent.new_conversation()
@@ -233,6 +228,7 @@ def _citation_payload(citation: Citation) -> dict[str, object]:
         "document_id": citation.document_id,
         "source_path": citation.source_path,
         "locator": citation.locator,
+        "position": citation.position,
         "heading_path": list(citation.heading_path),
     }
 

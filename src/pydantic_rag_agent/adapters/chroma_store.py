@@ -52,6 +52,8 @@ def _to_metadata(record: EmbeddedChunk) -> dict[str, Any]:
         metadata["slide"] = chunk.slide
     if chunk.image_id is not None:
         metadata["image_id"] = chunk.image_id
+    if chunk.locator is not None:
+        metadata["locator"] = chunk.locator
     return metadata
 
 
@@ -70,6 +72,7 @@ def _to_retrieved(
     page = metadata.get("page")
     slide = metadata.get("slide")
     image_id = metadata.get("image_id")
+    locator = metadata.get("locator")
 
     chunk = Chunk(
         chunk_id=chunk_id,
@@ -77,6 +80,7 @@ def _to_retrieved(
         text=text,
         title=str(metadata["title"]),
         source_path=str(metadata["source_path"]),
+        locator=str(locator) if locator is not None else None,
         kind="image" if metadata.get("kind") == "image" else "text",
         ordinal=int(metadata.get("ordinal") or 0),
         page=int(page) if page is not None else None,

@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
@@ -40,7 +39,7 @@ from pydantic_rag_agent.api.schemas import (
     StatsResponse,
     UsageResponse,
 )
-from pydantic_rag_agent.application.ingestion import IngestReport, ingest_paths, spool_upload
+from pydantic_rag_agent.application.ingestion import IngestReport, ingest_uploads
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
 from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
 
@@ -93,19 +92,21 @@ def create_app(runtime: Runtime) -> FastAPI:
         response: Response,
         files: Annotated[list[UploadFile], File()],
     ) -> IngestReportResponse:
-        paths = [
-            _spool(upload, Path(runtime.settings.storage.documents.local_path)) for upload in files
-        ]
-        report = await ingest_paths(
-            paths,
-            store=runtime.store,
-            embeddings=runtime.embeddings,
-            loaders=runtime.loaders,
-            chunk_size=runtime.settings.ingestion.chunk_size,
-            chunk_overlap=runtime.settings.ingestion.chunk_overlap,
-            image_store=runtime.images,
-            captioner=runtime.captioner,
-        )
+        try:
+            report = await ingest_uploads(
+                [(upload.filename or "", upload.file.read()) for upload in files],
+                store=runtime.store,
+                embeddings=runtime.embeddings,
+                loaders=runtime.loaders,
+                chunk_size=runtime.settings.ingestion.chunk_size,
+                chunk_overlap=runtime.settings.ingestion.chunk_overlap,
+                image_store=runtime.images,
+                captioner=runtime.captioner,
+                document_store=runtime.documents,
+            )
+        except ValueError as exc:
+            # A nameless upload is a bad request, not a document that failed to parse.
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         payload = _to_ingest_response(report)
         if payload.failed:
@@ -256,20 +257,9 @@ def _citation_response(citation: Citation) -> CitationResponse:
         document_id=citation.document_id,
         source_path=citation.source_path,
         locator=citation.locator,
+        position=citation.position,
         heading_path=list(citation.heading_path),
     )
-
-
-def _spool(upload: UploadFile, directory: Path) -> Path:
-    """Persist an upload and return its path, mapping a bad filename to HTTP 400."""
-    try:
-        return spool_upload(
-            data=upload.file.read(),
-            filename=upload.filename or "",
-            directory=directory,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _to_ingest_response(report: IngestReport) -> IngestReportResponse:

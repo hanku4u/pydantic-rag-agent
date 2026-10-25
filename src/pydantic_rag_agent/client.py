@@ -124,8 +124,13 @@ class RagClient:
         return response.json()
 
     def ingest(self, paths: Sequence[Path]) -> dict[str, object]:
-        """Upload files from disk and return the ingestion report."""
-        return self.ingest_files([(path.name, path.read_bytes()) for path in paths])
+        """Upload files from disk and return the ingestion report.
+
+        The name sent is the path the user gave, not its leaf: the server records it as
+        the source, and two files called ``report.pdf`` in different directories would
+        otherwise collide on one replacement key and one of them would be dropped.
+        """
+        return self.ingest_files([(str(path), path.read_bytes()) for path in paths])
 
     def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]:
         """Upload in-memory files.

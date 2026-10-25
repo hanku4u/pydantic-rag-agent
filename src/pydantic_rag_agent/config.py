@@ -133,7 +133,7 @@ class DocumentStoreSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     backend: Literal["local", "s3"] = "local"
-    local_path: str = "./data/uploads"
+    local_path: str = "./data/documents"
     s3_bucket: str | None = None
     s3_prefix: str = "documents/"
     s3_region: str | None = None

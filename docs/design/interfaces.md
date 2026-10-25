@@ -65,7 +65,7 @@ Server-Sent Events — the traffic is one-directional text, so SSE needs no extr
 | --- | --- | --- |
 | `token` | `{"text": "..."}` | A chunk of generated text |
 | `tool_call` | `{"name": "...", "args": {...}}` | The model asked a tool to act |
-| `citations` | `{"citations": [...]}` | Everything retrieved for this turn |
+| `citations` | `{"citations": [{"label", "document_id", "source_path", "locator", "position", "heading_path"}]}` | Everything retrieved for this turn |
 | `done` | `{"answer", "budget_exhausted", "citations_valid", "uncited", "usage"}` | The turn finished |
 | `error` | `{"code", "detail"}` | The turn failed; the stream still terminates cleanly |
 
@@ -108,10 +108,12 @@ Both speak the same payloads, so every command and every rendering path is ident
 either way. In-process means no server, no port and no second terminal — the reason the
 package can be installed and used as a CLI.
 
-One temporary difference: an in-process `ingest` of a path records that path as the source,
-while an upload (HTTP or in-process `ingest_files`) is spooled under
-`storage.documents.local_path`. Both are local paths today; SRC-1 gives both a real
-document store and a stable locator.
+Both transports now copy originals into the document store (SRC-1), so a citation carries
+the same `file://` locator whichever one produced it. A path ingest records the path as its
+source — the CLI sends `docs/a/report.pdf`, not `report.pdf`, so two files with the same
+leaf name do not collide. A browser upload records the filename it was given, because that
+is all the browser knows and the staged temporary path is not something a citation should
+show.
 
 | Command | Purpose |
 | --- | --- |

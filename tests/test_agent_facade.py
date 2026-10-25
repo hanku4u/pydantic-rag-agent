@@ -51,6 +51,7 @@ def settings_env(clean_settings_env: None, monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setenv("PRAGENT_EMBEDDING_MODEL", EMBEDDING_MODEL)
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", str(DIMENSIONS))
     monkeypatch.setenv("PRAGENT_STORAGE__IMAGES__DIRECTORY", str(tmp_path / "images"))
+    monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH", str(tmp_path / "documents"))
 
 
 def write_document(directory: Path) -> Path:
@@ -154,6 +155,43 @@ async def ingest_then_ask_should_cite_the_indexed_document(tmp_path: Path) -> No
     # then: the citation comes from that document, not from the model's imagination
     assert turn.citations
     assert turn.citations[0].document_id == indexed[0].document_id
+
+
+async def ingest_should_keep_a_copy_and_cite_its_locator(tmp_path: Path) -> None:
+    # given: a document on disk, ingested by path
+    source = write_document(tmp_path)
+    agent = build_facade()
+    await agent.ingest(source)
+
+    # when: its content is cited
+    turn = await agent.ask("When do backups run?")
+
+    # then: the source is what the user ingested, and the locator is a durable copy of
+    # the bytes — the promise of SRC-1 in one assertion each way
+    citation = turn.citations[0]
+    assert citation.source_path == str(source)
+    assert citation.locator is not None
+    assert citation.locator.startswith("file://")
+    stored = Path(citation.locator.removeprefix("file://"))
+    assert stored.read_bytes() == source.read_bytes()
+
+
+async def delete_document_should_leave_the_stored_original_alone(tmp_path: Path) -> None:
+    # given: an ingested document whose locator we know
+    agent = build_facade()
+    await agent.ingest(write_document(tmp_path))
+    turn = await agent.ask("When do backups run?")
+    citation = turn.citations[0]
+    assert citation.locator is not None
+    stored = Path(citation.locator.removeprefix("file://"))
+    assert stored.exists()
+
+    # when: the document is deleted from the index
+    await agent.delete_document(citation.document_id)
+
+    # then: the original survives — losing the only copy as a side effect of tidying an
+    # index is the destructive convenience ADR 0012 refuses
+    assert stored.exists()
 
 
 async def delete_document_should_remove_its_chunks_and_report_the_count(

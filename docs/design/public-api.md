@@ -35,8 +35,9 @@ await agent.ingest([Path("docs/")])
 turn = await agent.ask("How long are backups retained?")
 print(turn.text)
 for citation in turn.citations:
-    print(citation.label, citation.source_path)  # source_path today; a
-    # file:// or s3:// locator arrives with SRC-1
+    print(citation.label)  # "Retention — p. 4"
+    print(citation.locator)  # file:///… or s3://… — the stored original
+    print(citation.position)  # "p. 4", or a slide number
 ```
 
 `from_env` is a convenience over `Settings()`, not a separate configuration path. Every
@@ -78,6 +79,7 @@ RagAgent(
     vector_store: VectorStore | None = None,   # override the configured adapter
     embeddings: EmbeddingService | None = None,
     model: Model | None = None,                # already-built pydantic-ai model
+    document_store: DocumentStore | None = None,   # where originals are kept
 ) -> RagAgent
 ```
 
@@ -86,7 +88,8 @@ RagAgent(
 | `from_env(env_file=".env")` | Build from `PRAGENT_*` variables; `None` ignores the file |
 | `check_index()` | Fail if the index was built by another embedding configuration |
 | `new_conversation()` | Start one and return its id — optional before a stream |
-| `ingest(sources)` | Index files or directories; returns `IngestReport` |
+| `ingest(sources)` | Index files or directories; copies each original; returns `IngestReport` |
+| `ingest_files(files)` | Index `(name, bytes)` uploads, as an API or UI has them |
 | `ask(question, *, conversation_id=None)` | One answered turn, carrying `conversation_id` |
 | `stream(question, *, conversation_id=None)` | Async iterator of tokens, tool calls, completion |
 | `documents()` | Indexed documents with IDs |
@@ -109,11 +112,10 @@ The three keyword arguments are the seams that make the library testable and rep
 - **`model`** accepts a built `pydantic-ai` model, so a host app can pass one that is
   already authenticated and instrumented.
 
-A **`document_store`** seam arrives with SRC-1, so a host app can keep originals where it
-already keeps them. It is not in the constructor yet; a parameter that does nothing would
-be worse than one that is missing.
+**`document_store`** lets a host app keep originals where it already keeps them. Whatever
+implements the port must copy rather than reference, and return a URI from `locator`.
 
-`VectorStore` and `EmbeddingService` are exported from the package because they appear in
+`VectorStore`, `EmbeddingService` and `DocumentStore` are exported because they appear in
 this signature: a host implementing a seam needs a public type to annotate against.
 
 Two things injection does **not** remove. An injected `embeddings` service must agree with

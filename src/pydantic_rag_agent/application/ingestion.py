@@ -11,6 +11,7 @@ which formats exist — see docs/architecture.md.
 from __future__ import annotations
 
 import hashlib
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
@@ -23,6 +24,7 @@ from pydantic_rag_agent.domain.extraction import ExtractedDocument
 from pydantic_rag_agent.domain.models import EmbeddedChunk
 from pydantic_rag_agent.domain.ports import (
     DocumentLoader,
+    DocumentStore,
     ImageCaptioner,
     ImageStore,
     VectorStore,
@@ -86,6 +88,7 @@ async def ingest_paths(
     chunk_overlap: int = 100,
     image_store: ImageStore | None = None,
     captioner: ImageCaptioner | None = None,
+    document_store: DocumentStore | None = None,
 ) -> IngestReport:
     """Ingest files and directories into ``store``.
 
@@ -96,6 +99,11 @@ async def ingest_paths(
     ``image_store`` and ``captioner`` are supplied together or not at all. Without
     them, images are ignored — which keeps text-only ingestion and its tests free
     of image machinery.
+
+    ``document_store`` keeps a copy of each original and puts its locator on every chunk,
+    so a citation can outlive the file the user ingested. Without one, nothing is copied
+    and citations carry no locator — which is what the evaluation script wants, since its
+    corpus is a throwaway.
     """
     if (image_store is None) != (captioner is None):
         raise ValueError("image_store and captioner must be provided together")
@@ -105,6 +113,7 @@ async def ingest_paths(
         results.append(
             await _ingest_one(
                 path,
+                source_label=str(path),
                 store=store,
                 embeddings=embeddings,
                 loaders=loaders,
@@ -112,14 +121,90 @@ async def ingest_paths(
                 chunk_overlap=chunk_overlap,
                 image_store=image_store,
                 captioner=captioner,
+                document_store=document_store,
             )
         )
     return IngestReport(results=tuple(results))
 
 
+async def ingest_uploads(
+    files: Sequence[tuple[str, bytes]],
+    *,
+    store: VectorStore,
+    embeddings: EmbeddingService,
+    loaders: Sequence[DocumentLoader],
+    chunk_size: int = 800,
+    chunk_overlap: int = 100,
+    image_store: ImageStore | None = None,
+    captioner: ImageCaptioner | None = None,
+    document_store: DocumentStore | None = None,
+) -> IngestReport:
+    """Ingest files that arrived as bytes, the way an upload does.
+
+    Loaders take a path, so each upload is written to a private temporary directory first
+    and removed afterwards; the durable copy is the one ``document_store`` makes. The
+    client's filename becomes the ``source_path`` on every chunk, because the temporary
+    path is an implementation detail and would make a citation meaningless.
+
+    A filename that cannot be sanitised raises ``ValueError`` before anything is written:
+    an upload with no name is a bad request, not a document that failed to parse.
+    """
+    # The leaf names the temporary file and the stored copy; the original string is the
+    # source the citation reports. Over HTTP a client may send "docs/a/report.pdf", and
+    # flattening that to "report.pdf" would make two files collide on one replacement key.
+    leaves = [_safe_filename(label) for label, _ in files]
+
+    results: list[IngestResult] = []
+    with tempfile.TemporaryDirectory(prefix="pragent-upload-") as directory:
+        for label, leaf, (_, data) in zip(
+            (label for label, _ in files), leaves, files, strict=True
+        ):
+            path = Path(directory) / leaf
+            try:
+                path.write_bytes(data)
+            except OSError as exc:
+                results.append(
+                    IngestResult(
+                        source_path=label,
+                        status="failed",
+                        error=f"could not stage upload: {exc}",
+                    )
+                )
+                continue
+
+            results.append(
+                await _ingest_one(
+                    path,
+                    source_label=label,
+                    store=store,
+                    embeddings=embeddings,
+                    loaders=loaders,
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
+                    image_store=image_store,
+                    captioner=captioner,
+                    document_store=document_store,
+                )
+            )
+    return IngestReport(results=tuple(results))
+
+
+def _safe_filename(filename: str) -> str:
+    """The leaf name of an upload, rejecting one that has none.
+
+    A write to ``TemporaryDirectory / name`` with ``name`` containing ``../`` would escape
+    the directory, so this is a security boundary rather than tidiness.
+    """
+    name = Path(filename).name
+    if not name or name in {".", ".."}:
+        raise ValueError("each upload must have a filename")
+    return name
+
+
 async def _ingest_one(
     path: Path,
     *,
+    source_label: str,
     store: VectorStore,
     embeddings: EmbeddingService,
     loaders: Sequence[DocumentLoader],
@@ -127,12 +212,13 @@ async def _ingest_one(
     chunk_overlap: int,
     image_store: ImageStore | None,
     captioner: ImageCaptioner | None,
+    document_store: DocumentStore | None,
 ) -> IngestResult:
     try:
         payload = path.read_bytes()
     except OSError as exc:
         return IngestResult(
-            source_path=str(path),
+            source_path=source_label,
             status="failed",
             error=f"could not read file: {exc}",
         )
@@ -143,7 +229,7 @@ async def _ingest_one(
     loader = _loader_for(path, loaders)
     if loader is None:
         return IngestResult(
-            source_path=str(path),
+            source_path=source_label,
             document_id=document_id,
             status="skipped",
             warnings=(f"unsupported file type {path.suffix or '(none)'}",),
@@ -151,8 +237,20 @@ async def _ingest_one(
 
     try:
         if await store.has_document(document_id):
+            if document_store is not None and not document_store.exists(
+                document_id=document_id, filename=Path(source_label).name
+            ):
+                # Already in the index, but its original is missing — an older index, or
+                # someone emptied the directory. Copying it costs nothing and restores
+                # what a citation promises. Existing chunks still carry no locator until
+                # the document is reindexed; the ADR revision says so.
+                document_store.save(
+                    document_id=document_id,
+                    filename=Path(source_label).name,
+                    data=payload,
+                )
             return IngestResult(
-                source_path=str(path),
+                source_path=source_label,
                 document_id=document_id,
                 status="skipped",
                 warnings=("already indexed",),
@@ -163,16 +261,29 @@ async def _ingest_one(
         # a slide deck with no text boxes is content, not an error.
         if not document.blocks and not document.images:
             return IngestResult(
-                source_path=str(path),
+                source_path=source_label,
                 document_id=document_id,
                 status="skipped",
                 warnings=("no extractable text",),
             )
 
+        # Copy the original before touching the index. If this fails, nothing has been
+        # deleted yet, so the previous version stays searchable instead of vanishing.
+        # A citation pointing at nothing is worse than a file that did not land.
+        locator = (
+            document_store.save(
+                document_id=document_id,
+                filename=Path(source_label).name,
+                data=payload,
+            )
+            if document_store is not None
+            else None
+        )
+
         # A changed file has a new content hash, so the skip above does not catch
-        # it. Clearing by path first stops the index accumulating superseded
-        # versions that would keep matching searches next to the current one.
-        replaced = await store.delete_by_source_path(str(path))
+        # it. Clearing by path stops the index accumulating superseded versions that
+        # would keep matching searches next to the current one.
+        replaced = await store.delete_by_source_path(source_label)
 
         warnings: list[str] = []
         text_chunks = chunk_document(
@@ -190,10 +301,17 @@ async def _ingest_one(
             *text_chunks,
             *image_chunks(document, captions, start_ordinal=len(text_chunks)),
         ]
+        # Loaders fill `source_path` from the path they were handed, which for an upload
+        # is a temporary file. The label is what the user called it; the locator is where
+        # the copy lives.
+        chunks = [
+            chunk.model_copy(update={"source_path": source_label, "locator": locator})
+            for chunk in chunks
+        ]
 
         if not chunks:
             return IngestResult(
-                source_path=str(path),
+                source_path=source_label,
                 document_id=document_id,
                 status="skipped",
                 replaced=replaced,
@@ -213,7 +331,7 @@ async def _ingest_one(
             ]
         )
         return IngestResult(
-            source_path=str(path),
+            source_path=source_label,
             document_id=document_id,
             status="indexed",
             chunks=len(chunks),
@@ -225,7 +343,7 @@ async def _ingest_one(
     except Exception as exc:  # noqa: BLE001 - containment is the requirement here
         # One hostile file must not abort a batch. The report carries the reason.
         return IngestResult(
-            source_path=str(path),
+            source_path=source_label,
             document_id=document_id,
             status="failed",
             error=f"{type(exc).__name__}: {exc}",
@@ -294,25 +412,3 @@ def _expand(paths: Sequence[Path], loaders: Sequence[DocumentLoader]) -> list[Pa
 def _loader_for(path: Path, loaders: Sequence[DocumentLoader]) -> DocumentLoader | None:
     suffix = path.suffix.lower()
     return next((loader for loader in loaders if suffix in loader.suffixes), None)
-
-
-def spool_upload(*, data: bytes, filename: str, directory: Path) -> Path:
-    """Persist one uploaded file under a content-addressed path and return it.
-
-    Content-addressed so re-uploading the same file reuses the path, and hashed before
-    naming so two different uploads cannot collide. Only the final path component of the
-    client's filename is kept: a name containing ``../`` must not choose where the file
-    lands.
-
-    Shared by the HTTP route and the in-process client, because an interface should not
-    decide where a source document is written. The document store (SRC-1) takes this over.
-    """
-    name = Path(filename).name
-    if not name or name in {".", ".."}:
-        raise ValueError("each upload must have a filename")
-
-    digest = hashlib.sha256(data).hexdigest()
-    target = directory / digest[:2] / digest / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
-    return target
