@@ -59,7 +59,7 @@ request:
 | Tests | `uv run pytest` |
 | Formatting | `uv run ruff format --check .` |
 | Linting | `uv run ruff check .` |
-| Types | `uv run mypy src` |
+| Types | `uv run mypy src scripts` |
 | Documentation links | `uv run python scripts/check_docs_links.py` |
 
 `uv run ruff format .` applies formatting rather than checking it.

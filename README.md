@@ -7,9 +7,9 @@ and managed with [uv](https://docs.astral.sh/uv/).
 > M6 is closed apart from OPS-1 (instrumentation), which is deliberately out of scope.
 > Ingestion, retrieval, the agent, the API, the CLI and the Streamlit UI all work; the
 > suite runs offline at 92% branch coverage. `main` is the state described in
-> [`docs/overview.md`](docs/overview.md#current-state); the ordered plan behind it is in
-> [`docs/features/`](docs/features/README.md) and
-> [`docs/roadmap.md`](docs/roadmap.md).
+> [`docs/overview.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/overview.md#current-state); the ordered plan behind it is in
+> [`docs/features/`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/features/README.md) and
+> [`docs/roadmap.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/roadmap.md).
 
 ## Why uv?
 
@@ -18,11 +18,11 @@ pins the exact graph so your CI and your laptop agree on what "it works" means.
 
 ## Documentation
 
-Full documentation lives in [`docs/`](docs/README.md) — start with the
-[documentation index](docs/README.md) or the [project overview](docs/overview.md).
-Design rationale is recorded as [decision records](docs/decisions/README.md).
+Full documentation lives in [`docs/`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/README.md) — start with the
+[documentation index](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/README.md) or the [project overview](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/overview.md).
+Design rationale is recorded as [decision records](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/README.md).
 
-Coding agents should read [`AGENTS.md`](AGENTS.md) first.
+Coding agents should read [`AGENTS.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/AGENTS.md) first.
 
 ## Requirements
 
@@ -45,8 +45,8 @@ for a script that ingests and asks in one go. Anything the agent does not need a
 time is an extra, and a missing one tells you which to install.
 
 > **Not on PyPI yet.** The first release is milestone 7 — see
-> [`docs/features/`](docs/features/README.md) and
-> [ADR 0013](docs/decisions/0013-packaging-and-release.md). Until then, install from the
+> [`docs/features/`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/features/README.md) and
+> [ADR 0013](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0013-packaging-and-release.md). Until then, install from the
 > repository as below.
 
 As a library, from the repository today (and from PyPI once published):
@@ -104,7 +104,7 @@ Point the client at `https://your-host/openai/v1`. Requests are stateless (the c
 sends the thread), caller-supplied system messages are ignored, and answers carry a
 `Sources:` footer. `serve` already exposes the same route at `/v1`, so a chat UI can be
 pointed at a running server without writing any code — `--openai-model-id` chooses the name
-the client shows. See [ADR 0014](docs/decisions/0014-openai-compatible-endpoint.md).
+the client shows. See [ADR 0014](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0014-openai-compatible-endpoint.md).
 
 ## Getting started from the repository
 
@@ -173,23 +173,23 @@ library is used.
 
 Credentials keep their conventional names (`OPENROUTER_API_KEY`) and are never read from
 a committed file. Every variable, its default, and the mapping from the pre-0.1.0 flat
-names are in [`docs/reference/configuration.md`](docs/reference/configuration.md).
+names are in [`docs/reference/configuration.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/reference/configuration.md).
 
 The `.gitignore` ignores `.env` and any `.env.*` file except `.env.example`.
 
 ## Contributing
 
 1. `uv sync` to get a working environment.
-2. Pick a feature ID from the [backlog](docs/features/README.md) and reference it in
+2. Pick a feature ID from the [backlog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/features/README.md) and reference it in
    your commit subject.
 3. Add tests under `tests/` next to the module they cover.
 4. `uv run pytest` before opening a pull request.
 
 ## License
 
-[MIT](LICENSE). Use it, fork it, ship it — just keep the copyright notice.
+[MIT](https://github.com/hanku4u/pydantic-rag-agent/blob/main/LICENSE). Use it, fork it, ship it — just keep the copyright notice.
 
 The dependency stack is deliberately permissive end to end; the one AGPL package that
 previously blocked this was replaced. See
-[`docs/reference/dependencies.md`](docs/reference/dependencies.md) for the details, and
-[ADR 0007](docs/decisions/0007-mit-licence-and-pypdfium2.md) for the reasoning.
+[`docs/reference/dependencies.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/reference/dependencies.md) for the details, and
+[ADR 0007](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0007-mit-licence-and-pypdfium2.md) for the reasoning.

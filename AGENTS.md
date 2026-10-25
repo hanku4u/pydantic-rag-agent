@@ -61,7 +61,7 @@ uv run pytest                  # tests (offline; model requests disabled)
 uv run pytest --cov            # tests plus coverage; CI fails below 85%
 uv run ruff check .            # lint
 uv run ruff format --check .   # formatting
-uv run mypy src                # types
+uv run mypy src scripts        # types
 uv run python scripts/check_docs_links.py   # docs link graph
 uv run python scripts/evaluate_retrieval.py   # retrieval eval (needs API key, costs money)
 ```
@@ -82,8 +82,9 @@ State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads th
 server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade),
 **CORE-4** (`runtime.py` folded into the façade — one builder, no wrapper), **SRC-1**
 (originals copied to a local `DocumentStore`, cited by `file://`), **SRC-2** (the same store
-in S3 via the `[s3]` extra, cited by `s3://`) and **SRC-3** (locators shown in the API, the
-CLI's sources table and the UI).
+in S3 via the `[s3]` extra, cited by `s3://`), **SRC-3** (locators shown in the API, the
+CLI's sources table and the UI), **PKG-2** (metadata, `py.typed`, single-sourced version)
+and **PKG-3** (the export test).
 
 Read these before touching anything:
 
@@ -96,8 +97,7 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: the remaining PKG features next — metadata (PKG-2), the export test
-(PKG-3), the release workflow (PKG-4) and the runbook rehearsal (PKG-5).
+Suggested order: the release workflow (PKG-4) next, then the runbook rehearsal (PKG-5).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

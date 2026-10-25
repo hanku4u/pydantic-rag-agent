@@ -232,9 +232,10 @@ surface above — say so and it moves.
 Pre-1.0: the surface above may change in a minor release (`0.x`), with a changelog entry and
 a migration note. Patch releases do not change it.
 
-**Planned (PKG-3).** A test will assert the exported names, so an addition is a deliberate
-act rather than a side effect — and so "this is the surface" is checkable rather than
-aspirational.
+The exported names are asserted by `tests/test_public_api.py`, so an addition is a
+deliberate act rather than a side effect — and "this is the surface" is checkable rather
+than aspirational. Internals are importable because Python has no `private`, but they are
+not in `__all__` and carry no promise.
 
 ## Settled while building CORE-1
 

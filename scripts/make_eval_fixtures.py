@@ -44,7 +44,7 @@ def build_asset_inventory(target: Path) -> None:
             "Report a missing or damaged label to the platform team; do not relocate "
             "hardware before the register has been updated."
         )
-        document.save(target)
+        document.save(str(target))
 
 
 def main() -> int:

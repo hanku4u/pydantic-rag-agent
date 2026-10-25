@@ -8,7 +8,30 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Nick", email = "98120512+hanku4u@users.noreply.github.com" }
 ]
+keywords = [
+    "rag",
+    "retrieval-augmented-generation",
+    "pydantic",
+    "pydantic-ai",
+    "llm",
+    "vector-search",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: FastAPI",
+    "Framework :: Pydantic",
+    "Framework :: Pydantic :: 2",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Indexing",
+]
 requires-python = ">=3.11"
+
 # Core is what the agent needs to run at all: models, loaders, the CLI and the
 # in-memory store. Everything a user might not want — a vector database, a web
 # framework, a UI toolkit, an object store — is an extra.
@@ -40,6 +63,12 @@ all = ["pydantic-rag-agent[chroma,api,ui,s3]"]
 
 [project.scripts]
 pydantic-rag-agent = "pydantic_rag_agent.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/hanku4u/pydantic-rag-agent"
+Repository = "https://github.com/hanku4u/pydantic-rag-agent"
+Documentation = "https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/README.md"
+Issues = "https://github.com/hanku4u/pydantic-rag-agent/issues"
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]

@@ -92,6 +92,9 @@ async def run(args: argparse.Namespace) -> int:
                 )
             ),
             cache_dir=work / "images" / "captions",
+            # Part of the caption cache key: a different model must not reuse another's
+            # descriptions (it is required for exactly this reason).
+            model_name=settings.provider.effective_caption_model,
         )
 
         store = ChromaVectorStore(

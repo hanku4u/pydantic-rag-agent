@@ -41,7 +41,7 @@ stay the canonical list.
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | API-6 (post-M7) | API-6 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
-| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1 | PKG-2 |
+| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1, PKG-2, PKG-3 | PKG-4 |
 
 M0 is closed: `RagAgent` loads `Settings` at startup and checks the index on first use
 (on startup, for the standalone app), which is what FND-2 was waiting for. M5 is closed too — the
@@ -175,8 +175,8 @@ package becomes something another project can install, import, and mount. Design
 | CORE-3 | FastAPI moved to an integration | CORE-1, PKG-1 | A host app mounts `create_router(agent)`; the standalone app still serves the CLI's `--api-url` mode. **Done:** `integrations/fastapi` holds `create_router` and `create_app`; routes call only the façade, and map 404/409/502 themselves so a mounted router behaves like the standalone one. `api/` is gone, and the CLI's `serve` starts the integration over `RagAgent.from_env()` |
 | CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function. **Done:** `runtime.py` is gone; its wiring is a private `_build_runtime` inside `agent.py`, `RagAgent` is the only door, and `serve`, the CLI, the UI and the router all construct through `RagAgent.from_env()` / `RagAgent(settings)` |
 | PKG-1 | Dependency extras | — | A base install pulls no Streamlit, Chroma, FastAPI or boto3; each extra is documented. **Done:** core is agent + loaders + CLI + memory store; `[chroma]`, `[api]`, `[ui]`, `[s3]` and `[all]` declared; optional imports are late and `MissingExtraError` names the install command. Verified by installing the built wheel into a clean venv: no extra present, `--help` and a memory-backed `stats` work, `serve` explains the missing `[api]` |
-| PKG-2 | Package metadata | — | Classifiers, project URLs and keywords set; `twine check` passes |
-| PKG-3 | Public surface and an export test | CORE-1 | `__all__` names are asserted, so an accidental addition is a deliberate act |
+| PKG-2 | Package metadata | — | Classifiers, project URLs and keywords set; `twine check` passes. **Done:** classifiers validated against the official trove list (Python 3.11 only — no CI matrix claims more), project URLs, keywords, `py.typed`, and `__version__` read from installed metadata so the version exists once. `twine check` passes on both artefacts; README links are absolute because it is the PyPI page. Adding `py.typed` and type-checking `scripts/` immediately caught two runtime bugs there (a required caption-model argument and a `Path` passed where `python-docx` types expect `str`) |
+| PKG-3 | Public surface and an export test | CORE-1 | `__all__` names are asserted, so an accidental addition is a deliberate act. **Done:** `tests/test_public_api.py` pins the exact set, asserts every name resolves, keeps internals out, checks `__version__` against `pyproject.toml`, and does the same for the FastAPI integration. It caught `DocumentStore` being documented as exported while missing from `__all__` |
 | PKG-4 | Release workflow | PKG-2 | A tag publishes to PyPI via trusted publishing; a TestPyPI dispatch rehearses it first |
 | PKG-5 | Changelog and release runbook | PKG-4 | [Releasing](../development/releasing.md) executed once, successfully, by someone other than its author |
 

@@ -42,7 +42,7 @@ the installed metadata, so there is no second copy to forget.
 ```bash
 # 1. Everything green locally
 uv run pytest --cov
-uv run ruff format --check . && uv run ruff check . && uv run mypy src
+uv run ruff format --check . && uv run ruff check . && uv run mypy src scripts
 uv run python scripts/check_docs_links.py
 
 # 2. Bump the version in pyproject.toml and update CHANGELOG.md

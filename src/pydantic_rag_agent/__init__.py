@@ -6,12 +6,17 @@ The public surface, re-exported so a caller needs one import:
 from pydantic_rag_agent import RagAgent
 ```
 
-Re-exports only — no configuration is read, no client is constructed, and no credential
-is touched at import time. Those belong in explicit calls such as ``RagAgent.from_env()``,
+Re-exports only: no configuration is read, no client is constructed, and no credential is
+touched at import time. Those belong in explicit calls such as ``RagAgent.from_env()``,
 because import-time side effects make a package painful to test and surprising to embed.
+
+``__version__`` comes from the installed metadata, so ``pyproject.toml`` is the only place
+a version is written.
 
 What is public, and what is not: docs/design/public-api.md.
 """
+
+from importlib.metadata import PackageNotFoundError, version
 
 from pydantic_rag_agent.adapters.agent import (
     AgentStreamUpdate,
@@ -47,11 +52,17 @@ from pydantic_rag_agent.domain.models import (
     StoreStats,
     TurnUsage,
 )
-from pydantic_rag_agent.domain.ports import VectorStore
+from pydantic_rag_agent.domain.ports import DocumentStore, VectorStore
 from pydantic_rag_agent.extras import MissingExtraError
+
+try:
+    __version__ = version("pydantic-rag-agent")
+except PackageNotFoundError:  # pragma: no cover - a source tree that is not installed
+    __version__ = "0.0.0"
 
 __all__ = [
     # The agent
+    "__version__",
     "RagAgent",
     "AgentStreamUpdate",
     "AgentTurn",
@@ -71,6 +82,7 @@ __all__ = [
     "AgentSettings",
     # Seam types, public because they appear in the constructor signature
     "VectorStore",
+    "DocumentStore",
     "EmbeddingService",
     # Results
     "ChatMessage",

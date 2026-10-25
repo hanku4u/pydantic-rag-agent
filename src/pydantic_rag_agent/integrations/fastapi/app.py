@@ -27,6 +27,7 @@ from fastapi import APIRouter, FastAPI, File, HTTPException, Response, UploadFil
 from fastapi.responses import StreamingResponse
 from pydantic_ai.exceptions import ModelAPIError
 
+from pydantic_rag_agent import __version__
 from pydantic_rag_agent.adapters.agent import (
     AgentStreamUpdate,
     AgentTurn,
@@ -56,7 +57,6 @@ from pydantic_rag_agent.integrations.fastapi.schemas import (
 )
 
 API_TITLE = "pydantic-rag-agent"
-API_VERSION = "0.1.0"
 
 _T = TypeVar("_T")
 
@@ -189,7 +189,7 @@ def create_app(agent: RagAgent, *, openai_model_id: str = DEFAULT_MODEL_ID) -> F
             # the store open.
             await agent.aclose()
 
-    app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
+    app = FastAPI(title=API_TITLE, version=__version__, lifespan=lifespan)
     app.include_router(create_router(agent))
     app.include_router(create_openai_router(agent, model_id=openai_model_id))
     return app
