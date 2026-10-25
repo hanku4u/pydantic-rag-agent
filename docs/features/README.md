@@ -39,7 +39,7 @@ stay the canonical list.
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
 | M4 Agent | AGT-1…AGT-5, AGT-7 (AGT-6 partial: multi-turn works, `Compaction` not built) | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
-| M6 Hardening | EVAL-1, SEC-1, OPS-2 | — |
+| M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
 runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
@@ -144,7 +144,7 @@ See [Interfaces](../design/interfaces.md).
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | EVAL-1 | Retrieval evaluation set | RET-1 | A fixed set of question/expected-chunk pairs scores retrieval quality; regressions are visible |
-| TST-1 | Coverage of the offline suite | M2–M4 | Loaders, chunker, store, and agent loop have tests; suite runs in CI without network |
+| TST-1 | Coverage of the offline suite | M2–M4 | Loaders, chunker, store, and agent loop have tests; suite runs in CI without network. **Done:** measured, not assumed — 92% branch coverage, gated in CI via `--cov` with `fail_under = 85`. The CLI's untested half was the error branches of every command plus the `chat` loop, all now covered. `ui/` is omitted from the metric deliberately: Streamlit is verified by launching it (see [testing.md](../development/testing.md)), and counting it as 0% would only obscure the number that matters |
 | OPS-1 | Structured logging | API-1 | Each run logs tool calls, token counts, and latency; no document text or secrets. Prefer the framework's `Instrumentation` capability over a hand-rolled logger |
 | OPS-2 | Cost visibility | AGT-4 | Token usage per conversation is retrievable; `SpendLimits` may satisfy this outright. **Done:** `TurnUsage` on every `AgentTurn`, carried in the SSE `done` event and the `AnswerResponse`, rendered as a dim footer by the CLI. Limits are still request-count only (`UsageLimits(request_limit=…)`); `SpendLimits` has not been adopted |
 | SEC-1 | Prompt-injection review | AGT-3, IMG-3 | A malicious document cannot alter agent instructions; the attempt is documented as a test. Prefer `PromptInjectionDefender`, which classifies tool results, over a hand-rolled filter |
