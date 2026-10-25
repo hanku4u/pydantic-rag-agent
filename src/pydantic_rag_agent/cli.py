@@ -99,6 +99,13 @@ AsJson = Annotated[bool, typer.Option("--json", help="Print machine-readable JSO
 def serve(
     host: Annotated[str, typer.Option(help="Interface to bind.")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port to bind.")] = 8000,
+    openai_model_id: Annotated[
+        str | None,
+        typer.Option(
+            "--openai-model-id",
+            help="Name shown to OpenAI-speaking chat clients at /v1. Defaults to the package name.",
+        ),
+    ] = None,
 ) -> None:
     """Run the HTTP API, for remote clients and integrations."""
     # Imported late so `--help` stays instant and does not build a runtime.
@@ -107,13 +114,10 @@ def serve(
     try:
         require("api", "fastapi")
         require("api", "uvicorn")
-        from pydantic_rag_agent.agent import RagAgent
-        from pydantic_rag_agent.integrations.fastapi import create_app
 
         # Built inside the guard: `[api]` does not imply the default Chroma store, so a
         # missing extra can surface here rather than only on the import above.
-        os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
-        app = create_app(RagAgent.from_env(_dotenv_file() or ".env"))
+        app = _api_app(openai_model_id)
     except MissingExtraError as exc:
         # Text, not markup: the message contains `pydantic-rag-agent[api]`, and rich
         # would read the brackets as a style tag and quietly drop the extra's name.
@@ -328,6 +332,13 @@ def dev(
     host: Annotated[str, typer.Option(help="Interface the API binds to.")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port for the API.")] = 8000,
     ui_port: Annotated[int, typer.Option(help="Port for the Streamlit UI.")] = 8501,
+    openai_model_id: Annotated[
+        str | None,
+        typer.Option(
+            "--openai-model-id",
+            help="Name shown to OpenAI-speaking chat clients at /v1. Defaults to the package name.",
+        ),
+    ] = None,
 ) -> None:
     """Run the API and the Streamlit UI together (DX-1)."""
     import os
@@ -342,12 +353,8 @@ def dev(
         # Checked before spawning `python -m streamlit`, so the message names the extra
         # instead of being a subprocess's ModuleNotFoundError in another window.
         require("ui", "streamlit")
-        from pydantic_rag_agent.agent import RagAgent
-        from pydantic_rag_agent.integrations.fastapi import create_app
-
         # Built inside the guard for the same reason as `serve`.
-        os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
-        app = create_app(RagAgent.from_env(_dotenv_file() or ".env"))
+        app = _api_app(openai_model_id)
     except MissingExtraError as exc:
         console.print(Text(str(exc), style="red"))
         raise typer.Exit(code=1) from exc
@@ -387,6 +394,22 @@ def dev(
         ui.wait()
     except KeyboardInterrupt:
         ui.terminate()
+
+
+def _api_app(openai_model_id: str | None) -> Any:
+    """The standalone app, with the chat-UI model name resolved.
+
+    Imported here rather than at module scope: `[api]` is an extra, and loading FastAPI
+    for `--help` would make it a hard dependency again.
+    """
+    from pydantic_rag_agent.agent import RagAgent
+    from pydantic_rag_agent.integrations.fastapi import DEFAULT_MODEL_ID, create_app
+
+    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
+    return create_app(
+        RagAgent.from_env(_dotenv_file() or ".env"),
+        openai_model_id=openai_model_id or DEFAULT_MODEL_ID,
+    )
 
 
 def create_server(app: Any, *, host: str, port: int) -> uvicorn.Server:

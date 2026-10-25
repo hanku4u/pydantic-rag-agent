@@ -91,8 +91,9 @@ cannot tell a truncated answer from a slow one. A budget-exhausted turn finishes
 ### OpenAI-compatible endpoint
 
 `create_openai_router(agent)` serves the same agent to any OpenAI-speaking chat client —
-Open WebUI, Chatbox, LibreChat — at `/v1`. `serve` includes it already; mounting the
-factory is for a host app:
+Open WebUI, Chatbox, LibreChat — at `/v1`. `serve` includes it already, and
+`--openai-model-id` sets the name the client's picker shows; mounting the factory is for a
+host app:
 
 | Path | Purpose |
 | --- | --- |

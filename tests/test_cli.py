@@ -330,3 +330,82 @@ def stream_answer_on_a_terminal_should_drive_the_live_region() -> None:
     rendered = buffer.getvalue()
     assert "answer text" in rendered
     assert payload["answer"] == "answer text"
+
+
+def _api_app_should_use_the_package_default_without_a_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # given: no --openai-model-id, and the integration stubbed out
+    from pydantic_rag_agent.agent import RagAgent
+    from pydantic_rag_agent.integrations import fastapi as integration
+
+    seen: list[str] = []
+    monkeypatch.setattr(RagAgent, "from_env", classmethod(lambda cls, *_a, **_k: object()))
+    monkeypatch.setattr(
+        integration,
+        "create_app",
+        lambda _agent, *, openai_model_id: seen.append(openai_model_id) or object(),
+    )
+
+    # when / then: the documented default is used
+    cli._api_app(None)
+    assert seen == [integration.DEFAULT_MODEL_ID]
+
+
+def _api_app_should_pass_a_custom_model_name_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # given: an operator who wants their own label in the chat UI
+    from pydantic_rag_agent.agent import RagAgent
+    from pydantic_rag_agent.integrations import fastapi as integration
+
+    seen: list[str] = []
+    monkeypatch.setattr(RagAgent, "from_env", classmethod(lambda cls, *_a, **_k: object()))
+    monkeypatch.setattr(
+        integration,
+        "create_app",
+        lambda _agent, *, openai_model_id: seen.append(openai_model_id) or object(),
+    )
+
+    # when: serve is configured with a name
+    cli._api_app("acme-knowledge")
+
+    # then: that is what the client will see
+    assert seen == ["acme-knowledge"]
+
+
+def serve_should_pass_the_chat_model_name_to_the_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # given: a server that would otherwise run forever
+    import uvicorn
+
+    seen: list[str | None] = []
+    monkeypatch.setattr(cli, "_api_app", lambda model_id: seen.append(model_id) or object())
+    monkeypatch.setattr(uvicorn, "run", lambda _app, **_kwargs: None)
+
+    # when: serve is given a name for chat clients
+    result = runner.invoke(cli.app, ["serve", "--openai-model-id", "acme-knowledge"])
+
+    # then: it reached the app factory — a flag that exists but is not wired is worse
+    # than no flag at all
+    assert result.exit_code == 0, result.output
+    assert seen == ["acme-knowledge"]
+
+
+def serve_without_the_flag_should_let_the_app_choose_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # given: no name configured
+    import uvicorn
+
+    seen: list[str | None] = []
+    monkeypatch.setattr(cli, "_api_app", lambda model_id: seen.append(model_id) or object())
+    monkeypatch.setattr(uvicorn, "run", lambda _app, **_kwargs: None)
+
+    # when: the server starts
+    result = runner.invoke(cli.app, ["serve"])
+
+    # then: the default is resolved in one place, not duplicated in the command
+    assert result.exit_code == 0, result.output
+    assert seen == [None]

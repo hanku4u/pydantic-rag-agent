@@ -101,8 +101,8 @@ app.include_router(create_openai_router(agent, model_id="acme-knowledge"), prefi
 Point the client at `https://your-host/openai/v1`. Requests are stateless (the client
 sends the thread), caller-supplied system messages are ignored, and answers carry a
 `Sources:` footer. `serve` already exposes the same route at `/v1`, so a chat UI can be
-pointed at a running server without writing any code. See
-[ADR 0014](docs/decisions/0014-openai-compatible-endpoint.md).
+pointed at a running server without writing any code — `--openai-model-id` chooses the name
+the client shows. See [ADR 0014](docs/decisions/0014-openai-compatible-endpoint.md).
 
 ## Getting started from the repository
 
