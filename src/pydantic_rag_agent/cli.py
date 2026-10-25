@@ -17,6 +17,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
+import dotenv
 import typer
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -32,27 +33,24 @@ if TYPE_CHECKING:
 
 
 def _default_api_url() -> str:
-    """Where the API is, honouring ``.env`` as well as the shell.
+    """Resolve the API URL from `.env`, falling back to localhost.
 
-    ``Settings`` is the only thing that reads ``.env``, and the CLI deliberately does not
-    build a ``Settings`` — that would demand ``OPENROUTER_API_KEY`` just to run
-    ``documents`` against a remote server. The consequence was that ``PRAGENT_API_URL``
-    in ``.env`` did nothing for the client commands while working for the server, which
-    is the kind of asymmetry that wastes an afternoon.
+    Resolved when a command runs rather than at import: a module-level read is
+    import-time I/O, and it makes the value depend on which directory the interpreter
+    happened to start in. ``find_dotenv(usecwd=True)`` also walks up from the working
+    directory, so running a command from a subdirectory still finds the project's file.
 
-    Reading only this one key closes it without loading the rest of the configuration.
-    The precedence stays as a user would expect: ``--api-url`` beats the shell
-    environment, which beats ``.env``, which beats the built-in default.
+    Deliberately not ``Settings``: that would demand ``OPENROUTER_API_KEY`` just to list
+    documents against a remote server. Precedence is ``--api-url``, then the shell
+    environment (typer's ``envvar``), then `.env`, then the built-in default.
     """
-    import dotenv
+    found = dotenv.find_dotenv(".env", usecwd=True)
+    if found:
+        value = dotenv.dotenv_values(found).get("PRAGENT_API_URL")
+        if value:
+            return value
+    return _FALLBACK_API_URL
 
-    from_env = dotenv.dotenv_values(".env").get("PRAGENT_API_URL")
-    if from_env:
-        return from_env
-    return "http://127.0.0.1:8000"
-
-
-DEFAULT_API_URL = _default_api_url()
 
 # The prompt is needed twice: once for `console.input`, once — plain — to work out how
 # many columns the echoed line occupied.
@@ -66,6 +64,8 @@ _TOOL_PHRASES = {
     "view_image": "looking at an image",
 }
 
+_FALLBACK_API_URL = "http://127.0.0.1:8000"
+
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
@@ -73,7 +73,7 @@ app = typer.Typer(
 )
 
 ApiUrl = Annotated[
-    str,
+    str | None,
     typer.Option("--api-url", envvar="PRAGENT_API_URL", help="Base URL of the API."),
 ]
 AsJson = Annotated[bool, typer.Option("--json", help="Print machine-readable JSON.")]
@@ -96,7 +96,7 @@ def serve(
 @app.command()
 def ingest(
     paths: Annotated[list[Path], typer.Argument(help="Files or directories to index.")],
-    api_url: ApiUrl = DEFAULT_API_URL,
+    api_url: ApiUrl = None,
     as_json: AsJson = False,
 ) -> None:
     """Upload documents and index them."""
@@ -125,7 +125,7 @@ def ingest(
 @app.command()
 def ask(
     question: Annotated[str, typer.Argument(help="What to ask about the documents.")],
-    api_url: ApiUrl = DEFAULT_API_URL,
+    api_url: ApiUrl = None,
     as_json: AsJson = False,
 ) -> None:
     """Ask one question and stream the answer."""
@@ -143,7 +143,7 @@ def ask(
 
 
 @app.command()
-def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
+def chat(api_url: ApiUrl = None) -> None:
     """Ask questions in a loop, keeping the conversation's context."""
     console = Console()
     try:
@@ -186,7 +186,7 @@ def chat(api_url: ApiUrl = DEFAULT_API_URL) -> None:
 @app.command()
 def delete(
     document_ids: Annotated[list[str], typer.Argument(help="IDs of the documents to remove.")],
-    api_url: ApiUrl = DEFAULT_API_URL,
+    api_url: ApiUrl = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
 ) -> None:
     """Remove documents from the index by ID.
@@ -230,7 +230,7 @@ def delete(
 
 
 @app.command()
-def documents(api_url: ApiUrl = DEFAULT_API_URL, as_json: AsJson = False) -> None:
+def documents(api_url: ApiUrl = None, as_json: AsJson = False) -> None:
     """List the indexed documents."""
     console = Console()
     try:
@@ -264,7 +264,7 @@ def documents(api_url: ApiUrl = DEFAULT_API_URL, as_json: AsJson = False) -> Non
 
 
 @app.command()
-def stats(api_url: ApiUrl = DEFAULT_API_URL, as_json: AsJson = False) -> None:
+def stats(api_url: ApiUrl = None, as_json: AsJson = False) -> None:
     """Show what the index contains and which embedding built it."""
     console = Console()
     try:
@@ -388,8 +388,8 @@ def _chat_help() -> Panel:
     return Panel(Text.assemble(body), border_style="dim", padding=(0, 1))
 
 
-def _client(api_url: str) -> RagClient:
-    return RagClient(api_url)
+def _client(api_url: str | None) -> RagClient:
+    return RagClient(api_url or _default_api_url())
 
 
 def _expand(paths: Sequence[Path]) -> list[Path]:

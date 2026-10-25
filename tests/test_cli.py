@@ -119,6 +119,40 @@ def ask_with_json_should_use_the_non_streaming_call() -> None:
     assert json.loads(result.output)["answer"] == "yes"
 
 
+def default_api_url_without_a_dotenv_file_should_fall_back_to_localhost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given: no .env anywhere above the working directory
+    monkeypatch.chdir(tmp_path)
+
+    # when / then: the built-in default applies
+    assert cli._default_api_url() == "http://127.0.0.1:8000"
+
+
+def default_api_url_with_a_dotenv_file_should_read_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given: a project .env naming a non-default port
+    (tmp_path / ".env").write_text("PRAGENT_API_URL=http://127.0.0.1:9000\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    # when / then: the client commands use it, without needing the server's credentials
+    assert cli._default_api_url() == "http://127.0.0.1:9000"
+
+
+def default_api_url_from_a_subdirectory_should_find_the_parent_dotenv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given: a .env in the project root and a command run one level down
+    (tmp_path / ".env").write_text("PRAGENT_API_URL=http://127.0.0.1:9001\n", encoding="utf-8")
+    nested = tmp_path / "docs"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+
+    # when / then: the search walks up rather than silently using the default
+    assert cli._default_api_url() == "http://127.0.0.1:9001"
+
+
 class StreamingFakeClient:
     """Yields a scripted event sequence, so rendering can be asserted directly."""
 
