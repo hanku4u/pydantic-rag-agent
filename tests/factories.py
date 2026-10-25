@@ -143,6 +143,7 @@ def build_facade(
     model: TestModel | FunctionModel | None = None,
     store: InMemoryVectorStore | None = None,
     settings: Settings | None = None,
+    answer: str = ANSWER,
 ) -> RagAgent:
     """A ``RagAgent`` wired entirely to fakes: no network, no Chroma, no key beyond the
     dummy the environment fixture supplies."""
@@ -153,5 +154,5 @@ def build_facade(
         embeddings=service,
         model=model
         if model is not None
-        else TestModel(call_tools="all", custom_output_text=ANSWER),
+        else TestModel(call_tools="all", custom_output_text=answer),
     )

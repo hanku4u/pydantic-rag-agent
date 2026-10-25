@@ -107,11 +107,13 @@ def serve(
     try:
         require("api", "fastapi")
         require("api", "uvicorn")
-        from pydantic_rag_agent.api.app import create_default_app
+        from pydantic_rag_agent.agent import RagAgent
+        from pydantic_rag_agent.integrations.fastapi import create_app
 
         # Built inside the guard: `[api]` does not imply the default Chroma store, so a
         # missing extra can surface here rather than only on the import above.
-        app = create_default_app()
+        os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
+        app = create_app(RagAgent.from_env(_dotenv_file() or ".env"))
     except MissingExtraError as exc:
         # Text, not markup: the message contains `pydantic-rag-agent[api]`, and rich
         # would read the brackets as a style tag and quietly drop the extra's name.
@@ -340,10 +342,12 @@ def dev(
         # Checked before spawning `python -m streamlit`, so the message names the extra
         # instead of being a subprocess's ModuleNotFoundError in another window.
         require("ui", "streamlit")
-        from pydantic_rag_agent.api.app import create_default_app
+        from pydantic_rag_agent.agent import RagAgent
+        from pydantic_rag_agent.integrations.fastapi import create_app
 
         # Built inside the guard for the same reason as `serve`.
-        app = create_default_app()
+        os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
+        app = create_app(RagAgent.from_env(_dotenv_file() or ".env"))
     except MissingExtraError as exc:
         console.print(Text(str(exc), style="red"))
         raise typer.Exit(code=1) from exc

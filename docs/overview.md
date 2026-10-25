@@ -84,6 +84,7 @@ Accurate as of the planning commit:
 | Security: prompt-injection defence (instructions, fencing, no system-prompt injection) | Done — SEC-1 |
 | Agent: capability, tools, budgets, multi-turn, compaction | Done — AGT-1…AGT-7 |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
+| FastAPI integration: `create_router(agent)`, `create_app(agent)` | Done — CORE-3 |
 | Cost visibility: per-turn tokens, requests and cost on every answer | Done — OPS-2 |
 | CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev`; in-process by default | Done — CLI-1…CLI-3, DX-1, CORE-2 |
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |

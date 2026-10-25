@@ -37,7 +37,7 @@ How the code is organised, what may depend on what, and where the seams are.
 | **Application** | Use cases: ingest a document, answer a question, run a turn. Protocols for what it needs. | Domain |
 | **Adapters** | Loaders, `ChromaVectorStore`, captioner, image store, `LocalDocumentStore`, `pydantic-ai` agent wiring. | Domain, third-party libraries |
 | **Façade** | `RagAgent`: builds the graph from settings and exposes ingest/ask/stream/documents. The public surface. | Application, adapters (wiring only) |
-| **Integrations** | FastAPI router and app, CLI, Streamlit. All are optional; the CLI and UI reach the façade through a `KnowledgeClient`. | Façade |
+| **Integrations** | `integrations.fastapi` (router and app), CLI, Streamlit. All are optional; the router calls the façade, the CLI and UI reach it through a `KnowledgeClient`. | Façade |
 
 The rule that carries the value: **application code depends on protocols it owns;
 adapters implement them; only the wiring layer knows which adapter is live.** That is
@@ -46,9 +46,9 @@ what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 The second rule, added with [ADR 0011](decisions/0011-public-facade.md): **the router and
 the CLI call the façade; neither calls an application service directly.** Two paths to the
 same behaviour is how the CLI and the API start disagreeing about history and citations.
-The façade exists (CORE-1) and the CLI and UI reach it through a `KnowledgeClient`
-(CORE-2). The router still reaches the wiring directly; CORE-3 and CORE-4 are what finish
-this rule.
+The façade exists (CORE-1), the CLI and UI reach it through a `KnowledgeClient`
+(CORE-2), and the router calls it directly (CORE-3). CORE-4 folds the composition root
+itself into the façade, so there is one builder rather than one builder and one wrapper.
 
 ## Module map
 
@@ -89,9 +89,10 @@ src/pydantic_rag_agent/
 │   └── agent.py          # knowledge-base capability + turn orchestration
 ├── client.py             # KnowledgeClient protocol + HTTP implementation
 ├── in_process.py         # the same protocol over a local RagAgent (CORE-2)
-├── api/                  # FastAPI app and DI
-│   ├── app.py            # factory, routes (incl. SSE), error mapping
-│   └── schemas.py        # wire models, separate from domain
+├── integrations/
+│   └── fastapi/          # optional: create_router(agent), create_app(agent)
+│       ├── app.py        # routes (incl. SSE), error mapping
+│       └── schemas.py    # wire models, separate from domain
 └── ui/                   # Streamlit
     └── streamlit_app.py  # chat UI, in-process or over the API
 ```
@@ -123,36 +124,40 @@ with a file per node; six models of three to five fields each do not justify six
 and a package that only re-exports is the abstraction the project's own rules tell us to
 avoid. CFG-1 landed as `config.py` for that reason.
 
-`api/schemas.py` is deliberately separate from `domain/models.py`. The wire contract
-and the domain model will diverge at the edges, and welding them together turns an
-internal refactor into a breaking API change.
+`integrations/fastapi/schemas.py` is deliberately separate from `domain/models.py`. The
+wire contract and the domain model will diverge at the edges, and welding them together
+turns an internal refactor into a breaking API change.
 
 ## Injection
 
-Two seams, and only two:
+Four seams, all on `RagAgent`:
 
-- **`VectorStore`** — our protocol, async, with a Chroma adapter for production and
-  an in-memory adapter for tests.
-- **`Embedder` / model** — `pydantic-ai`'s own abstraction, injected as a value.
-  Overridden in tests with `TestEmbeddingModel` and `TestModel`.
+- **`VectorStore`** — our protocol, async, with a Chroma adapter for production and an
+  in-memory adapter for tests.
+- **`DocumentStore`** — our protocol for the stored originals: local today, S3 behind the
+  `[s3]` extra.
+- **`EmbeddingService`** — the application service that owns width adaptation. Injected
+  when a host already has one, or when a test must not reach a network.
+- **`Model`** — `pydantic-ai`'s own abstraction, injected as a value. Tests use
+  `TestModel` and `FunctionModel`.
 
-Everything else is constructed directly. Abstraction is not free, and a protocol with
-one implementation and no test double is a layer of indirection that only costs
-reading time.
+Everything else is constructed directly. Abstraction is not free, and a protocol with one
+implementation and no test double is a layer of indirection that only costs reading time.
 
 ## Composition
 
-`runtime.py` is the composition root and the one module allowed to import every layer.
-It builds the store, embedder, captioner, image store, loaders, conversation store and
-agent, runs the index guard, and hands back a `Runtime`. The API takes one of those:
+`runtime.py` is the composition root and the one module allowed to import every layer. It
+builds the store, embedder, document store, captioner, image store, loaders, conversation
+store and agent. `RagAgent` wraps the result and is the only public way in:
 
 ```python
-def build_runtime(settings: Settings) -> Runtime: ...
-def create_app(runtime: Runtime) -> FastAPI: ...
+def build_runtime(settings, *, vector_store=None, embeddings=None, model=None, document_store=None) -> Runtime: ...
+class RagAgent:  # builds a Runtime from Settings, or takes those seams
+def create_app(agent: RagAgent) -> FastAPI: ...
 ```
 
-The API and the CLI call the same builder, so they cannot grow two different object
-graphs — the failure that would let the index guard run in one and not the other.
+The router, the CLI and the UI all go through the façade, so they cannot grow different
+object graphs — the failure that would let the index guard run in one and not the others.
 
 **Capabilities do not replace this.** They shape one agent's behaviour — tools,
 instructions, model settings, hooks — but cannot own a vector store or resolve

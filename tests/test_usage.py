@@ -2,7 +2,7 @@
 
 Two layers are worth testing separately: the translation from the framework's
 accumulator into the domain model, and the rendering of that model in the CLI. The
-API path is covered where it already was, in ``tests/api/test_routes.py``, because
+API path is covered where it already was, in ``tests/integrations/fastapi/test_routes.py``, because
 the wire shape is what those tests already assert.
 
 The interesting cases are not "the numbers arrive". They are the two ways a

@@ -1,8 +1,9 @@
 # Public API
 
-**Status:** draft — `RagAgent` and the settings tree exist (CFG-1…3, CORE-1). The
-document store, the transport protocol and the FastAPI integration are still planned; see
-the feature IDs in [Features](../features/README.md) (M7).
+**Status:** draft — the façade, the settings tree, the document store and the FastAPI
+integration exist (CFG-1…3, CORE-1…3, SRC-1, PKG-1). The S3 store, locators across every
+surface and the release remain; see the feature IDs in
+[Features](../features/README.md) (M7).
 
 What a user importing `pydantic_rag_agent` may rely on, and what they may not. Decisions
 behind it: [ADR 0010](../decisions/0010-configuration-tree.md) (configuration),
@@ -144,19 +145,41 @@ not branch on where the agent runs.
 ## Mounted in FastAPI
 
 ```python
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+
 from pydantic_rag_agent import RagAgent
 from pydantic_rag_agent.integrations.fastapi import create_router
 
-app = FastAPI()
 agent = RagAgent.from_env()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await agent.check_index()  # refuse a mismatched index instead of answering wrongly
+    try:
+        yield
+    finally:
+        await agent.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(create_router(agent), prefix="/knowledge")
 ```
 
-**Planned (CORE-3).** `create_app(agent)` will remain for the standalone server that
-`serve` runs; today's `create_app` takes the wiring object instead, and
-`integrations.fastapi` does not exist yet. The router and the standalone app will be the
-same routes, with only the wiring differing.
+The host owns the lifecycle: `create_router` registers no startup or shutdown hook, so
+`check_index()` and `aclose()` are the host's to call. Skipping the first means `/health`
+and `/stats` are served from an index nothing validated.
+
+`create_app(agent)` is the standalone server that `serve` runs: the same routes, plus
+the startup index check and the agent's shutdown. The router owns neither, because a host
+app does — which is what makes mounting it a two-line change rather than a second
+deployment.
+
+Routes mapped by the router itself, not by app-level handlers: a mounted router cannot
+install exception handlers into somebody else's app, so 404, 409 and 502 mean the same
+thing mounted as standalone.
 
 ## Configuration
 

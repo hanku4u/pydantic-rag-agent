@@ -37,6 +37,10 @@ work.
 
 ## HTTP API
 
+The same router is available as an integration: `create_router(agent)` mounts under any
+prefix in an app you already have, and `create_app(agent)` is the standalone server
+`serve` runs. Paths below are relative to wherever it is mounted.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness, plus index reachability |
@@ -52,7 +56,7 @@ Two message endpoints on purpose. The non-streaming one is trivial to test and t
 call from a script; the streaming one is what the UI uses. Sharing one endpoint with
 a `stream=true` flag makes both harder to reason about.
 
-Request and response bodies are Pydantic models in a dedicated `api/schemas` module —
+Request and response bodies are Pydantic models in `integrations/fastapi/schemas` —
 separate from domain models. The API contract is allowed to differ from the domain
 (it will, at the edges), and coupling them means a domain refactor becomes a breaking
 API change.
@@ -88,8 +92,9 @@ cannot tell a truncated answer from a slow one. A budget-exhausted turn finishes
 
 - Validation failure → `422` with Pydantic's error structure, unmodified.
 - Unknown `conversation_id` / `document_id` → `404`.
-- Provider failure (rate limit, auth) → `502` with a categorised code, never a raw
-  traceback. `pydantic-ai` raises typed `ModelAPIError` subclasses; map these.
+- Provider failure (rate limit, auth) → `502` whose detail names the exception class,
+  never a raw traceback. `pydantic-ai` raises typed `ModelAPIError` subclasses, and the
+  route maps them itself — a mounted router cannot rely on the host's exception handlers.
 - Ingestion partial failure → `207` with an `IngestReport` body, because "some files
   worked" is a real outcome and not an error.
 

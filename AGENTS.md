@@ -75,10 +75,11 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
 **M7 — distribution and embedding — is underway.** Done: **CFG-1** (settings tree),
 **CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
-**CORE-1** (`RagAgent` façade in `agent.py`), **CORE-2** (`KnowledgeClient` with HTTP and
-in-process transports; the CLI and UI need no server) and **SRC-1** (originals copied to a
-local `DocumentStore`, cited by `file://` locator). The router still uses the wiring
-directly, which CORE-3/CORE-4 fix; SRC-2/SRC-3 add S3 and locators in every surface.
+**CORE-1** (`RagAgent` façade), **CORE-2** (`KnowledgeClient`; the CLI and UI need no
+server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade) and
+**SRC-1** (originals copied to a local `DocumentStore`, cited by `file://` locator).
+CORE-4 folds the composition root into the façade; SRC-2/SRC-3 add S3 and locators in
+every surface.
 
 Read these before touching anything:
 
@@ -91,9 +92,9 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: **PKG-1** (extras) next, then **CORE-3** (FastAPI as an integration over
-the façade), then **SRC-2/SRC-3** (S3 and locators in every surface), **CORE-4** (one
-composition root) and the remaining PKG features.
+Suggested order: **CORE-4** (one composition root: CLI, UI and router build through the
+façade) next, then **SRC-2/SRC-3** (S3 and locators in every surface), then the remaining
+PKG features (metadata, export test, release workflow, runbook).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

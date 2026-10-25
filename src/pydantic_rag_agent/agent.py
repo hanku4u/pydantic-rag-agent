@@ -36,7 +36,6 @@ from pydantic_rag_agent.adapters.agent import (
 )
 from pydantic_rag_agent.adapters.conversations import Conversation
 from pydantic_rag_agent.application.embedding import EmbeddingService
-from pydantic_rag_agent.application.index_guard import assert_index_compatible
 from pydantic_rag_agent.application.ingestion import (
     IngestReport,
     ingest_paths,
@@ -46,7 +45,7 @@ from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.errors import UnknownConversationError
 from pydantic_rag_agent.domain.models import DocumentSummary, StoreStats
 from pydantic_rag_agent.domain.ports import DocumentStore, VectorStore
-from pydantic_rag_agent.runtime import Runtime, build_runtime
+from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
 
 _T = TypeVar("_T")
 
@@ -321,12 +320,7 @@ class RagAgent:
             loop.close()
 
     async def _check_index_compatible(self) -> None:
-        stats = await self._runtime.store.stats()
-        assert_index_compatible(
-            stats,
-            embedding_model=self._runtime.settings.embeddings.model,
-            embedding_dimensions=self._runtime.settings.embeddings.dimensions,
-        )
+        await ensure_index_compatible(self._runtime)
 
     def _deps(self) -> AgentDeps:
         # Fresh per turn: citations belong to the turn, not the conversation.

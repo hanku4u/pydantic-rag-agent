@@ -3,7 +3,7 @@
 The CLI and the UI cannot branch on transport, so the interesting question here is not
 "does ingest work" — ``RagAgent``'s own suite covers that — but "does it speak the same
 shape as the HTTP client". The parity test at the bottom is the one that would catch a
-second encoder drifting from ``api.schemas``.
+second encoder drifting from ``integrations.fastapi.schemas``.
 """
 
 from __future__ import annotations
@@ -15,7 +15,9 @@ from typing import Any
 import pytest
 from factories import ANSWER, DIMENSIONS, EMBEDDING_MODEL, build_facade
 
-from pydantic_rag_agent.api.schemas import (
+from pydantic_rag_agent.client import ClientError, KnowledgeClient
+from pydantic_rag_agent.in_process import InProcessClient
+from pydantic_rag_agent.integrations.fastapi.schemas import (
     AnswerResponse,
     CitationResponse,
     DeleteResponse,
@@ -26,8 +28,6 @@ from pydantic_rag_agent.api.schemas import (
     StatsResponse,
     UsageResponse,
 )
-from pydantic_rag_agent.client import ClientError, KnowledgeClient
-from pydantic_rag_agent.in_process import InProcessClient
 
 
 @pytest.fixture(autouse=True)

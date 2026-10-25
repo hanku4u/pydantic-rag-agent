@@ -62,6 +62,34 @@ The async methods (`await agent.ask(...)`, `async for update in agent.stream(...
 what a web app wants; the sync helpers exist so a script does not have to become async to
 ask one question. Answers carry citations back to the source document.
 
+Already have a FastAPI app? Mount the router instead of running a second service:
+
+```python
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from pydantic_rag_agent import RagAgent
+from pydantic_rag_agent.integrations.fastapi import create_router
+
+agent = RagAgent.from_env()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await agent.check_index()
+    try:
+        yield
+    finally:
+        await agent.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(create_router(agent), prefix="/knowledge")
+```
+
+The router brings the routes; your app keeps its lifespan, its auth and its shutdown.
+
 ## Getting started from the repository
 
 ```bash

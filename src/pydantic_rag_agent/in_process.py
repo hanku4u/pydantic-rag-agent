@@ -7,8 +7,8 @@ runs here or in another process.
 
 It is a deliberate adapter, not a second implementation: every operation delegates to
 ``RagAgent``, and the only logic here is payload shape and error mapping. The shapes are
-asserted against ``api.schemas`` in the tests, because two hand-written encoders drift the
-moment nobody looks.
+asserted against ``integrations.fastapi.schemas`` in the tests, because two hand-written
+encoders drift the moment nobody looks.
 
 Why dicts rather than domain objects: the point of this class is interchangeability with
 HTTP. If it returned ``AgentTurn``, every caller would need two code paths and the
@@ -174,7 +174,8 @@ class InProcessClient:
 def _as_client_error(exc: Exception) -> ClientError:
     """Translate a failure into what the HTTP transport would have produced."""
     if isinstance(exc, ModelAPIError):
-        return ClientError(_PROVIDER_FAILED, status_code=502)
+        # The class name is included so a local user and a remote one see the same text.
+        return ClientError(f"{_PROVIDER_FAILED} ({type(exc).__name__})", status_code=502)
     if isinstance(exc, UnknownConversationError):
         # The HTTP route answers 404 before a turn starts; same here.
         return ClientError(str(exc), status_code=404)

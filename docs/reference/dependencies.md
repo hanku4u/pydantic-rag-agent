@@ -25,13 +25,13 @@ packages themselves; which extra each belongs to is recorded in
 | `python-pptx` | PPTX slide text, notes, and pictures. | Adapters (`loaders/pptx.py`) |
 | `pillow` | Image validation and normalisation before captioning and storage. | Adapters (image store, captioning) |
 | `tiktoken` | Exact token counts for chunk sizing. Arrives transitively with the OpenAI extra; declared because we use it directly. | Application (`ingestion`) |
-| `fastapi` | The HTTP API boundary that the CLI and Streamlit share. | Interfaces (`api/`) |
+| `fastapi` | The optional HTTP boundary: `serve`, and mounting the router in a host app. | Integrations (`integrations/fastapi/`) |
 | `uvicorn[standard]` | ASGI server for `serve`. | Interfaces (CLI entry point) |
 | `typer` | CLI command structure and argument parsing. | Interfaces (`cli.py`) |
 | `rich` | Terminal rendering: Markdown answers, citation tables, progress, spinners. | Interfaces (`cli.py`) |
 | `streamlit` | Chat and ingestion UI. | Interfaces (`ui/`) |
 | `httpx` | HTTP client used by the CLI and Streamlit to reach the API. Declared explicitly even though `openai` pulls it in. | Interfaces (CLI, UI) |
-| `python-multipart` | Parses multipart form uploads. FastAPI needs it for `POST /documents`; it is imported by the framework rather than by us, and still declared because our behaviour depends on it. | Interfaces (`api/`) |
+| `python-multipart` | Parses multipart form uploads. FastAPI needs it for `POST /documents`; it is imported by the framework rather than by us, and still declared because our behaviour depends on it. | Integrations (`integrations/fastapi/`) |
 
 ## Licence constraints
 
