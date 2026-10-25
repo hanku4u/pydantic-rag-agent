@@ -19,6 +19,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Final
 
@@ -194,6 +195,11 @@ def _ask_choices(console: Console) -> WizardChoices:
         ["Chroma — persistent, embedded (recommended)", "In memory — ephemeral, for tests"],
     )
     vector_backend = "chroma" if _choose(console, "Store", 2) == 1 else "memory"
+    if vector_backend == "chroma" and find_spec("chromadb") is None:
+        console.print(
+            "[yellow]chromadb is not installed; install "
+            "pydantic-rag-agent[chroma] before ingesting.[/yellow]"
+        )
     chroma_path = (
         _required(console, "Chroma directory", DEFAULT_CHROMA_PATH)
         if vector_backend == "chroma"
@@ -217,6 +223,11 @@ def _ask_choices(console: Console) -> WizardChoices:
         s3_region = (
             Prompt.ask("S3 region (blank for the SDK default)", default="", console=console) or ""
         ).strip()
+        if find_spec("boto3") is None:
+            console.print(
+                "[yellow]boto3 is not installed; install pydantic-rag-agent[s3] before "
+                "ingesting.[/yellow]"
+            )
         console.print(
             "[dim]Credentials come from boto3's normal chain (environment, shared config, "
             "or an instance role).[/dim]"
