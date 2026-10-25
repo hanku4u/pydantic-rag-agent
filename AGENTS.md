@@ -68,6 +68,9 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 ## Where to pick up
 
 State at the last handoff: **M0–M5 complete**, M6 started (EVAL-1 and SEC-1 done).
+"Complete" carries one asterisk: **AGT-6's `Compaction` was never built** — multi-turn
+history works, but nothing trims a conversation that outgrows the window. It needs
+`pydantic-ai-harness`, which ADR 0008 defers, so it travels with OPS-1 below.
 
 Next three tasks, in order — the reasoning for the order is in the M6 table and in
 [docs/decisions/0008-prompt-injection-defence.md](docs/decisions/0008-prompt-injection-defence.md):

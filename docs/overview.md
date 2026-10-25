@@ -54,7 +54,7 @@ Accurate as of the planning commit:
 | --- | --- |
 | Repository, docs, decision records | Done |
 | `uv` project, lockfile, full dependency stack | Done — FND-1 |
-| Settings model (`config.Settings`) | Done, startup wiring pending — FND-2 |
+| Settings model (`config.Settings`) | Done — FND-2 |
 | Test harness and offline guard | Done — FND-3 |
 | Docs link check in CI | Done — FND-5 |
 | CI workflow (lint, types, tests, docs links) | Done — FND-4 |
@@ -69,7 +69,7 @@ Accurate as of the planning commit:
 | Retrieval: query embedding, ranking, score floor, explicit empty results | Done — RET-1…RET-4 |
 | Evaluation: recall@5, MRR, floor calibration | Done — EVAL-1 |
 | Security: prompt-injection defence (instructions, fencing, no system-prompt injection) | Done — SEC-1 |
-| Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7 |
+| Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7, except AGT-6's `Compaction` (deferred with the harness, see ADR 0008) |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `--json` | Done — CLI-1…CLI-3 |
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
