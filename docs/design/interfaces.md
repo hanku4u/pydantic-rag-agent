@@ -90,6 +90,11 @@ cannot tell a truncated answer from a slow one. A budget-exhausted turn finishes
 Built with `typer`. The CLI is an HTTP client — it does not import the application
 core.
 
+> **Planned (CORE-2).** [ADR 0011](../decisions/0011-public-facade.md) gives the CLI and
+> Streamlit an in-process client by default, with `--api-url` keeping today's HTTP
+> behaviour. The commands below are unchanged either way; only the transport they use
+> changes.
+
 | Command | Purpose |
 | --- | --- |
 | `serve` | Run the API (uvicorn) |

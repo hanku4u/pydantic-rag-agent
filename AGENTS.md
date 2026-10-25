@@ -70,18 +70,25 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Where to pick up
 
-State at the last handoff: **M0–M5 complete**, and M6 down to one item (**OPS-1**,
-instrumentation, deliberately left out of scope — this is a personal tool and nobody is
-reading the traces). AGT-6's `Compaction` was the one thing marked done without being
-built; it now exists in `adapters/compaction.py` and is applied by the conversation store.
+State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
+**M7 — distribution and embedding — is planned but not started.** The design is written
+and no code has changed for it yet.
 
-Next task: **OPS-1 — instrumentation**, if it is ever wanted. The framework's core
-`Instrumentation` capability already ships with `pydantic-ai`; the harness is not needed
-for it. See [docs/features/README.md](docs/features/README.md).
+Read these before touching anything:
 
-Known debts: none outstanding at this handoff. The four that were listed here — no `delete`
-command, `help` reaching the model, `documents` printing content-addressed paths, and
-`PRAGENT_API_URL` being ignored in `.env` — are all fixed.
+1. [docs/design/public-api.md](docs/design/public-api.md) — the `RagAgent` façade, the
+   configuration tree, and the three usage shapes (library, standalone, mounted).
+2. [ADR 0010](docs/decisions/0010-configuration-tree.md) (settings tree),
+   [0011](docs/decisions/0011-public-facade.md) (façade, FastAPI optional),
+   [0012](docs/decisions/0012-source-documents.md) (originals + locators),
+   [0013](docs/decisions/0013-packaging-and-release.md) (extras, 0.1.0, release).
+3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
+   criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
+
+Suggested order: **CFG-1** first — everything else depends on the settings tree — then
+**CORE-1** (the façade), then **SRC-1** and **PKG-1** in parallel, then the integrations.
+`pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
+config tree and façade exist.
 
 Practical notes:
 
@@ -91,6 +98,8 @@ Practical notes:
   an empty or mismatched index is caught by the startup guard rather than silently used.
 - Run the gates under "Commands" before committing. `ruff format --check` also formats
   Python blocks inside Markdown, which has caught a long doc example before.
+- **M7 changes the public surface.** Keep the migration table in ADR 0010 current, and
+  keep the façade the only path the router and CLI use.
 
 ## Current state
 

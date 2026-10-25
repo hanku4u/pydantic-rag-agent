@@ -34,14 +34,21 @@ How the code is organised, what may depend on what, and where the seams are.
 | --- | --- | --- |
 | **Domain** | `Document`, `Chunk`, `RetrievedChunk`, `Citation`, `IngestReport`. Pure Python + Pydantic. | Pydantic only |
 | **Application** | Use cases: ingest a document, answer a question, run a turn. Protocols for what it needs. | Domain |
-| **Adapters** | Loaders, `ChromaVectorStore`, captioner, image store, `pydantic-ai` agent wiring. | Domain, third-party libraries |
-| **Interfaces** | FastAPI app, CLI, Streamlit. | Application, adapters (wiring only) |
+| **Adapters** | Loaders, `ChromaVectorStore`, captioner, image and document stores, `pydantic-ai` agent wiring. | Domain, third-party libraries |
+| **Façade** | `RagAgent`: builds the graph from settings and exposes ingest/ask/stream/documents. The public surface. | Application, adapters (wiring only) |
+| **Integrations** | FastAPI router and app, CLI, Streamlit. All are optional and all call the façade. | Façade |
 
 The rule that carries the value: **application code depends on protocols it owns;
 adapters implement them; only the wiring layer knows which adapter is live.** That is
 what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 
+The second rule, added with [ADR 0011](decisions/0011-public-facade.md): **the router and
+the CLI call the façade; neither calls an application service directly.** Two paths to the
+same behaviour is how the CLI and the API start disagreeing about history and citations.
+
 ## Module map
+
+Current:
 
 ```text
 src/pydantic_rag_agent/
@@ -79,6 +86,29 @@ src/pydantic_rag_agent/
 └── ui/                   # Streamlit
     └── streamlit_app.py  # chat UI over the API
 ```
+
+Planned for M7 ([ADR 0011](decisions/0011-public-facade.md)):
+
+```text
+src/pydantic_rag_agent/
+├── __init__.py           # public surface: RagAgent, settings, models, errors
+├── agent.py              # RagAgent façade — absorbs runtime.py
+├── config/               # settings tree (CFG-1)
+│   ├── provider.py       ├── embeddings.py     ├── vector_store.py
+│   ├── storage.py        ├── ingestion.py      ├── agent.py
+│   └── settings.py       # root Settings composing the six nodes
+├── cli.py                # in-process client by default; --api-url optional
+├── domain/
+├── application/
+├── adapters/
+│   └── document_store/   # local.py (SRC-1), s3.py (SRC-2)
+├── integrations/
+│   └── fastapi/          # create_router, create_app, schemas (CORE-3)
+└── ui/                   # Streamlit, same transport choice as the CLI
+```
+
+`api/` disappears into `integrations/fastapi/`; `runtime.py` disappears into `agent.py`.
+Both are moves, not rewrites — the same objects, reached through one public door.
 
 `api/schemas.py` is deliberately separate from `domain/models.py`. The wire contract
 and the domain model will diverge at the edges, and welding them together turns an

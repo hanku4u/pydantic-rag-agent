@@ -48,8 +48,12 @@ real value.
 | [0007](0007-mit-licence-and-pypdfium2.md) | MIT licence; PyMuPDF replaced by pypdfium2 | Accepted | 2026-10-24 |
 | [0008](0008-prompt-injection-defence.md) | Prompt-injection defence: structural fencing now, no harness yet | Accepted | 2026-10-24 |
 | [0009](0009-conversation-compaction.md) | Conversation compaction: trim whole turns, do not summarise | Accepted | 2026-10-24 |
+| [0010](0010-configuration-tree.md) | Split configuration into a tree of settings objects | Accepted | 2026-10-25 |
+| [0011](0011-public-facade.md) | A public façade, with FastAPI optional | Accepted | 2026-10-25 |
+| [0012](0012-source-documents.md) | Keep the original document, and cite it | Accepted | 2026-10-25 |
+| [0013](0013-packaging-and-release.md) | Publish as `pydantic-rag-agent`, 0.1.0, with optional extras | Accepted | 2026-10-25 |
 
-Next number: **0010**.
+Next number: **0014**.
 
 ## Writing one
 

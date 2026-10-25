@@ -29,7 +29,30 @@ Coding agents should read [`AGENTS.md`](AGENTS.md) first.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13 or newer
 - Python 3.11+ — uv will fetch and manage the interpreter for you if needed
 
-## Getting started
+## Install
+
+```bash
+uv add "pydantic-rag-agent[chroma]"       # library, with the default persistent store
+uv add "pydantic-rag-agent[chroma,ui]"    # plus the Streamlit UI
+uv add "pydantic-rag-agent[chroma,api]"   # plus the FastAPI integration
+uv add "pydantic-rag-agent[all]"          # everything
+```
+
+> **Not on PyPI yet.** The first release is milestone 7 — see
+> [`docs/features/`](docs/features/README.md) and
+> [ADR 0013](docs/decisions/0013-packaging-and-release.md). Until then, install from the
+> repository as below.
+
+Two lines of Python once it is published:
+
+```python
+from pydantic_rag_agent import RagAgent
+
+agent = RagAgent.from_env()
+print((await agent.ask("How long are backups retained?")).text)
+```
+
+## Getting started from the repository
 
 ```bash
 # Clone and enter the project

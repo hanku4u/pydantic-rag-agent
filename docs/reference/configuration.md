@@ -2,6 +2,11 @@
 
 **Status:** draft — names and defaults agreed; not yet implemented.
 
+> **Planned change (M7).** [ADR 0010](../decisions/0010-configuration-tree.md) splits these
+> flat variables into a nested tree (`PRAGENT_PROVIDER__API_KEY` and so on). The flat names
+> below are current until **CFG-1** lands, and keep working for one release afterwards.
+> The migration table is in the ADR; [Public API](../design/public-api.md) shows the shape.
+
 How the application is configured, where values come from, and what fails when they
 are wrong.
 

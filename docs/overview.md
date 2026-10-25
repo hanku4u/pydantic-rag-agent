@@ -7,12 +7,23 @@ What this project is, who it is for, and what it deliberately does not do.
 ## What it is
 
 `pydantic-rag-agent` is a retrieval-augmented generation agent for your own
-documents. You point it at a pile of files — PDFs, Word documents, slide decks,
-plain text — and ask questions about them in a terminal or a browser.
+documents, shipped as a Python package. You point it at a pile of files — PDFs, Word
+documents, slide decks, plain text — and ask questions about them.
+
+It is three things in one install:
+
+| Shape | Use it when |
+| --- | --- |
+| **A library** | You want the agent inside your own code — a script, a notebook, an app |
+| **A CLI and web UI** | You want to ingest and ask without writing anything |
+| **A FastAPI integration** | You already have an API and want a knowledge base under it |
+
+All three share one core. The API is an adapter, not the application.
 
 It ingests documents into a vector database, retrieves relevant passages when you
 ask something, and lets a `pydantic-ai` agent compose an answer with citations back
-to the source. Images are captioned at ingest so they become searchable too.
+to the source — including a locator for the original file, so a reader can go and
+read it. Images are captioned at ingest so they become searchable too.
 
 Every boundary is a Pydantic model: tool arguments, retrieved chunks, API payloads,
 configuration. That is the project's organising idea, and the reason for its name.
@@ -76,6 +87,13 @@ Accurate as of the planning commit:
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
+
+**Milestone 7 is planned, not built.** It turns the application into a published package:
+a configuration tree instead of one flat settings class, a `RagAgent` façade with FastAPI
+as an optional integration, original documents kept locally or in S3 with stable locators
+in citations, and a 0.1.0 release on PyPI. See
+[Public API](design/public-api.md) and [ADR 0010](decisions/0010-configuration-tree.md)
+onwards.
 
 Everything in that table is built and verified except the deferred items;
 [Features](features/README.md) is the canonical list of what remains.

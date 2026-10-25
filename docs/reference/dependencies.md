@@ -9,6 +9,11 @@ the first sign a boundary is leaking.
 
 ## Runtime
 
+The stack is split into a lean core plus optional extras
+([ADR 0013](../decisions/0013-packaging-and-release.md)). The table below lists the
+packages themselves; which extra each belongs to is recorded in
+[Dependencies](../reference/dependencies.md).
+
 | Package | Why it is here | Imported by |
 | --- | --- | --- |
 | `pydantic` | The project's organising idea: typed, validated boundaries everywhere. | Domain, every layer |
@@ -51,6 +56,23 @@ project's licence.
 | `pytest-asyncio` | `async` tests for the embedding and store protocols. |
 | `ruff` | Formatter and linter in one tool. |
 | `mypy` | Static type checking, given how much of this project is type-driven. |
+
+## Extras
+
+Publication splits the stack ([ADR 0013](../decisions/0013-packaging-and-release.md)):
+
+| Extra | Packages |
+| --- | --- |
+| *(core)* | `pydantic`, `pydantic-settings`, `pydantic-ai-slim`, `tiktoken` |
+| `[chroma]` | `chromadb` |
+| `[api]` | `fastapi`, `uvicorn`, `python-multipart` |
+| `[ui]` | `streamlit` |
+| `[s3]` | `boto3` |
+| `[all]` | the four above |
+
+The in-memory store stays in core, so `pip install pydantic-rag-agent` plus three lines
+of Python does something useful without a vector database. A command whose extra is
+missing must fail with a message naming the extra, not an `ImportError` traceback.
 
 ## Rules
 

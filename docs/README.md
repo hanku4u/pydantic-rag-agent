@@ -35,7 +35,9 @@ rather than inventing one and writing it down as fact.
 | Understand ingestion | [Ingestion design](design/ingestion.md) |
 | Understand retrieval | [Retrieval design](design/retrieval.md) |
 | Understand the agent | [Agent design](design/agent.md) |
+| Use this as a library, or mount it in FastAPI | [Public API](design/public-api.md) |
 | Understand the API, CLI, and UI | [Interfaces](design/interfaces.md) |
+| Publish a release | [Releasing](development/releasing.md) |
 | Configure the app | [Configuration](reference/configuration.md) |
 | Know what we depend on, and why | [Dependencies](reference/dependencies.md) |
 | Know why something is the way it is | [Decision records](decisions/README.md) |
@@ -55,6 +57,7 @@ rather than inventing one and writing it down as fact.
 - [Retrieval](design/retrieval.md) — query path, ranking, citation metadata.
 - [Agent](design/agent.md) — `pydantic-ai` agent, tools, output mode, budgets.
 - [Interfaces](design/interfaces.md) — HTTP API, CLI, Streamlit.
+- [Public API](design/public-api.md) — the `RagAgent` façade, configuration tree, embedding modes.
 
 ### Development
 
@@ -62,6 +65,7 @@ rather than inventing one and writing it down as fact.
 - [Conventions](development/conventions.md) — naming, style, commits, documentation rules.
 - [Testing](development/testing.md) — offline tests, fakes, protocol conformance.
 - [Evaluation](development/evaluation.md) — measuring retrieval quality (EVAL-1).
+- [Releasing](development/releasing.md) — building, rehearsing and publishing to PyPI.
 
 ### Reference
 
@@ -78,6 +82,11 @@ rather than inventing one and writing it down as fact.
 - [0005 — Embedding model](decisions/0005-embedding-model-qwen3.md) — Qwen3-Embedding-8B, 1024 dimensions via Matryoshka truncation.
 - [0007 — MIT licence and pypdfium2](decisions/0007-mit-licence-and-pypdfium2.md) — dropping PyMuPDF to unblock a permissive licence, and what replaced it.
 - [0008 — Prompt-injection defence](decisions/0008-prompt-injection-defence.md) — structural fencing now, the harness classifier later.
+- [0009 — Conversation compaction](decisions/0009-conversation-compaction.md) — trim whole turns, never summarise, and why not the harness.
+- [0010 — Configuration tree](decisions/0010-configuration-tree.md) — six settings nodes instead of one flat class.
+- [0011 — Public façade](decisions/0011-public-facade.md) — `RagAgent` as the surface; FastAPI becomes optional.
+- [0012 — Source documents](decisions/0012-source-documents.md) — keep originals locally or in S3, and cite them by locator.
+- [0013 — Packaging and release](decisions/0013-packaging-and-release.md) — extras, 0.1.0, trusted publishing.
 - [0009 — Conversation compaction](decisions/0009-conversation-compaction.md) — trim whole turns, never mid tool round trip, and do not summarise.
 
 ## For coding agents

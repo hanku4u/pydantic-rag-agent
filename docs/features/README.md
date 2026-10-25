@@ -40,6 +40,7 @@ stay the canonical list.
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
+| M7 Distribution | — | — |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
 runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
@@ -149,6 +150,34 @@ See [Interfaces](../design/interfaces.md).
 | OPS-2 | Cost visibility | AGT-4 | Token usage per conversation is retrievable; `SpendLimits` may satisfy this outright. **Done:** `TurnUsage` on every `AgentTurn`, carried in the SSE `done` event and the `AnswerResponse`, rendered as a dim footer by the CLI. Limits are still request-count only (`UsageLimits(request_limit=…)`); `SpendLimits` has not been adopted |
 | SEC-1 | Prompt-injection review | AGT-3, IMG-3 | A malicious document cannot alter agent instructions; the attempt is documented as a test. Prefer `PromptInjectionDefender`, which classifies tool results, over a hand-rolled filter |
 
+## M7 — Distribution and embedding
+
+A re-architecture rather than a feature: nothing new is ingested or retrieved, but the
+package becomes something another project can install, import, and mount. Design in
+[Public API](../design/public-api.md); decisions in
+[ADR 0010](../decisions/0010-configuration-tree.md),
+[ADR 0011](../decisions/0011-public-facade.md),
+[ADR 0012](../decisions/0012-source-documents.md),
+[ADR 0013](../decisions/0013-packaging-and-release.md).
+
+| ID | Feature | Depends on | Done when |
+| --- | --- | --- | --- |
+| CFG-1 | Settings tree | — | Six nodes load independently; the flat names from 0.0.x still work through the migration table |
+| CFG-2 | Programmatic construction | CFG-1 | Every node can be built in code; `RagAgent(settings)` needs no environment at all |
+| CFG-3 | Reference and `.env.example` rewritten | CFG-1 | Nested names documented with the mapping table, and `.env.example` matches |
+| SRC-1 | `DocumentStore` protocol and local adapter | CFG-1 | Originals are copied on ingest and a `file://` locator reaches citations |
+| SRC-2 | S3 adapter | SRC-1, PKG-1 | `s3://` locators; the `[s3]` extra installs cleanly; synchronous boto3 calls run off the event loop |
+| SRC-3 | Locators in every surface | SRC-1 | API, CLI and UI show the locator; tests assert both local and S3 forms |
+| CORE-1 | `RagAgent` façade | CFG-1 | The library examples in [Public API](../design/public-api.md) run end to end |
+| CORE-2 | `KnowledgeClient` protocol and in-process client | CORE-1 | The CLI and Streamlit work with no server running |
+| CORE-3 | FastAPI moved to an integration | CORE-1, PKG-1 | A host app mounts `create_router(agent)`; the standalone app still serves the CLI's `--api-url` mode |
+| CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function |
+| PKG-1 | Dependency extras | — | A base install pulls no Streamlit, Chroma, FastAPI or boto3; each extra is documented |
+| PKG-2 | Package metadata | — | Classifiers, project URLs and keywords set; `twine check` passes |
+| PKG-3 | Public surface and an export test | CORE-1 | `__all__` names are asserted, so an accidental addition is a deliberate act |
+| PKG-4 | Release workflow | PKG-2 | A tag publishes to PyPI via trusted publishing; a TestPyPI dispatch rehearses it first |
+| PKG-5 | Changelog and release runbook | PKG-4 | [Releasing](../development/releasing.md) executed once, successfully, by someone other than its author |
+
 ---
 
 ## Deferred
@@ -158,7 +187,7 @@ without one, "deferred" quietly becomes "forgotten".
 
 | Feature | Trigger to revisit |
 | --- | --- |
-| `pgvector` adapter | Retrieval basics work and the index outgrows embedded Chroma |
+| `pgvector` adapter | Milestone 7 completes and the index outgrows embedded Chroma |
 | Reranking (cross-encoder) | EVAL-1 shows ranking, not recall, is the bottleneck |
 | Hybrid keyword search | Evaluation shows exact identifiers or rare terms are missed |
 | Query rewriting / expansion | Recall is good but queries are consistently vague |

@@ -22,11 +22,18 @@ it is a bet.
 | 4 | Agent | A question over the index produces a cited answer | AGT-1…AGT-7 |
 | 5 | Interfaces | CLI and Streamlit both work over the API | API-1…API-5, CLI-1…CLI-2, UI-1…UI-3 |
 | 6 | Hardening | Evaluation, coverage, cost visibility, security review — instrumentation out of scope | EVAL-1, TST-1, OPS-2, SEC-1 |
+| 7 | Distribution | Installable library, optional API, first PyPI release | CFG-1…CFG-3, SRC-1…SRC-3, CORE-1…CORE-4, PKG-1…PKG-5 |
 
-All six milestones are complete. **OPS-1** (instrumentation) is the one feature deliberately
+Milestones 0–6 are complete. **OPS-1** (instrumentation) is the one feature deliberately
 not built: this is a personal, single-user tool and nobody reads the traces. It is listed in
 the milestone above so the omission is recorded rather than forgotten, and the framework's
 core `Instrumentation` capability would serve it without any new dependency.
+
+**Milestone 7 is a re-architecture, not an addition.** Nothing new is ingested or retrieved
+by it; it changes how the code is reached. That is why it precedes any further feature work
+— the configuration tree and the façade are the shape every later feature will be written
+against. See [Public API](design/public-api.md) and
+[ADR 0013](decisions/0013-packaging-and-release.md).
 
 ## The two milestones that matter
 
