@@ -1,11 +1,19 @@
-"""HTTP client for the API, used by the CLI and Streamlit.
+"""What the interfaces speak to: a knowledge client, over HTTP or in-process.
 
-The interfaces speak only to this: no retrieval logic, no storage, no model clients. That
-is what makes the CLI testable without a server and the API swappable for a different
-host.
+The CLI and the Streamlit UI render one shape — plain dicts, and SSE event names for
+streaming — whichever transport is underneath. That is why the in-process client speaks
+the same wire format rather than domain objects: two shapes would mean every panel and
+every command branching on where the agent happens to run.
 
-Note what this module does *not* import: `config.Settings`. A client needs a URL, not the
-server's credentials, and demanding `OPENROUTER_API_KEY` to list documents would be absurd.
+:class:`KnowledgeClient` is the protocol. Two implementations:
+
+* :class:`RagClient` — HTTP, for a server this process did not start.
+* :class:`pydantic_rag_agent.in_process.InProcessClient` — the agent in this process, so
+  the CLI and UI need no server and no port.
+
+Note what *this* module does not import: ``config.Settings`` or anything that builds a
+model client. A remote client needs a URL, not the server's credentials, and demanding
+``OPENROUTER_API_KEY`` to list a remote index would be absurd.
 """
 
 from __future__ import annotations
@@ -13,7 +21,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
@@ -27,15 +35,57 @@ _SSE_DATA_PREFIX = "data: "
 
 
 class ClientError(RuntimeError):
-    """The API said no, or could not be reached."""
+    """The request was refused, the agent failed, or the server could not be reached.
+
+    Carries ``status_code`` where one exists, so a caller can distinguish "no such
+    document" from "the provider is down" without parsing the message.
+    """
 
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
 
 
+@runtime_checkable
+class KnowledgeClient(Protocol):
+    """Ingest, ask and inspect, without caring where the agent runs.
+
+    Payloads are dicts because that is what the HTTP API returns; the in-process client
+    builds the same dicts so a command or a UI panel cannot tell the difference. Streaming
+    is ``(event name, payload)`` with the SSE names: ``token``, ``tool_call``,
+    ``citations``, ``done``, ``error``.
+    """
+
+    def __enter__(self) -> KnowledgeClient: ...
+
+    def __exit__(self, *exc_info: object) -> None: ...
+
+    def health(self) -> dict[str, object]: ...
+
+    def stats(self) -> dict[str, object]: ...
+
+    def documents(self) -> list[dict[str, object]]: ...
+
+    def delete_document(self, document_id: str) -> dict[str, object]: ...
+
+    def ingest(self, paths: Sequence[Path]) -> dict[str, object]: ...
+
+    def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]: ...
+
+    def create_conversation(self) -> str: ...
+
+    def ask(self, conversation_id: str, question: str) -> dict[str, object]: ...
+
+    def stream(
+        self, conversation_id: str, question: str
+    ) -> Iterator[tuple[str, dict[str, object]]]:
+        """Yield ``(event name, payload)`` pairs as the turn is generated."""
+        ...
+
+
 class RagClient:
-    """Thin, synchronous wrapper over the HTTP API."""
+    """Thin, synchronous wrapper over the HTTP API — the :class:`KnowledgeClient` for a
+    server this process did not start."""
 
     def __init__(
         self,
@@ -54,6 +104,9 @@ class RagClient:
         return self
 
     def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def close(self) -> None:
         self._client.close()
 
     def health(self) -> dict[str, object]:

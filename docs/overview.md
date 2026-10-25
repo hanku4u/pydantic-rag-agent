@@ -44,8 +44,8 @@ configuration. That is the project's organising idea, and the reason for its nam
   of inventing an answer.
 - **Swap the storage layer.** Chroma today, `pgvector` when the basics work, behind
   one protocol.
-- **Two interfaces, one core**: a terminal CLI and a Streamlit chat UI over a shared
-  HTTP API.
+- **Two interfaces, one core**: a terminal CLI and a Streamlit chat UI, each able to
+  run the agent in-process or talk to a shared HTTP API.
 - **Deterministic tests.** The suite runs offline; no test spends money.
 
 ## Non-goals
@@ -84,7 +84,7 @@ Accurate as of the planning commit:
 | Agent: capability, tools, budgets, multi-turn, compaction | Done — AGT-1…AGT-7 |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | Cost visibility: per-turn tokens, requests and cost on every answer | Done — OPS-2 |
-| CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev` | Done — CLI-1…CLI-3, DX-1 |
+| CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev`; in-process by default | Done — CLI-1…CLI-3, DX-1, CORE-2 |
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |

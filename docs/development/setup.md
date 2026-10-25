@@ -27,20 +27,20 @@ uv sync
 cp .env.example .env
 $EDITOR .env            # set OPENROUTER_API_KEY
 
-# Start the API and the web UI together (the CLI is a client for the API).
-uv run pydantic-rag-agent dev
-```
-
-That serves the API on <http://127.0.0.1:8000> and the chat UI on
-<http://127.0.0.1:8501>. Use `serve` instead if you only want the API.
-
-In a second terminal:
-
-```bash
+# Index and ask. The agent runs in the command's own process: no server.
 uv run pydantic-rag-agent ingest ./docs
 uv run pydantic-rag-agent ask "How long are backups retained?"
 uv run pydantic-rag-agent --help
+
+# Optional: the API and the web UI together, for browser-first work.
+uv run pydantic-rag-agent dev
 ```
+
+`dev` serves the API on <http://127.0.0.1:8000> and the chat UI on
+<http://127.0.0.1:8501>; `serve` is the API alone, for remote clients. Neither is needed
+for the CLI: without `--api-url` (or `PRAGENT_API_URL`) every command builds the agent
+in-process. The trade is that local commands need `OPENROUTER_API_KEY`; a remote client
+needs only the URL.
 
 `uv sync` does four things in one step: creates `.venv`, resolves the dependency
 graph, installs the project in editable mode, and writes or verifies `uv.lock`.

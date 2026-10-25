@@ -10,9 +10,22 @@ from __future__ import annotations
 from collections.abc import Sequence
 from types import SimpleNamespace
 
+from pydantic_ai.models.function import FunctionModel
+from pydantic_ai.models.test import TestModel
+
+from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
+from pydantic_rag_agent.agent import RagAgent
 from pydantic_rag_agent.application.embedding import EmbeddingService
+from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.extraction import ExtractedImage
 from pydantic_rag_agent.domain.models import Chunk, EmbeddedChunk
+
+# The fake embedding identity every façade-level test configures. The store, the
+# settings and the embedding service must agree or the index guard refuses to run.
+DIMENSIONS = 4
+EMBEDDING_MODEL = "test/embedding-model"
+# What a fake model answers when a test does not care about the wording.
+ANSWER = "answered"
 
 
 def build_chunk(
@@ -114,3 +127,31 @@ class FakeCaptioner:
         if self._fail:
             raise RuntimeError("vision model unavailable")
         return f"{self._caption} [{image.image_id[:6]}]"
+
+
+def build_settings() -> Settings:
+    """Settings from the test environment, never from a developer's `.env`."""
+    return Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def build_memory_store(*, dimensions: int = DIMENSIONS) -> InMemoryVectorStore:
+    return InMemoryVectorStore(embedding_model=EMBEDDING_MODEL, embedding_dimensions=dimensions)
+
+
+def build_facade(
+    *,
+    model: TestModel | FunctionModel | None = None,
+    store: InMemoryVectorStore | None = None,
+    settings: Settings | None = None,
+) -> RagAgent:
+    """A ``RagAgent`` wired entirely to fakes: no network, no Chroma, no key beyond the
+    dummy the environment fixture supplies."""
+    service, _ = build_embedding_service(dimensions=DIMENSIONS)
+    return RagAgent(
+        settings if settings is not None else build_settings(),
+        vector_store=store if store is not None else build_memory_store(),
+        embeddings=service,
+        model=model
+        if model is not None
+        else TestModel(call_tools="all", custom_output_text=ANSWER),
+    )

@@ -294,3 +294,25 @@ def _expand(paths: Sequence[Path], loaders: Sequence[DocumentLoader]) -> list[Pa
 def _loader_for(path: Path, loaders: Sequence[DocumentLoader]) -> DocumentLoader | None:
     suffix = path.suffix.lower()
     return next((loader for loader in loaders if suffix in loader.suffixes), None)
+
+
+def spool_upload(*, data: bytes, filename: str, directory: Path) -> Path:
+    """Persist one uploaded file under a content-addressed path and return it.
+
+    Content-addressed so re-uploading the same file reuses the path, and hashed before
+    naming so two different uploads cannot collide. Only the final path component of the
+    client's filename is kept: a name containing ``../`` must not choose where the file
+    lands.
+
+    Shared by the HTTP route and the in-process client, because an interface should not
+    decide where a source document is written. The document store (SRC-1) takes this over.
+    """
+    name = Path(filename).name
+    if not name or name in {".", ".."}:
+        raise ValueError("each upload must have a filename")
+
+    digest = hashlib.sha256(data).hexdigest()
+    target = directory / digest[:2] / digest / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return target

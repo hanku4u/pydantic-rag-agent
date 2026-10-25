@@ -40,7 +40,7 @@ stay the canonical list.
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
-| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1 | CORE-2 |
+| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2 | CORE-3 |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
 runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
@@ -169,7 +169,7 @@ package becomes something another project can install, import, and mount. Design
 | SRC-2 | S3 adapter | SRC-1, PKG-1 | `s3://` locators; the `[s3]` extra installs cleanly; synchronous boto3 calls run off the event loop |
 | SRC-3 | Locators in every surface | SRC-1 | API, CLI and UI show the locator; tests assert both local and S3 forms |
 | CORE-1 | `RagAgent` façade | CFG-1 | The library examples in [Public API](../design/public-api.md) run end to end. **Done:** `agent.py` composes the existing wiring and delegates to the same turn functions as the router; ingest, ask, stream, documents, delete, stats and close are tested offline through the injection seams |
-| CORE-2 | `KnowledgeClient` protocol and in-process client | CORE-1 | The CLI and Streamlit work with no server running |
+| CORE-2 | `KnowledgeClient` protocol and in-process client | CORE-1 | The CLI and Streamlit work with no server running. **Done:** `client.KnowledgeClient` is the protocol, `RagClient` the HTTP implementation and `in_process.InProcessClient` the local one; a parity test asserts both speak exactly the fields `api.schemas` declares, including the streaming payloads |
 | CORE-3 | FastAPI moved to an integration | CORE-1, PKG-1 | A host app mounts `create_router(agent)`; the standalone app still serves the CLI's `--api-url` mode |
 | CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function |
 | PKG-1 | Dependency extras | — | A base install pulls no Streamlit, Chroma, FastAPI or boto3; each extra is documented |

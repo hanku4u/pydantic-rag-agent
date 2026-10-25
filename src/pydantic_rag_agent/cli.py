@@ -1,8 +1,13 @@
 """Command-line interface.
 
 Structure from ``typer``, rendering from ``rich``, transport from :mod:`client`. This
-module deliberately contains no retrieval logic: it is an HTTP client, so the CLI and the
-web UI cannot drift apart.
+module deliberately contains no retrieval logic: it speaks to a
+:class:`~pydantic_rag_agent.client.KnowledgeClient`, so the CLI and the web UI cannot
+drift apart.
+
+By default the agent runs **in this process** — no server, no port, no second terminal.
+Passing ``--api-url`` (or setting ``PRAGENT_API_URL``) switches to the HTTP client, which
+is what an integrated deployment wants.
 
 Rendering rules that matter more than the widgets: one console, constructed per command;
 model output printed with ``markup=False`` so a stray ``[1]`` in an answer is not
@@ -13,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, cast
@@ -26,30 +32,41 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from pydantic_rag_agent.client import UPLOAD_SUFFIXES, ClientError, RagClient
+from pydantic_rag_agent.client import (
+    UPLOAD_SUFFIXES,
+    ClientError,
+    KnowledgeClient,
+    RagClient,
+)
 
 if TYPE_CHECKING:
     import uvicorn
 
 
-def _default_api_url() -> str:
-    """Resolve the API URL from `.env`, falling back to localhost.
+def _configured_api_url() -> str | None:
+    """The API URL from `.env`, or ``None`` when the agent should run in-process.
 
     Resolved when a command runs rather than at import: a module-level read is
     import-time I/O, and it makes the value depend on which directory the interpreter
     happened to start in. ``find_dotenv(usecwd=True)`` also walks up from the working
     directory, so running a command from a subdirectory still finds the project's file.
 
-    Deliberately not ``Settings``: that would demand ``OPENROUTER_API_KEY`` just to list
-    documents against a remote server. Precedence is ``--api-url``, then the shell
-    environment (typer's ``envvar``), then `.env`, then the built-in default.
+    Deliberately not ``Settings``: a remote client needs a URL, not the server's
+    credentials, and demanding ``OPENROUTER_API_KEY`` to list a remote index would be
+    absurd. Precedence is ``--api-url``, then the shell environment (typer's ``envvar``),
+    then `.env`, then in-process.
     """
-    found = dotenv.find_dotenv(".env", usecwd=True)
+    found = _dotenv_file()
     if found:
         value = dotenv.dotenv_values(found).get("PRAGENT_API_URL")
         if value:
             return value
-    return _FALLBACK_API_URL
+    return None
+
+
+def _dotenv_file() -> str | None:
+    """The nearest `.env`, found by walking up from the working directory."""
+    return dotenv.find_dotenv(".env", usecwd=True) or None
 
 
 # The prompt is needed twice: once for `console.input`, once — plain — to work out how
@@ -63,8 +80,6 @@ _TOOL_PHRASES = {
     "search_knowledge_base": "searching the knowledge base",
     "view_image": "looking at an image",
 }
-
-_FALLBACK_API_URL = "http://127.0.0.1:8000"
 
 app = typer.Typer(
     add_completion=False,
@@ -84,7 +99,7 @@ def serve(
     host: Annotated[str, typer.Option(help="Interface to bind.")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port to bind.")] = 8000,
 ) -> None:
-    """Run the HTTP API that every other command talks to."""
+    """Run the HTTP API, for remote clients and integrations."""
     # Imported late so `--help` stays instant and does not build a runtime.
     import uvicorn
 
@@ -388,8 +403,27 @@ def _chat_help() -> Panel:
     return Panel(Text.assemble(body), border_style="dim", padding=(0, 1))
 
 
-def _client(api_url: str | None) -> RagClient:
-    return RagClient(api_url or _default_api_url())
+def _client(api_url: str | None) -> KnowledgeClient:
+    """HTTP when a URL is configured; the agent in this process otherwise."""
+    url = api_url or _configured_api_url()
+    if url:
+        return RagClient(url)
+    return _in_process()
+
+
+def _in_process() -> KnowledgeClient:
+    # pydantic-ai prints a banner on first import. Fine for a library someone chose to
+    # import; wrong for a command whose job is to print an answer. Its own switch, set
+    # only on this path so HTTP mode stays untouched.
+    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
+
+    # Imported late so a remote CLI never builds a store or reads a provider credential.
+    from pydantic_rag_agent.in_process import InProcessClient
+
+    # The same file `_configured_api_url` searched for. pydantic-settings resolves `.env`
+    # against the working directory, so a command run from a subdirectory would otherwise
+    # find the URL in the parent and still miss the credential.
+    return InProcessClient.from_env(_dotenv_file() or ".env")
 
 
 def _expand(paths: Sequence[Path]) -> list[Path]:
@@ -411,7 +445,7 @@ def _expand(paths: Sequence[Path]) -> list[Path]:
 
 def _stream_answer(
     console: Console,
-    client: RagClient,
+    client: KnowledgeClient,
     conversation_id: str,
     question: str,
     *,
@@ -462,7 +496,13 @@ def _stream_answer(
         if live is not None:
             live.stop()
 
-    console.print(_answer_panel("".join(answer), tools, pending=False))
+    # Until the turn ends, the panel shows tokens as they arrive. Once it ends, the
+    # authoritative answer replaces them: a model that narrates before its tool call
+    # ("I'll search the knowledge base…") would otherwise leave that narration inside the
+    # answer, and `--json` would disagree with the panel.
+    console.print(
+        _answer_panel(str(payload.get("answer") or "".join(answer)), tools, pending=False)
+    )
     if payload.get("budget_exhausted"):
         console.print("[yellow]Stopped at the request limit.[/yellow]")
     footer = _usage_footer(payload.get("usage"))

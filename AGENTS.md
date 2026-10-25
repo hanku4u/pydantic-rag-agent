@@ -51,7 +51,7 @@ Orientation for automated coding assistants and for anyone joining the project.
 ```bash
 uv sync                        # create/refresh the environment
 uv run pydantic-rag-agent --help   # every CLI command
-uv run pydantic-rag-agent serve    # the API (terminal 1; everything else is a client)
+uv run pydantic-rag-agent serve    # the API, for remote clients and integrations
 uv run pydantic-rag-agent dev      # the API and the Streamlit UI together (DX-1)
 uv run pydantic-rag-agent ingest ./docs        # index documents
 uv run pydantic-rag-agent ask "…"              # one streamed answer
@@ -74,10 +74,10 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
 **M7 — distribution and embedding — is underway.** Done: **CFG-1** (settings tree),
-**CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`), and
-**CORE-1** (`RagAgent` façade in `agent.py`, delegating to the composition root). The
-CLI, UI and router still use the wiring directly; CORE-2…CORE-4 make them call the
-façade, and SRC-1…SRC-3 add stored originals and locators.
+**CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
+**CORE-1** (`RagAgent` façade in `agent.py`) and **CORE-2** (`KnowledgeClient` with HTTP
+and in-process transports; the CLI and UI need no server). The router still uses the
+wiring directly, which CORE-3/CORE-4 fix; SRC-1…SRC-3 add stored originals and locators.
 
 Read these before touching anything:
 
@@ -90,10 +90,10 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: **CORE-2** (the `KnowledgeClient` protocol and in-process client, which
-retires the CLI's HTTP dependency) and **PKG-1** (extras) next, then **SRC-1** (document
-store) and **CORE-3** (FastAPI integration) in parallel, then **CORE-4** (one
-composition root) and the remaining PKG features.
+Suggested order: **SRC-1** (the document store and local adapter) and **PKG-1**
+(extras) next, then **CORE-3** (FastAPI as an integration over the façade), then **CORE-4**
+(one composition root), **SRC-2/SRC-3** (S3 and locators everywhere) and the remaining PKG
+features.
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

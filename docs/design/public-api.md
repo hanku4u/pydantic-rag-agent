@@ -131,10 +131,11 @@ pydantic-rag-agent ask "How long are backups retained?"
 pydantic-rag-agent dev            # optional: API + Streamlit
 ```
 
-**Planned (CORE-2).** The CLI will build a `RagAgent` in-process by default, with
-`--api-url` switching it to a running server — the same HTTP client it uses today.
-Streamlit will make the same choice from `PRAGENT_API_URL`. Until CORE-2 lands, both are
-HTTP clients and `serve` is required.
+The CLI builds a `RagAgent` in-process by default — no server, no port. `--api-url` (or
+`PRAGENT_API_URL`) switches it to a running server, which is the same HTTP client the CLI
+has always used. Streamlit makes the same choice from its sidebar field, defaulting to
+`PRAGENT_API_URL`. Both transports speak the same payloads, so a command or a panel does
+not branch on where the agent runs.
 
 ## Mounted in FastAPI
 

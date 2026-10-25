@@ -16,11 +16,18 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-from factories import build_chunk, build_embedded, build_embedding_service
+from factories import (
+    ANSWER,
+    DIMENSIONS,
+    EMBEDDING_MODEL,
+    build_chunk,
+    build_embedded,
+    build_facade,
+    build_memory_store,
+)
 from pydantic import SecretStr
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from pydantic_ai.models.test import TestModel
 
 from pydantic_rag_agent.adapters.agent import TokenEvent, TurnCompleted
 from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
@@ -34,10 +41,7 @@ from pydantic_rag_agent.config import (
 )
 from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
 
-DIMENSIONS = 4
-EMBEDDING_MODEL = "test/embedding-model"
 DOCUMENT = "# Handbook\n\n## Backups\n\nBackups run nightly at 02:00 UTC.\n"
-ANSWER = "It runs nightly at 02:00 UTC [1]."
 
 
 @pytest.fixture(autouse=True)
@@ -47,31 +51,6 @@ def settings_env(clean_settings_env: None, monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setenv("PRAGENT_EMBEDDING_MODEL", EMBEDDING_MODEL)
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", str(DIMENSIONS))
     monkeypatch.setenv("PRAGENT_STORAGE__IMAGES__DIRECTORY", str(tmp_path / "images"))
-
-
-def build_settings() -> Settings:
-    return Settings(_env_file=None)  # type: ignore[call-arg]
-
-
-def build_memory_store(*, dimensions: int = DIMENSIONS) -> InMemoryVectorStore:
-    return InMemoryVectorStore(embedding_model=EMBEDDING_MODEL, embedding_dimensions=dimensions)
-
-
-def build_facade(
-    *,
-    model: TestModel | FunctionModel | None = None,
-    store: InMemoryVectorStore | None = None,
-    settings: Settings | None = None,
-) -> RagAgent:
-    service, _ = build_embedding_service(dimensions=DIMENSIONS)
-    return RagAgent(
-        settings if settings is not None else build_settings(),
-        vector_store=store if store is not None else build_memory_store(),
-        embeddings=service,
-        model=model
-        if model is not None
-        else TestModel(call_tools="all", custom_output_text=ANSWER),
-    )
 
 
 def write_document(directory: Path) -> Path:

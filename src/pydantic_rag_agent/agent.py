@@ -17,7 +17,7 @@ docs/design/public-api.md, and the examples there are what CFG/CORE work is meas
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Coroutine, Iterable
+from collections.abc import AsyncGenerator, Coroutine, Iterable, Iterator
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, TypeVar
@@ -156,7 +156,7 @@ class RagAgent:
 
     async def stream(
         self, question: str, *, conversation_id: str | None = None
-    ) -> AsyncIterator[AgentStreamUpdate]:
+    ) -> AsyncGenerator[AgentStreamUpdate, None]:
         """Answer one question, yielding tokens and tool calls as they happen.
 
         The final ``TurnCompleted`` carries the same ``AgentTurn`` that ``ask`` returns,
@@ -242,6 +242,37 @@ class RagAgent:
         """``ingest`` for synchronous code. Refuses inside a running loop."""
         return self._run_sync(self.ingest(sources))
 
+    def stream_sync(
+        self, question: str, *, conversation_id: str | None = None
+    ) -> Iterator[AgentStreamUpdate]:
+        """``stream`` for synchronous code.
+
+        Drives the async generator one step per turn of the agent's loop, so tokens reach
+        the caller as they arrive rather than in one burst at the end. Refuses inside a
+        running loop, like the other sync helpers.
+        """
+        stream = self.stream(question, conversation_id=conversation_id)
+        try:
+            while True:
+                try:
+                    yield self._run_sync(_advance(stream))
+                except StopAsyncIteration:
+                    return
+        finally:
+            self._run_sync(stream.aclose())
+
+    def documents_sync(self) -> list[DocumentSummary]:
+        """``documents`` for synchronous code."""
+        return self._run_sync(self.documents())
+
+    def stats_sync(self) -> StoreStats:
+        """``stats`` for synchronous code."""
+        return self._run_sync(self.stats())
+
+    def delete_document_sync(self, document_id: str) -> int:
+        """``delete_document`` for synchronous code."""
+        return self._run_sync(self.delete_document(document_id))
+
     def close_sync(self) -> None:
         """Close the store and the loop the sync helpers used.
 
@@ -305,6 +336,11 @@ class RagAgent:
         if self._sync_loop is None or self._sync_loop.is_closed():
             self._sync_loop = asyncio.new_event_loop()
         return self._sync_loop.run_until_complete(coroutine)
+
+
+async def _advance(stream: AsyncGenerator[AgentStreamUpdate, None]) -> AgentStreamUpdate:
+    """One step of an async generator, wrapped so ``_run_sync`` has a coroutine."""
+    return await stream.__anext__()
 
 
 def _as_paths(sources: Path | str | Iterable[Path | str]) -> list[Path]:

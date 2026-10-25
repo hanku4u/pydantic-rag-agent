@@ -57,6 +57,9 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def _fake_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A URL is configured, so the commands take the HTTP path; the transport is
+    # otherwise the in-process agent, which these tests are not exercising.
+    monkeypatch.setenv("PRAGENT_API_URL", "http://testserver")
     monkeypatch.setattr(cli, "RagClient", FakeClient)
 
 
@@ -110,6 +113,61 @@ def ingest_with_nothing_to_upload_should_fail(tmp_path: Path) -> None:
     assert "nothing to upload" in result.output
 
 
+def commands_without_a_configured_api_url_should_run_in_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # given: no URL in the environment or a `.env`, and spies on both transports
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PRAGENT_API_URL")
+    used: list[str] = []
+
+    def in_process() -> FakeClient:
+        used.append("in-process")
+        return FakeClient()
+
+    def http(*_args: object, **_kwargs: object) -> FakeClient:
+        used.append("http")
+        return FakeClient()
+
+    monkeypatch.setattr(cli, "_in_process", in_process)
+    monkeypatch.setattr(cli, "RagClient", http)
+
+    # when: a command runs
+    result = runner.invoke(cli.app, ["documents"])
+
+    # then: it did not need a server — this is the point of CORE-2
+    assert result.exit_code == 0
+    assert "A" in result.output
+    assert used == ["in-process"]
+
+
+def commands_with_a_configured_api_url_should_use_http(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # given: a URL supplied the way an integrated deployment supplies one
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PRAGENT_API_URL", "http://elsewhere:9000")
+    used: list[str] = []
+
+    def in_process() -> FakeClient:
+        used.append("in-process")
+        return FakeClient()
+
+    def http(*_args: object, **_kwargs: object) -> FakeClient:
+        used.append("http")
+        return FakeClient()
+
+    monkeypatch.setattr(cli, "_in_process", in_process)
+    monkeypatch.setattr(cli, "RagClient", http)
+
+    # when: a command runs
+    result = runner.invoke(cli.app, ["documents"])
+
+    # then: the URL wins over the in-process default
+    assert result.exit_code == 0
+    assert used == ["http"]
+
+
 def ask_with_json_should_use_the_non_streaming_call() -> None:
     # given / when: a question is asked with --json
     result = runner.invoke(cli.app, ["ask", "anything?", "--json"])
@@ -119,17 +177,17 @@ def ask_with_json_should_use_the_non_streaming_call() -> None:
     assert json.loads(result.output)["answer"] == "yes"
 
 
-def default_api_url_without_a_dotenv_file_should_fall_back_to_localhost(
+def configured_api_url_without_a_dotenv_file_should_be_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given: no .env anywhere above the working directory
     monkeypatch.chdir(tmp_path)
 
-    # when / then: the built-in default applies
-    assert cli._default_api_url() == "http://127.0.0.1:8000"
+    # when / then: no URL means "run in this process", not a localhost guess
+    assert cli._configured_api_url() is None
 
 
-def default_api_url_with_a_dotenv_file_should_read_it(
+def configured_api_url_with_a_dotenv_file_should_read_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given: a project .env naming a non-default port
@@ -137,10 +195,10 @@ def default_api_url_with_a_dotenv_file_should_read_it(
     monkeypatch.chdir(tmp_path)
 
     # when / then: the client commands use it, without needing the server's credentials
-    assert cli._default_api_url() == "http://127.0.0.1:9000"
+    assert cli._configured_api_url() == "http://127.0.0.1:9000"
 
 
-def default_api_url_from_a_subdirectory_should_find_the_parent_dotenv(
+def configured_api_url_from_a_subdirectory_should_find_the_parent_dotenv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given: a .env in the project root and a command run one level down
@@ -150,7 +208,45 @@ def default_api_url_from_a_subdirectory_should_find_the_parent_dotenv(
     monkeypatch.chdir(nested)
 
     # when / then: the search walks up rather than silently using the default
-    assert cli._default_api_url() == "http://127.0.0.1:9001"
+    assert cli._configured_api_url() == "http://127.0.0.1:9001"
+
+
+class NarratingFakeClient:
+    """A model that talks before it calls its tool, then answers properly."""
+
+    def __enter__(self) -> NarratingFakeClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def create_conversation(self) -> str:
+        return "conv-1"
+
+    def stream(self, conversation_id: str, question: str) -> Any:
+        yield "token", {"text": "I'll search the knowledge base. "}
+        yield "tool_call", {"name": "search_knowledge_base"}
+        yield "token", {"text": "Archives are kept for 7 years [1]."}
+        yield "citations", {"citations": []}
+        yield "done", {"answer": "Archives are kept for 7 years [1].", "citations_valid": True}
+
+
+def stream_answer_should_render_the_final_answer_not_the_narration() -> None:
+    # given: a stream whose pre-tool narration is not part of the answer
+    from io import StringIO
+
+    from rich.console import Console
+
+    buffer = StringIO()
+    console = Console(file=buffer, force_terminal=False, width=120)
+
+    # when: the turn is rendered
+    cli._stream_answer(console, NarratingFakeClient(), "conv-1", "anything?")  # type: ignore[arg-type]
+
+    # then: the panel shows the authoritative answer — the same text `--json` would print
+    rendered = buffer.getvalue()
+    assert "Archives are kept for 7 years" in rendered
+    assert "I'll search the knowledge base" not in rendered
 
 
 class StreamingFakeClient:

@@ -3,9 +3,10 @@
 **Status:** stable — API, CLI and Streamlit are implemented (API-1…API-5, CLI-1…CLI-3,
 UI-1…UI-3, DX-1).
 
-Three surfaces over one application core: an HTTP API, a CLI that calls it, and a
-Streamlit chat UI that calls it. For why the API exists rather than an in-process
-import, see [Architecture](../architecture.md).
+Three surfaces over one application core: an HTTP API, a CLI and a Streamlit chat UI.
+The CLI and the UI can each build the agent in their own process or talk to the API; the
+choice is a URL, not a code path. For why the façade exists at all, see
+[Architecture](../architecture.md) and [ADR 0011](../decisions/0011-public-facade.md).
 
 ## Topology
 
@@ -13,19 +14,26 @@ import, see [Architecture](../architecture.md).
         ┌──────────────┐        ┌──────────────┐
         │  CLI (typer) │        │  Streamlit   │
         └──────┬───────┘        └──────┬───────┘
-               │  HTTP                 │  HTTP
-               └───────────┬───────────┘
-                    ┌──────▼───────┐
-                    │   FastAPI    │
-                    └──────┬───────┘
-             ┌─────────────┼─────────────┐
-        ┌────▼────┐   ┌────▼────┐   ┌────▼────┐
-        │ ingestion│  │ retrieval│  │  agent  │
-        └─────────┘   └─────────┘   └─────────┘
+               │  KnowledgeClient      │  KnowledgeClient
+               ├───────────────┬───────┤
+               │ HTTP          │       │ HTTP
+        ┌──────▼───────┐       │       │
+        │   FastAPI    │       │       │
+        └──────┬───────┘       │       │
+               │               │       │
+        ┌──────▼───────────────▼───────▼──────┐
+        │  RagAgent (façade)                  │
+        └──────┬──────────────────────────────┘
+               │
+     ┌─────────┼─────────┐
+┌────▼────┐ ┌──▼─────┐ ┌─▼──────┐
+│ingestion│ │retrieval│ │ agent  │
+└─────────┘ └─────────┘ └────────┘
 ```
 
 One core, one owner of state. The CLI and the UI hold no retrieval logic and no
-conversation state of their own.
+conversation state of their own; whichever transport they use, the same façade does the
+work.
 
 ## HTTP API
 
@@ -58,7 +66,7 @@ Server-Sent Events — the traffic is one-directional text, so SSE needs no extr
 | `token` | `{"text": "..."}` | A chunk of generated text |
 | `tool_call` | `{"name": "...", "args": {...}}` | The model asked a tool to act |
 | `citations` | `{"citations": [...]}` | Everything retrieved for this turn |
-| `done` | `{"answer", "budget_exhausted", "citations_valid", "uncited"}` | The turn finished |
+| `done` | `{"answer", "budget_exhausted", "citations_valid", "uncited", "usage"}` | The turn finished |
 | `error` | `{"code", "detail"}` | The turn failed; the stream still terminates cleanly |
 
 `tool_call` events matter for the UX: a two-second silence while the agent searches looks
@@ -87,25 +95,37 @@ cannot tell a truncated answer from a slow one. A budget-exhausted turn finishes
 
 ## CLI
 
-Built with `typer`. The CLI is an HTTP client — it does not import the application
-core.
+Built with `typer`. The CLI speaks the `KnowledgeClient` protocol
+([ADR 0011](../decisions/0011-public-facade.md)) and does not import application services
+or adapters itself:
 
-> **Planned (CORE-2).** [ADR 0011](../decisions/0011-public-facade.md) gives the CLI and
-> Streamlit an in-process client by default, with `--api-url` keeping today's HTTP
-> behaviour. The commands below are unchanged either way; only the transport they use
-> changes.
+| Transport | When | Needs |
+| --- | --- | --- |
+| **In-process** (default) | No API URL configured | A provider credential; reads `.env` |
+| **HTTP** | `--api-url` or `PRAGENT_API_URL` | Nothing but the URL and a running server |
+
+Both speak the same payloads, so every command and every rendering path is identical
+either way. In-process means no server, no port and no second terminal — the reason the
+package can be installed and used as a CLI.
+
+One temporary difference: an in-process `ingest` of a path records that path as the source,
+while an upload (HTTP or in-process `ingest_files`) is spooled under
+`storage.documents.local_path`. Both are local paths today; SRC-1 gives both a real
+document store and a stable locator.
 
 | Command | Purpose |
 | --- | --- |
-| `serve` | Run the API (uvicorn) |
+| `serve` | Run the API for remote clients and integrations (uvicorn) |
 | `ingest PATH...` | Upload and ingest files or directories |
 | `ask "QUESTION"` | One question, streamed to the terminal |
 | `chat` | Interactive multi-turn session in the terminal |
 | `documents` | List ingested documents |
 | `stats` | Show index and model information |
+| `delete ID...` | Remove documents from the index |
 
-`--api-url` defaults to `http://127.0.0.1:8000` and is also settable via
-`PRAGENT_API_URL`.
+`--api-url` is also settable via `PRAGENT_API_URL`. Leaving both unset runs the agent in
+the command's own process; a URL in `.env` is honoured, so an integrated deployment can
+configure it once.
 
 ### Terminal rendering
 
@@ -171,10 +191,10 @@ line is cleared with a cursor-up sequence before the panel is drawn, so a turn a
 once; this runs only on a real terminal, and only for the single-line input `input()`
 provides.
 
-**Known friction:** the CLI needs the API running, so a first run is two terminals.
-The accepted mitigation is a `dev` command that starts the API and the UI together;
-until it exists, [Setup](../development/setup.md) documents the two-terminal flow
-explicitly rather than leaving the user to discover the connection error.
+**Nothing needs starting.** `ingest`, `ask`, `chat`, `documents`, `stats` and `delete`
+build the agent in-process, so a first run is one terminal. `serve` exists for clients
+that are not this process, and `dev` starts the API and the UI together for browser-first
+work.
 
 ## Streamlit
 

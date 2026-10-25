@@ -71,19 +71,17 @@ uv sync
 cp .env.example .env
 # then edit .env and set OPENROUTER_API_KEY
 
-# API and web UI together (or `serve` for the API alone)
+# Index and ask — the agent runs in this process, no server needed
+uv run pydantic-rag-agent ingest ./docs
+uv run pydantic-rag-agent ask "How long are backups retained?"
+
+# Optional: the API and web UI together
 uv run pydantic-rag-agent dev
 ```
 
-Then, in a second terminal:
-
-```bash
-uv run pydantic-rag-agent ingest ./docs
-uv run pydantic-rag-agent ask "How long are backups retained?"
-```
-
-The chat UI is at <http://127.0.0.1:8501>; the terminal answer streams and ends with a
-table of the sources it cited.
+The terminal answer streams and ends with a table of the sources it cited. The chat UI
+from `dev` is at <http://127.0.0.1:8501>. `--api-url` makes any command talk to a running
+server instead of building the agent locally.
 
 ## Day-to-day commands
 

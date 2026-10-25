@@ -17,7 +17,8 @@ How the code is organised, what may depend on what, and where the seams are.
 4. **We own the vector store abstraction**, because the framework has no opinion and
    we intend to swap Chroma for `pgvector`. See
    [ADR 0003](decisions/0003-vector-store-and-embeddings.md).
-5. **The CLI and the UI are HTTP clients.** They contain no retrieval or agent logic.
+5. **The CLI and the UI contain no retrieval or agent logic.** They speak a
+   `KnowledgeClient`: in-process by default, HTTP when a URL is configured.
 6. **Domain and application layers do not import adapters.** Wiring happens at the
    edge — the API's dependency injection.
 7. **Boundaries are Pydantic models**, validated on the way in.
@@ -36,7 +37,7 @@ How the code is organised, what may depend on what, and where the seams are.
 | **Application** | Use cases: ingest a document, answer a question, run a turn. Protocols for what it needs. | Domain |
 | **Adapters** | Loaders, `ChromaVectorStore`, captioner, image and document stores, `pydantic-ai` agent wiring. | Domain, third-party libraries |
 | **Façade** | `RagAgent`: builds the graph from settings and exposes ingest/ask/stream/documents. The public surface. | Application, adapters (wiring only) |
-| **Integrations** | FastAPI router and app, CLI, Streamlit. All are optional and all call the façade. | Façade |
+| **Integrations** | FastAPI router and app, CLI, Streamlit. All are optional; the CLI and UI reach the façade through a `KnowledgeClient`. | Façade |
 
 The rule that carries the value: **application code depends on protocols it owns;
 adapters implement them; only the wiring layer knows which adapter is live.** That is
@@ -45,8 +46,9 @@ what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 The second rule, added with [ADR 0011](decisions/0011-public-facade.md): **the router and
 the CLI call the façade; neither calls an application service directly.** Two paths to the
 same behaviour is how the CLI and the API start disagreeing about history and citations.
-The façade exists (CORE-1); the CLI, UI and router still reach the wiring directly, and
-CORE-2…CORE-4 are what make this sentence a fact rather than a target.
+The façade exists (CORE-1) and the CLI and UI reach it through a `KnowledgeClient`
+(CORE-2). The router still reaches the wiring directly; CORE-3 and CORE-4 are what finish
+this rule.
 
 ## Module map
 
@@ -56,7 +58,7 @@ Current:
 src/pydantic_rag_agent/
 ├── __init__.py           # public surface, re-exported
 ├── agent.py              # RagAgent façade — the public door (CORE-1)
-├── cli.py                # typer app — HTTP client
+├── cli.py                # typer app — in-process by default, HTTP with --api-url
 ├── config.py             # settings tree: six node models + root Settings
 ├── runtime.py            # composition root: builds the object graph
 ├── domain/
@@ -83,11 +85,13 @@ src/pydantic_rag_agent/
 │   │   ├── docx.py       # .docx — paragraphs, tables, media
 │   │   └── pptx.py       # .pptx — slides, notes, tables, pictures
 │   └── agent.py          # knowledge-base capability + turn orchestration
+├── client.py             # KnowledgeClient protocol + HTTP implementation
+├── in_process.py         # the same protocol over a local RagAgent (CORE-2)
 ├── api/                  # FastAPI app and DI
 │   ├── app.py            # factory, routes (incl. SSE), error mapping
 │   └── schemas.py        # wire models, separate from domain
 └── ui/                   # Streamlit
-    └── streamlit_app.py  # chat UI over the API
+    └── streamlit_app.py  # chat UI, in-process or over the API
 ```
 
 Planned for M7 ([ADR 0011](decisions/0011-public-facade.md)):
@@ -97,7 +101,7 @@ src/pydantic_rag_agent/
 ├── __init__.py           # public surface: RagAgent, settings, models, errors
 ├── agent.py              # RagAgent façade (CORE-1, done)
 ├── config.py             # settings tree: six node models + root Settings (CFG-1, done)
-├── cli.py                # in-process client by default; --api-url optional
+├── cli.py                # in-process client by default; --api-url optional (CORE-2, done)
 ├── domain/
 ├── application/
 ├── adapters/

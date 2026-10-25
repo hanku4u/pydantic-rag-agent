@@ -7,7 +7,6 @@ uses, and is the only place that builds the real graph.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -41,7 +40,7 @@ from pydantic_rag_agent.api.schemas import (
     StatsResponse,
     UsageResponse,
 )
-from pydantic_rag_agent.application.ingestion import IngestReport, ingest_paths
+from pydantic_rag_agent.application.ingestion import IngestReport, ingest_paths, spool_upload
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
 from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
 
@@ -262,24 +261,15 @@ def _citation_response(citation: Citation) -> CitationResponse:
 
 
 def _spool(upload: UploadFile, directory: Path) -> Path:
-    """Persist an upload under a content-addressed path and return it.
-
-    Written to disk rather than held in memory because ingestion records a source path
-    on every chunk, and a citation has to point at something that still exists. The path
-    is content-addressed so re-uploading the same file reuses it. Only the final path
-    component of the client's filename is kept: a name containing ``../`` must not get to
-    choose where the file lands.
-    """
-    name = Path(upload.filename or "").name
-    if not name or name in {".", ".."}:
-        raise HTTPException(status_code=400, detail="each upload must have a filename")
-
-    data = upload.file.read()
-    digest = hashlib.sha256(data).hexdigest()
-    target = directory / digest[:2] / digest / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
-    return target
+    """Persist an upload and return its path, mapping a bad filename to HTTP 400."""
+    try:
+        return spool_upload(
+            data=upload.file.read(),
+            filename=upload.filename or "",
+            directory=directory,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _to_ingest_response(report: IngestReport) -> IngestReportResponse:

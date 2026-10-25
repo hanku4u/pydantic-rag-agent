@@ -489,7 +489,7 @@ def test_api_url_is_read_from_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     (tmp_path / ".env").write_text("PRAGENT_API_URL=http://from-dotenv:9999\n")
     monkeypatch.chdir(tmp_path)
 
-    assert cli._default_api_url() == "http://from-dotenv:9999"
+    assert cli._configured_api_url() == "http://from-dotenv:9999"
 
 
 def test_api_url_falls_back_when_dotenv_has_no_such_key(
@@ -498,7 +498,7 @@ def test_api_url_falls_back_when_dotenv_has_no_such_key(
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=sk-not-a-real-key\n")
     monkeypatch.chdir(tmp_path)
 
-    assert cli._default_api_url() == "http://127.0.0.1:8000"
+    assert cli._configured_api_url() is None
 
 
 def test_api_url_falls_back_when_there_is_no_dotenv(
@@ -506,4 +506,4 @@ def test_api_url_falls_back_when_there_is_no_dotenv(
 ) -> None:
     monkeypatch.chdir(tmp_path)
 
-    assert cli._default_api_url() == "http://127.0.0.1:8000"
+    assert cli._configured_api_url() is None
