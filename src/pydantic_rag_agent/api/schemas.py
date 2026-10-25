@@ -70,9 +70,27 @@ class CitationResponse(BaseModel):
     heading_path: list[str] = Field(default_factory=list)
 
 
+class UsageResponse(BaseModel):
+    """What a turn cost. Mirrors the domain model rather than the framework's.
+
+    ``cost`` is optional because not every provider prices a request; ``None``
+    means "not reported", which an interface should render as nothing rather than
+    as ``$0.00``.
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    reasoning_tokens: int = 0
+    requests: int = 0
+    tool_calls: int = 0
+    cost: float | None = None
+
+
 class AnswerResponse(BaseModel):
     answer: str
     citations: list[CitationResponse] = Field(default_factory=list)
     budget_exhausted: bool = False
     citations_valid: bool = True
     uncited: bool = False
+    usage: UsageResponse | None = None

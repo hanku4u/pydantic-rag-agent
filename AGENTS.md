@@ -72,25 +72,19 @@ State at the last handoff: **M0–M5 complete**, M6 started (EVAL-1 and SEC-1 do
 history works, but nothing trims a conversation that outgrows the window. It needs
 `pydantic-ai-harness`, which ADR 0008 defers, so it travels with OPS-1 below.
 
-Next three tasks, in order — the reasoning for the order is in the M6 table and in
+Next two tasks, in order — the reasoning for the order is in the M6 table and in
 [docs/decisions/0008-prompt-injection-defence.md](docs/decisions/0008-prompt-injection-defence.md):
 
-1. **OPS-2 — cost visibility.** `AgentTurn` carries no usage. Add input/output tokens,
-   request count and cost (from `result.usage`), surface them in the SSE `done` event and
-   as a dim footer under the CLI's answer panel. See
-   [docs/features/README.md](docs/features/README.md) and
-   [docs/design/agent.md](docs/design/agent.md).
-2. **OPS-1 — instrumentation.** Prefer the framework's `Instrumentation` capability to a
-   hand-rolled logger. Adopting `pydantic-ai-harness` — needed for that and for
-   `PromptInjectionDefender` — requires a decision record first; ADR 0008 explains why it
-   was deferred.
-3. **TST-1 — coverage.** Loaders, chunker, stores and the agent loop. The suite must stay
+1. **OPS-1 — instrumentation.** Prefer the framework's `Instrumentation` capability to a
+   hand-rolled logger. Adopting `pydantic-ai-harness` — needed for that, for
+   `PromptInjectionDefender` and for `Compaction` — requires a decision record first;
+   ADR 0008 explains why it was deferred.
+2. **TST-1 — coverage.** Loaders, chunker, stores and the agent loop. The suite must stay
    offline: `tests/conftest.py` sets `ALLOW_MODEL_REQUESTS = False` so a forgotten fake
    fails rather than spends.
 
-Known debts, each small: **IMG-5** (the caption cache is keyed by image hash alone, so
-changing `PRAGENT_CAPTION_MODEL` serves stale captions), no `delete` command in the CLI,
-`help` in `chat` is sent to the model, `documents` prints content-addressed storage paths,
+Known debts, each small: no `delete` command in the CLI, `help` in `chat` is sent to the
+model, `documents` prints content-addressed storage paths,
 and `PRAGENT_API_URL` in `.env` is not read by the CLI (only the shell environment).
 
 Practical notes:

@@ -364,9 +364,44 @@ def _stream_answer(
     console.print(_answer_panel("".join(answer), tools, pending=False))
     if payload.get("budget_exhausted"):
         console.print("[yellow]Stopped at the request limit.[/yellow]")
+    footer = _usage_footer(payload.get("usage"))
+    if footer:
+        console.print(footer, soft_wrap=True)
     if citations:
         _render_citations(console, citations)
     return payload
+
+
+def _usage_footer(usage: object) -> str:
+    """One dim line under the answer: what the turn cost.
+
+    Deliberately terse and dim — it is a footnote, not a result. Returns ``""``
+    when the API sent nothing usable, so an older server or an unmeasured provider
+    produces no line at all rather than a row of zeros.
+    """
+    if not isinstance(usage, dict):
+        return ""
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    if not input_tokens and not output_tokens:
+        return ""
+
+    parts = [
+        f"[dim]{input_tokens:,} in · {output_tokens:,} out · "
+        f"{input_tokens + output_tokens:,} tokens[/dim]"
+    ]
+    requests = int(usage.get("requests") or 0)
+    if requests:
+        parts.append(f"[dim]{requests} request{'s' if requests != 1 else ''}[/dim]")
+    cache_read = int(usage.get("cache_read_tokens") or 0)
+    if cache_read:
+        parts.append(f"[dim]{cache_read:,} cached[/dim]")
+    cost = usage.get("cost")
+    # `cost` is None when the provider did not price the request. Printing $0.00
+    # there would claim the turn was free, which is not what "unknown" means.
+    if cost is not None:
+        parts.append(f"[dim]${float(cost):.4f}[/dim]")
+    return " · ".join(parts)
 
 
 def _erase_typed_line(console: Console, prompt_plain: str, typed: str) -> None:

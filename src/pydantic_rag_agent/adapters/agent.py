@@ -34,7 +34,7 @@ from pydantic_ai.usage import UsageLimits
 from pydantic_rag_agent.adapters.image_store import sniff_media_type
 from pydantic_rag_agent.application.citations import CitationAudit, audit_citations
 from pydantic_rag_agent.application.retrieval import RetrievalService, SearchResult
-from pydantic_rag_agent.domain.models import Citation
+from pydantic_rag_agent.domain.models import Citation, TurnUsage
 from pydantic_rag_agent.domain.ports import ImageStore
 
 _logger = logging.getLogger(__name__)
@@ -183,6 +183,28 @@ class AgentTurn:
     messages: list[ModelMessage]
     citation_audit: CitationAudit
     budget_exhausted: bool = False
+    usage: TurnUsage = field(default_factory=TurnUsage)
+
+
+def turn_usage(usage: Any) -> TurnUsage:
+    """Translate the framework's accumulator into the domain model.
+
+    Tolerant on purpose: the fields are read with ``getattr`` defaulting to zero
+    because a provider that reports no usage at all must degrade to "nothing was
+    measured" rather than raise inside a turn that otherwise succeeded.
+    ``cost`` stays ``None`` when the provider reports none, which is a different
+    claim from zero — see ``TurnUsage``.
+    """
+    cost = getattr(usage, "cost", None)
+    return TurnUsage(
+        input_tokens=getattr(usage, "input_tokens", 0) or 0,
+        output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        cache_read_tokens=getattr(usage, "cache_read_tokens", 0) or 0,
+        reasoning_tokens=getattr(usage, "output_reasoning_tokens", 0) or 0,
+        requests=getattr(usage, "requests", 0) or 0,
+        tool_calls=getattr(usage, "tool_calls", 0) or 0,
+        cost=float(cost) if cost is not None else None,
+    )
 
 
 async def ask(
@@ -228,6 +250,7 @@ async def ask(
         citations=citations,
         messages=result.all_messages(),
         citation_audit=audit,
+        usage=turn_usage(result.usage),
     )
 
 
@@ -317,6 +340,7 @@ def _completed_turn(result: Any, deps: AgentDeps) -> AgentTurn:
         citations=citations,
         messages=result.all_messages(),
         citation_audit=audit,
+        usage=turn_usage(result.usage),
     )
 
 

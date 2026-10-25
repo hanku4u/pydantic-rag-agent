@@ -39,9 +39,10 @@ from pydantic_rag_agent.api.schemas import (
     IngestFileResponse,
     IngestReportResponse,
     StatsResponse,
+    UsageResponse,
 )
 from pydantic_rag_agent.application.ingestion import IngestReport, ingest_paths
-from pydantic_rag_agent.domain.models import Citation
+from pydantic_rag_agent.domain.models import Citation, TurnUsage
 from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
 
 API_TITLE = "pydantic-rag-agent"
@@ -218,6 +219,7 @@ async def _stream_turn(
                         "budget_exhausted": turn.budget_exhausted,
                         "citations_valid": turn.citation_audit.is_clean,
                         "uncited": turn.citation_audit.is_uncited,
+                        "usage": _usage_response(turn.usage).model_dump(),
                     },
                 )
     except Exception as exc:  # noqa: BLE001 - the stream must still terminate cleanly
@@ -227,6 +229,24 @@ async def _stream_turn(
 def _sse(event: str, data: dict[str, object]) -> str:
     """One Server-Sent Event frame."""
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+def _usage_response(usage: TurnUsage) -> UsageResponse:
+    """Translate the domain usage model for the wire.
+
+    Returned even when empty: a client should be able to distinguish "this provider
+    reported no usage" from "this API does not carry usage", and only the presence of
+    the object says the latter.
+    """
+    return UsageResponse(
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_read_tokens=usage.cache_read_tokens,
+        reasoning_tokens=usage.reasoning_tokens,
+        requests=usage.requests,
+        tool_calls=usage.tool_calls,
+        cost=usage.cost,
+    )
 
 
 def _citation_response(citation: Citation) -> CitationResponse:
@@ -288,4 +308,5 @@ def _to_answer_response(turn: AgentTurn) -> AnswerResponse:
         budget_exhausted=turn.budget_exhausted,
         citations_valid=turn.citation_audit.is_clean,
         uncited=turn.citation_audit.is_uncited,
+        usage=_usage_response(turn.usage),
     )

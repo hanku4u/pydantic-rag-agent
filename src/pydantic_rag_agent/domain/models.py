@@ -175,3 +175,37 @@ class DocumentSummary(BaseModel):
     source_path: str
     title: str
     chunk_count: int = Field(ge=0)
+
+
+class TurnUsage(BaseModel):
+    """What one answered turn cost, in the units the provider bills in.
+
+    Domain-level rather than a ``pydantic_ai`` type on purpose: the framework's
+    ``RunUsage`` is a mid-stream accumulator with a dozen audio and cache fields
+    that mean nothing to a caller rendering a footer, and it must not leak past the
+    adapter.
+
+    ``cost`` is ``None`` rather than ``0.0`` when the provider did not report one.
+    They are different claims: a free turn and an unpriced turn are not the same
+    thing, and silently rendering ``$0.00`` for a model whose pricing is unknown
+    would be a small lie in the direction of reassuring.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    cache_read_tokens: int = Field(default=0, ge=0)
+    reasoning_tokens: int = Field(default=0, ge=0)
+    requests: int = Field(default=0, ge=0)
+    tool_calls: int = Field(default=0, ge=0)
+    cost: float | None = Field(default=None, ge=0)
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+    @property
+    def is_empty(self) -> bool:
+        """True when nothing was measured — a provider that reports no usage."""
+        return self.total_tokens == 0 and self.requests == 0
