@@ -42,7 +42,7 @@ stay the canonical list.
 | API-6 (post-M7) | API-6 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 | M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1, PKG-2, PKG-3, PKG-4, PKG-5 | — |
-| M8 Storage and citation ergonomics | — | SRC-4, CIT-1 |
+| M8 Storage, metadata and citation ergonomics | — | SRC-4, SRC-5, RET-5, CIT-1 |
 
 M0 is closed: `RagAgent` loads `Settings` at startup and checks the index on first use
 (on startup, for the standalone app), which is what FND-2 was waiting for. M5 is closed too — the
@@ -183,12 +183,13 @@ package becomes something another project can install, import, and mount. Design
 
 ---
 
-## M8 — Storage and citation ergonomics
+## M8 — Storage, metadata and citation ergonomics
 
-Two things work and are unfriendly in use. Originals sit under
-`documents/<aa>/<sha256>/<name>` — safe, deduplicated, and impossible to browse. And a
-citation is an address (`file://…`, `s3://…`) rather than an action: a reader cannot click
-it.
+Three things work and are unfriendly in use. Originals sit under
+`documents/<aa>/<sha256>/<name>` — safe, deduplicated, and impossible to browse. A citation
+is an address (`file://…`, `s3://…`) rather than an action: a reader cannot click it. And a
+document carries no metadata a caller chose, so a corpus cannot be narrowed by department,
+year or access tier before semantic ranking.
 
 This milestone is **planned, not started**. It changes how data is laid out, so it needs its
 own decision record before code; it revisits the layout in
@@ -200,6 +201,8 @@ second index.
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | SRC-4 | Readable document tree and a metadata catalogue | SRC-1…SRC-3, CFG-1 | A stored original lands at a path a person can predict from its name; SQLite (the default) or PostgreSQL (when configured) records document id, source, stored path, hash, chunk count, caption ids and timestamps; re-ingesting an edited file replaces rather than duplicates; a documented migration moves an existing content-addressed store |
+| SRC-5 | Caller-supplied document metadata | SRC-1…SRC-3 | A caller attaches key-value metadata per document at ingest — CLI, API upload, UI editor and library argument all reach the same path; keys and value types are validated; the metadata is denormalised onto every chunk, persisted by both stores, returned by `documents()`, and survives re-ingest and replacement. Coordinate with SRC-4 so the catalogue records it rather than deriving it |
+| RET-5 | Filtered retrieval | SRC-5, RET-1 | `search_knowledge_base` can be narrowed by metadata; `VectorStore.search` takes a typed filter instead of raw store syntax; Chroma, the in-memory store and (later) pgvector implement the same subset; CLI `ask` and the API accept a filter; a test proves a semantically matching document is excluded when the filter says so |
 | CIT-1 | Citations that open or download the original | SRC-1…SRC-3, CORE-2, CORE-3 | In Streamlit, a citation downloads the original through the API; in the CLI it is a terminal hyperlink where the terminal supports one, with the locator printed as fallback; `GET /documents/{id}/download` streams the file with its name and content type; an S3 store proxies or presigns according to configuration; tests cover local and S3 forms plus an unknown document |
 
 ### Open questions to settle before implementing
@@ -219,6 +222,27 @@ second index.
 - **Downloads and auth.** The API has no authentication today, and a download route hands
   out documents. It must inherit whatever the host adds; S3 presigning moves the question
   into the bucket policy. Proxy versus presign is a security decision, not a convenience.
+- **Who chooses a filter?** A caller per query (`ask --meta department=finance`) is
+  deterministic; a model choosing from the question will sometimes choose wrong. Recommend
+  caller-supplied filters passed through the tool, with an optional configured default —
+  never the model inventing one.
+- **Filter vocabulary.** Equality and `in` cover most of it and map cleanly onto Chroma's
+  `where`; ranges and boolean combinations need a typed model rather than a dict from a
+  client, or the endpoint becomes a query-language surface.
+- **Types, keys and limits.** Chroma allows strings, numbers and booleans only. Decide
+  whether user keys are namespaced (`meta.department`) to avoid colliding with reserved
+  fields (`title`, `source_path`, `document_id`), and cap key count and value length.
+- **Batch uploads.** One metadata map for a whole upload is easy and often wrong; a
+  per-file manifest, or one request per file, is the alternative.
+- **Filterable system fields.** File type, page count and ingest time are already known.
+  Decide which are queryable metadata rather than internal fields.
+- **Backfill.** Metadata is denormalised onto chunks, so existing documents have none until
+  reindexed; the feature must say so and, if the catalogue exists, offer a backfill.
+- **Metadata is data.** It may be rendered beside a citation, never in instructions, and a
+  filter must be validated rather than passed through as store syntax.
+- **Expectations.** Filtering narrows candidates and can cut latency; it does not replace
+  semantic ranking. A filter that is too tight returns nothing, and the agent has to say
+  so rather than answer from general knowledge.
 
 ---
 

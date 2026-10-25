@@ -97,6 +97,7 @@ Accurate as of 2026-10-25.
 | Release: workflow and first PyPI publication | Done — PKG-4, PKG-5; **0.1.0 live on PyPI** |
 | Readable document storage and a metadata catalogue | **Planned** — M8, SRC-4 |
 | Clickable citations that download the original | **Planned** — M8, CIT-1 |
+| Caller-supplied document metadata and filtered retrieval | **Planned** — M8, SRC-5/RET-5 |
 
 **Milestone 7 is complete** and 0.1.0 is published. **Milestone 8 is planned, not
 started**: readable document storage with a SQLite/PostgreSQL catalogue (SRC-4), and

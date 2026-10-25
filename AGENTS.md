@@ -100,8 +100,9 @@ Read these before touching anything:
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
 **M7 is complete and 0.1.0 is published on PyPI.** **M8 is planned, not started**:
-readable document storage with a SQLite/PostgreSQL catalogue (SRC-4) and citations that
-open or download the original (CIT-1). Persistent conversations, `pgvector` and
+readable document storage with a SQLite/PostgreSQL catalogue (SRC-4), caller-supplied
+document metadata with filtered retrieval (SRC-5, RET-5), and citations that open or
+download the original (CIT-1). Persistent conversations, `pgvector` and
 authentication remain deferred with their triggers in
 [docs/features/README.md](docs/features/README.md#deferred).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the

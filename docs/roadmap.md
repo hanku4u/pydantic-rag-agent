@@ -25,7 +25,7 @@ it is a bet.
 | 6 | Hardening | Evaluation, coverage, cost visibility, security review — instrumentation out of scope | EVAL-1, TST-1, OPS-2, SEC-1 |
 | 7 | Distribution | Installable library, optional API, first PyPI release | CFG-1…CFG-3, SRC-1…SRC-3, CORE-1…CORE-4, PKG-1…PKG-5 |
 | — | API-6 (post-M7) | Any OpenAI-speaking chat UI can use the agent | API-6 |
-| 8 | Storage and citation ergonomics | Documents a person can find, and citations a person can click | SRC-4, CIT-1 |
+| 8 | Storage, metadata and citation ergonomics | Documents a person can find, filter, and click through to | SRC-4, SRC-5, RET-5, CIT-1 |
 
 Milestones 0–6 are complete. **OPS-1** (instrumentation) is the one feature deliberately
 not built: this is a personal, single-user tool and nobody reads the traces. It is listed in
@@ -45,7 +45,7 @@ endpoint, was added afterwards because it needed the integration that M7 built. 
 per-feature record is [the progress table](features/README.md#progress); the authoritative
 accounting of the whole project is [the overview](overview.md#current-state).
 
-## M8 — Storage and citation ergonomics (planned)
+## M8 — Storage, metadata and citation ergonomics (planned)
 
 Not started. Two pieces of feedback from actually using 0.1.0:
 
@@ -58,11 +58,16 @@ Not started. Two pieces of feedback from actually using 0.1.0:
   UI is something to copy, not something to click. A download route, Streamlit download
   controls and terminal hyperlinks would turn a citation into the thing the user actually
   wants: the document.
+- **Documents carry no metadata a caller chose.** Title, source and page are ours; a caller
+  cannot say "this is Finance, 2026, internal" and then retrieve only that. Per-document
+  key-values, denormalised onto chunks, plus a filtered search path, would let a corpus be
+  narrowed before semantic ranking — useful for precision, latency, and eventually for
+  access boundaries (which still need real authentication).
 
 Both need design work before code — naming and collision policy, whether the catalogue is
 authoritative, how migrations run, and how a download endpoint interacts with
 authentication. The open questions are recorded with the features in
-[the backlog](features/README.md#m8--storage-and-citation-ergonomics).
+[the backlog](features/README.md#m8--storage-metadata-and-citation-ergonomics).
 
 ## The two milestones that matter
 
