@@ -94,7 +94,7 @@ Accurate as of 2026-10-25.
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
-| Release: workflow and first PyPI publication | Workflow done — PKG-4; first publication pending — PKG-5 |
+| Release: workflow and first PyPI publication | Done — PKG-4, PKG-5; **0.1.0 live on PyPI** |
 
 **Milestone 7 is thirteen of fifteen features done.** Configuration is a tree of six
 nodes (CFG-1…3); the `RagAgent` façade exists and is the only builder (CORE-1…4); originals

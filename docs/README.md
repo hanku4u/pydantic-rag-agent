@@ -38,6 +38,7 @@ rather than inventing one and writing it down as fact.
 | Use this as a library, or mount it in FastAPI | [Public API](design/public-api.md) |
 | Understand the API, CLI, and UI | [Interfaces](design/interfaces.md) |
 | Publish a release | [Releasing](development/releasing.md) |
+| See what changed | [Changelog](../CHANGELOG.md) |
 | Configure the app | [Configuration](reference/configuration.md) |
 | Know what we depend on, and why | [Dependencies](reference/dependencies.md) |
 | Know why something is the way it is | [Decision records](decisions/README.md) |

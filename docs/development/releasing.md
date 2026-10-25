@@ -1,7 +1,7 @@
 # Releasing
 
-**Status:** stable — the workflow exists (PKG-4). The first publication has not run yet;
-that is **PKG-5**, and it needs PyPI access and a tag.
+**Status:** stable — the workflow exists and 0.1.0 was published on 2026-10-25. Rehearsal
+was done on TestPyPI with `scripts/release.py --rehearse`; the real release was a tag.
 
 How a version gets from `main` to PyPI. Decisions behind it:
 [ADR 0013](../decisions/0013-packaging-and-release.md).
@@ -142,6 +142,7 @@ release is actively harmful, and say why in the changelog.
 
 ## Related
 
+- [Changelog](../../CHANGELOG.md) — what each release contains.
 - [ADR 0013](../decisions/0013-packaging-and-release.md) — extras, version policy, why.
 - [Dependencies](../reference/dependencies.md) — what lands in each extra.
 - [Public API](../design/public-api.md) — what the version number protects.

@@ -99,8 +99,9 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Only **PKG-5** remains: execute the release runbook once. It needs the PyPI trusted
-publisher registered and a tag, so it is an operational step rather than code.
+**M7 is complete and 0.1.0 is published on PyPI.** The next work is chosen, not queued:
+persistent conversations, `pgvector`, or authentication each have a recorded trigger in
+[docs/features/README.md](docs/features/README.md#deferred).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

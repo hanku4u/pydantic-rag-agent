@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status:** stable — M0–M6 complete; M7 in progress (PKG-4 and PKG-5 remain). One
-feature, API-6, landed after M7 started.
+**Status:** stable — M0–M7 complete, and 0.1.0 is published on PyPI. One feature, API-6,
+landed after M7 started.
 
 The order in which the backlog gets built, and what "done" means for each stage. The
 granular work is in [Features](features/README.md); this page is the narrative.
@@ -37,13 +37,12 @@ by it; it changes how the code is reached. That is why it precedes any further f
 against. See [Public API](design/public-api.md) and
 [ADR 0013](decisions/0013-packaging-and-release.md).
 
-**Where it stands:** thirteen of M7's fifteen features are done — configuration (CFG-1…3),
-the façade and its transports (CORE-1…4), original documents (SRC-1…3) and packaging
-metadata (PKG-1…3). What remains is the release itself: the workflow (PKG-4) and the
-runbook rehearsal (PKG-5). API-6, the OpenAI-compatible endpoint, was added afterwards
-because it needed the integration that M7 built. The per-feature record is
-[the progress table](features/README.md#progress); the authoritative accounting of the
-whole project is [the overview](overview.md#current-state).
+**Where it stands:** all fifteen features are done, and 0.1.0 was published on
+2026-10-25 — configuration (CFG-1…3), the façade and its transports (CORE-1…4), original
+documents (SRC-1…3), packaging and release (PKG-1…5). API-6, the OpenAI-compatible
+endpoint, was added afterwards because it needed the integration that M7 built. The
+per-feature record is [the progress table](features/README.md#progress); the authoritative
+accounting of the whole project is [the overview](overview.md#current-state).
 
 ## The two milestones that matter
 
