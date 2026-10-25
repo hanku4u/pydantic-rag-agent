@@ -7,16 +7,25 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-25
+
 ### Added
 
 - `pydantic-rag-agent configure`: an interactive setup wizard (rich prompts) for the
   provider, chat and embedding models, vector store and document storage. It merges into an
-  existing `.env`, backs the old file up, and can test the embedding endpoint.
+  existing `.env`, backs the old file up, warns when a chosen store's extra is missing, and
+  can test the embedding endpoint with one small request.
+- A README section on using any OpenAI-compatible provider — OpenAI, Ollama, vLLM, LM
+  Studio, Groq or your own — including the two traps: embeddings are a separate node, and
+  changing the embedding model or width requires reindexing.
 
 ### Fixed
 
 - The README no longer claims the package is unpublished. The 0.1.0 metadata on PyPI keeps
-  the old wording because artefacts are immutable, so this lands in the next patch release.
+  that wording because artefacts are immutable; this is the first release carrying the
+  correction.
+
+[0.1.1]: https://github.com/hanku4u/pydantic-rag-agent/releases/tag/v0.1.1
 
 ## [0.1.0] — 2026-10-25
 

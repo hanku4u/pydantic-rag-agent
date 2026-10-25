@@ -44,7 +44,7 @@ The core install has no vector database: it runs with the in-memory store, which
 for a script that ingests and asks in one go. Anything the agent does not need at import
 time is an extra, and a missing one tells you which to install.
 
-Published as **0.1.0** — see the [changelog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/CHANGELOG.md)
+Published as **0.1.1** — see the [changelog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/CHANGELOG.md)
 for what is in it. Before 1.0 the public API may change in a minor release, with a
 migration note.
 
