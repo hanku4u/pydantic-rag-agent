@@ -21,7 +21,12 @@ it is a bet.
 | 3 | Retrieval | A query returns ranked, cited chunks — **no LLM involved** | RET-1…RET-4 |
 | 4 | Agent | A question over the index produces a cited answer | AGT-1…AGT-7 |
 | 5 | Interfaces | CLI and Streamlit both work over the API | API-1…API-5, CLI-1…CLI-2, UI-1…UI-3 |
-| 6 | Hardening | Evaluation, logging, cost visibility, security review | EVAL-1, TST-1, OPS-1…OPS-2, SEC-1 |
+| 6 | Hardening | Evaluation, coverage, cost visibility, security review — instrumentation out of scope | EVAL-1, TST-1, OPS-2, SEC-1 |
+
+All six milestones are complete. **OPS-1** (instrumentation) is the one feature deliberately
+not built: this is a personal, single-user tool and nobody reads the traces. It is listed in
+the milestone above so the omission is recorded rather than forgotten, and the framework's
+core `Instrumentation` capability would serve it without any new dependency.
 
 ## The two milestones that matter
 

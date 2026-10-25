@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # How many recent turns a conversation keeps. Whole turns only, so a follow-up can
     # still resolve its referent; see adapters/compaction.py and AGT-6.
     history_turns: int = Field(default=6, gt=0)
+    # How many conversations are retained before the least recently used is dropped.
+    # Bounds memory in a long-running server; see adapters/conversations.py.
+    max_conversations: int = Field(default=500, gt=0)
 
     chroma_path: Path = Path("./data/chroma")
     image_dir: Path = Path("./data/images")
