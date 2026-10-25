@@ -156,11 +156,21 @@ def _build_runtime(
     elif settings.storage.documents.backend == "local":
         documents = LocalDocumentStore(settings.storage.documents.local_path)
     else:
-        # Configured but unbuilt. Failing here beats silently indexing without the
-        # originals a citation promises.
-        raise NotImplementedError(
-            "the s3 document store is not implemented yet (SRC-2); "
-            "set PRAGENT_STORAGE__DOCUMENTS__BACKEND=local"
+        # Imported here so a local deployment never loads the S3 adapter; boto3 itself is
+        # only imported when the store is constructed without an injected client.
+        from pydantic_rag_agent.adapters.document_store.s3 import S3DocumentStore
+
+        bucket = settings.storage.documents.s3_bucket
+        if not bucket:
+            # Settings refuses this combination; the check is repeated because a
+            # hand-built node could bypass the validator.
+            raise ValueError(
+                "the s3 document store needs a bucket: set PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET"
+            )
+        documents = S3DocumentStore(
+            bucket=bucket,
+            prefix=settings.storage.documents.s3_prefix,
+            region=settings.storage.documents.s3_region,
         )
 
     def chat_model(model_id: str) -> OpenAIChatModel:

@@ -1,7 +1,7 @@
 # Configuration
 
-**Status:** stable — the settings tree is implemented (CFG-1). The S3 document store is
-not yet (SRC-2); its variables are documented here because the shape will not change.
+**Status:** stable — the settings tree (CFG-1) and both document stores (SRC-1, SRC-2)
+are implemented.
 
 How the application is configured, where values come from, and what fails when they are
 wrong. Decisions behind it: [ADR 0010](../decisions/0010-configuration-tree.md); the
@@ -112,11 +112,11 @@ so a citation can outlive the request that produced it.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `PRAGENT_STORAGE__DOCUMENTS__BACKEND` | no | `local` | `local` (implemented) or `s3` (SRC-2, not yet) |
+| `PRAGENT_STORAGE__DOCUMENTS__BACKEND` | no | `local` | `local` (disk) or `s3` (an `[s3]` install) |
 | `PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH` | no | `./data/documents` | Root for the copies taken at ingest, addressed `<aa>/<sha256>/<name>` |
-| `PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET` | when `backend=s3` | — | Bucket that holds the originals — **not read yet** |
-| `PRAGENT_STORAGE__DOCUMENTS__S3_PREFIX` | no | `documents/` | Key prefix inside the bucket — **not read yet** |
-| `PRAGENT_STORAGE__DOCUMENTS__S3_REGION` | no | SDK default | Region for the S3 client — **not read yet** |
+| `PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET` | when `backend=s3` | — | Bucket that holds the originals. Required, and refused at startup when missing |
+| `PRAGENT_STORAGE__DOCUMENTS__S3_PREFIX` | no | `documents/` | Key prefix inside the bucket. Leading and trailing slashes are normalised |
+| `PRAGENT_STORAGE__DOCUMENTS__S3_REGION` | no | SDK default | Region for the S3 client |
 
 ### `storage.images`
 

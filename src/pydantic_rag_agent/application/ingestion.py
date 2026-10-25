@@ -10,6 +10,7 @@ which formats exist — see docs/architecture.md.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import tempfile
 from collections.abc import Sequence
@@ -237,14 +238,17 @@ async def _ingest_one(
 
     try:
         if await store.has_document(document_id):
-            if document_store is not None and not document_store.exists(
-                document_id=document_id, filename=Path(source_label).name
+            if document_store is not None and not await asyncio.to_thread(
+                document_store.exists,
+                document_id=document_id,
+                filename=Path(source_label).name,
             ):
                 # Already in the index, but its original is missing — an older index, or
                 # someone emptied the directory. Copying it costs nothing and restores
                 # what a citation promises. Existing chunks still carry no locator until
                 # the document is reindexed; the ADR revision says so.
-                document_store.save(
+                await asyncio.to_thread(
+                    document_store.save,
                     document_id=document_id,
                     filename=Path(source_label).name,
                     data=payload,
@@ -270,8 +274,11 @@ async def _ingest_one(
         # Copy the original before touching the index. If this fails, nothing has been
         # deleted yet, so the previous version stays searchable instead of vanishing.
         # A citation pointing at nothing is worse than a file that did not land.
+        # Off the loop: boto3 is synchronous, and even a local write is disk I/O. A large
+        # document must not stall every other request in the process.
         locator = (
-            document_store.save(
+            await asyncio.to_thread(
+                document_store.save,
                 document_id=document_id,
                 filename=Path(source_label).name,
                 data=payload,

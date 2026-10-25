@@ -80,9 +80,10 @@ State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads th
 **CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
 **CORE-1** (`RagAgent` façade), **CORE-2** (`KnowledgeClient`; the CLI and UI need no
 server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade),
-**CORE-4** (`runtime.py` folded into the façade — one builder, no wrapper) and **SRC-1**
-(originals copied to a local `DocumentStore`, cited by `file://` locator).
-SRC-2/SRC-3 add S3 and locators in every surface.
+**CORE-4** (`runtime.py` folded into the façade — one builder, no wrapper), **SRC-1**
+(originals copied to a local `DocumentStore`, cited by `file://`) and **SRC-2** (the same
+store in S3 via the `[s3]` extra, cited by `s3://`).
+SRC-3 puts locators in every surface.
 
 Read these before touching anything:
 
@@ -95,8 +96,8 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: **SRC-2/SRC-3** (S3 and locators in every surface) next, then the
-remaining PKG features (metadata, export test, release workflow, runbook).
+Suggested order: **SRC-3** (locators in every surface) next, then the remaining PKG
+features (metadata, export test, release workflow, runbook).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

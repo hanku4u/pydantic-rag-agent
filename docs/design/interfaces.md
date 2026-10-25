@@ -118,7 +118,8 @@ ignored for the same reason — rejecting them would break clients that always s
 
 Two rendering details a user will notice. The footer names the **stored original** (the
 `file://` locator) rather than the path the document was ingested from, because that is
-the copy that still exists. And a streamed answer includes the model's pre-tool narration,
+the copy that still exists (`file://` on disk, `s3://` in a bucket). And a streamed
+answer includes the model's pre-tool narration,
 exactly as the SSE stream does; the non-streamed answer is the final text only. That is a
 property of streaming, not a difference in what was retrieved.
 

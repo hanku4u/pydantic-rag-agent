@@ -138,6 +138,16 @@ class DocumentStoreSettings(BaseModel):
     s3_prefix: str = "documents/"
     s3_region: str | None = None
 
+    @model_validator(mode="after")
+    def _require_bucket_for_s3(self) -> DocumentStoreSettings:
+        """A bucket is the whole point of the S3 backend; fail at startup, not at ingest."""
+        if self.backend == "s3" and not self.s3_bucket:
+            raise ValueError(
+                "storage.documents.s3_bucket is required when backend is 's3' "
+                "(set PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET)"
+            )
+        return self
+
 
 class ImageStoreSettings(BaseModel):
     """Extracted images and the caption cache."""

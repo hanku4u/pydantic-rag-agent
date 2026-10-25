@@ -88,6 +88,25 @@ Two smaller things, recorded because they are surprising:
   indexed. Path ingestion over HTTP sends the path as the source, so it does not collapse;
   a browser has only a filename to send.
 
+## Revision — 2026-10-25, while building SRC-2
+
+The S3 adapter keeps the local layout one level down — `<prefix><aa>/<document_id>/<name>` —
+so a corpus moved between disk and a bucket keeps the same tail, and a locator's last
+components still identify the document. Three details worth recording:
+
+1. **The protocol stayed synchronous.** boto3 is synchronous, and making every adapter async
+   to accommodate it would make the local one pay for a thread it does not need. Callers run
+   it with `asyncio.to_thread` instead; ingestion does, and a test asserts the copy happens
+   off the event loop's thread.
+2. **No conditional writes.** Content addressing makes a put idempotent: the same bytes land
+   at the same key. There is no "does it still match" check, because a race between two
+   identical ingests writes identical content.
+3. **boto3 is imported only when no client is injected.** A host with its own configured
+   client can use the adapter without the `[s3]` extra installed here; constructing the store
+   from configuration raises `MissingExtraError` naming the extra instead of an ImportError.
+
+Presigned URLs remain deferred, as decided below.
+
 ## Consequences
 
 - **Easier:** citations a human can act on; the same code path for local and cloud storage;

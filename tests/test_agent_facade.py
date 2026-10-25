@@ -584,3 +584,35 @@ async def concurrent_index_checks_should_run_the_guard_once() -> None:
 
     # then: the second found the work done inside the lock rather than repeating it
     assert store.stats_calls == 1
+
+
+def an_s3_backed_agent_should_wire_the_bucket_and_prefix(tmp_path: Path) -> None:
+    # given: the S3 document store, configured the way a deployment would
+    from pydantic_ai.models.test import TestModel
+
+    service, _ = build_embedding_service(dimensions=DIMENSIONS)
+    settings = Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        provider=ProviderSettings(api_key=SecretStr("test-key")),
+        embeddings=EmbeddingSettings(
+            model=EMBEDDING_MODEL, dimensions=DIMENSIONS, api_key=SecretStr("test-key")
+        ),
+        vector_store=VectorStoreSettings(backend="memory"),
+        storage=StorageSettings(
+            documents=DocumentStoreSettings(
+                backend="s3",
+                s3_bucket="acme-docs",
+                s3_prefix="imports/",
+                s3_region="us-east-1",
+            ),
+            images=ImageStoreSettings(directory=str(tmp_path / "images")),
+        ),
+    )
+
+    # when: the agent is built (client construction does no network I/O)
+    agent = RagAgent(settings, embeddings=service, model=TestModel())
+
+    # then: the store is the S3 one, with the bucket and prefix from configuration
+    locator = agent._runtime.documents.locate(document_id="ab" * 32, filename="handbook.md")
+    assert locator == f"s3://acme-docs/imports/ab/{'ab' * 32}/handbook.md"
+    agent.close_sync()

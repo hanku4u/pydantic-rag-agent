@@ -36,6 +36,7 @@ uv add "pydantic-rag-agent"               # core: agent, loaders, CLI, in-memory
 uv add "pydantic-rag-agent[chroma]"       # plus the default persistent store
 uv add "pydantic-rag-agent[chroma,ui]"    # plus the Streamlit UI
 uv add "pydantic-rag-agent[chroma,api]"   # plus the FastAPI integration
+uv add "pydantic-rag-agent[chroma,s3]"    # plus originals in a bucket
 uv add "pydantic-rag-agent[all]"          # everything
 ```
 

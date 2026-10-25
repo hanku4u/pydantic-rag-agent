@@ -7,6 +7,7 @@ faked, because that is the only part that would cost money or need a network.
 from __future__ import annotations
 
 import hashlib
+import threading
 from pathlib import Path
 
 import docx
@@ -209,6 +210,43 @@ async def ingest_paths_when_the_original_cannot_be_stored_should_keep_the_previo
     # must not clear the index on its way out
     assert report.results[0].status == "failed"
     assert await store.count() == indexed_before
+
+
+class ThreadRecordingDocumentStore:
+    """Records which thread each store call ran on."""
+
+    def __init__(self) -> None:
+        self.threads: list[threading.Thread] = []
+
+    def save(self, *, document_id: str, filename: str, data: bytes) -> str:
+        self.threads.append(threading.current_thread())
+        return f"file:///stored/{filename}"
+
+    def locate(self, *, document_id: str, filename: str) -> str:
+        return f"file:///stored/{filename}"
+
+    def read(self, *, document_id: str, filename: str) -> bytes:
+        return b""
+
+    def exists(self, *, document_id: str, filename: str) -> bool:
+        self.threads.append(threading.current_thread())
+        return False
+
+
+async def ingest_paths_should_copy_off_the_event_loop(tmp_path: Path) -> None:
+    # given: a document store whose calls we can attribute to a thread
+    path = write_file(tmp_path, "notes.md", "# Notes\n\nalpha\n")
+    store = build_store()
+    service, _ = build_service()
+    documents = ThreadRecordingDocumentStore()
+
+    # when: it is ingested
+    await ingest_single(path, store=store, service=service, document_store=documents)
+
+    # then: neither the existence check nor the copy ran on the loop's thread — boto3 is
+    # synchronous, and even a local write is disk I/O
+    assert documents.threads
+    assert all(thread is not threading.main_thread() for thread in documents.threads)
 
 
 async def ingest_paths_with_an_edited_file_should_replace_its_previous_chunks(

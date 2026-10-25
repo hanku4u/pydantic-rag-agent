@@ -15,13 +15,13 @@ Decision: docs/decisions/0012-source-documents.md.
 from __future__ import annotations
 
 import os
-import re
 import tempfile
 from pathlib import Path
 
-# A document id becomes a path component, so it is validated rather than trusted. Only the
-# shape ingestion produces is accepted; anything else is a caller doing something clever.
-_DOCUMENT_ID = re.compile(r"[0-9a-f]{64}")
+from pydantic_rag_agent.adapters.document_store._keys import (
+    require_document_id,
+    require_filename,
+)
 
 
 class LocalDocumentStore:
@@ -71,12 +71,6 @@ class LocalDocumentStore:
         return self._path(document_id, filename).is_file()
 
     def _path(self, document_id: str, filename: str) -> Path:
-        if not _DOCUMENT_ID.fullmatch(document_id):
-            raise ValueError("document_id must be a sha256 hex digest")
-
-        # Only the leaf is kept: a name containing `../` must not choose where it lands.
-        name = Path(filename).name
-        if not name or name in {".", ".."}:
-            raise ValueError("each document needs a filename")
-
-        return self._root / document_id[:2] / document_id / name
+        # Shared with the S3 adapter: an id and a name are safety-critical in both.
+        safe_id = require_document_id(document_id)
+        return self._root / safe_id[:2] / safe_id / require_filename(filename)

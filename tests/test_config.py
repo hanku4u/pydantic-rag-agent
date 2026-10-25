@@ -292,6 +292,32 @@ def load_settings_with_overlap_equal_to_chunk_size_should_raise(
         build_settings()
 
 
+def load_settings_with_the_s3_backend_but_no_bucket_should_raise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # given: S3 selected with nowhere to put the originals
+    monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__BACKEND", "s3")
+
+    # when / then: a startup error naming the variable, not a failure at first ingest
+    with pytest.raises(ValidationError, match="s3_bucket"):
+        build_settings()
+
+
+def load_settings_with_the_s3_backend_and_a_bucket_should_accept_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # given: a complete S3 configuration
+    monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__BACKEND", "s3")
+    monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET", "acme-docs")
+    monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__S3_PREFIX", "imports/")
+
+    # when / then: it loads, with the values the adapter will use
+    documents = build_settings().storage.documents
+    assert documents.backend == "s3"
+    assert documents.s3_bucket == "acme-docs"
+    assert documents.s3_prefix == "imports/"
+
+
 def load_settings_with_an_unknown_vector_store_backend_should_raise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
