@@ -105,6 +105,49 @@ sends the thread), caller-supplied system messages are ignored, and answers carr
 pointed at a running server without writing any code — `--openai-model-id` chooses the name
 the client shows. See [ADR 0014](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0014-openai-compatible-endpoint.md).
 
+## Use your own model provider
+
+OpenRouter is the default, not a requirement. Chat is built against any
+**OpenAI-compatible** endpoint, so the provider is configuration:
+
+```dotenv
+PRAGENT_PROVIDER__BASE_URL=https://api.openai.com/v1
+PRAGENT_PROVIDER__MODEL=gpt-4.1-mini
+PRAGENT_PROVIDER__API_KEY=sk-…
+```
+
+The model id is bare — no `openai:` or `openrouter:` prefix — and the `/v1` belongs in the
+base URL.
+
+| Endpoint | `BASE_URL` | Worth knowing |
+| --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1` | The example above |
+| Ollama | `http://localhost:11434/v1` | Any non-empty key, e.g. `ollama`; use a model with tool support |
+| vLLM | `http://localhost:8000/v1` | Start it with auto tool choice and a tool-call parser |
+| LM Studio | `http://localhost:1234/v1` | Any non-empty key |
+| Groq | `https://api.groq.com/openai/v1` | Provider key; tool support varies by model |
+
+Three things that apply to every provider:
+
+- **Embeddings are a separate node.** Chat and embeddings can come from different places;
+  point `PRAGENT_EMBEDDINGS__BASE_URL` / `__MODEL` / `__DIMENSIONS` at a provider with an
+  OpenAI-compatible embeddings endpoint if your chat provider has none. Set
+  `PRAGENT_EMBEDDINGS__API_KEY` explicitly when it differs — otherwise it falls back to the
+  **provider** key.
+- **Tool calling is required.** The agent retrieves by calling `search_knowledge_base`. A
+  model or server that ignores `tools` will answer from general knowledge instead of your
+  documents; a question whose answer is only in the corpus is the quickest test.
+- **Changing the embedding model or width means reindexing.** The width is written into the
+  index metadata and checked at startup, so the guard refuses to mix vectors from different
+  models. `DIMENSIONS` must also match what the model actually emits — 768 for
+  `nomic-embed-text`, 1024 is a valid Matryoshka width for `text-embedding-3-small`.
+
+Images are captioned by `PRAGENT_PROVIDER__CAPTION_MODEL` (default: the chat model). If you
+ingest images and the chat model has no vision, set a vision-capable caption model.
+
+Every variable, its default and the programmatic equivalent are in
+[`docs/reference/configuration.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/reference/configuration.md).
+
 ## Getting started from the repository
 
 ```bash
