@@ -21,9 +21,8 @@ from pathlib import Path
 
 from pydantic_ai import Agent, Embedder
 from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
-from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.providers.openrouter import OpenRouterProvider
 from rich.console import Console
 from rich.table import Table
 
@@ -58,20 +57,23 @@ def parse_args() -> argparse.Namespace:
 async def run(args: argparse.Namespace) -> int:
     console = Console()
     settings = load_settings()
-    key = settings.openrouter_api_key.get_secret_value()
+    provider_key = settings.require_provider_api_key()
+    embedding_key = settings.require_embedding_api_key()
 
     embeddings = EmbeddingService(
         Embedder(
             OpenAIEmbeddingModel(
-                settings.embedding_model,
-                provider=OpenAIProvider(base_url=settings.embedding_base_url, api_key=key),
+                settings.embeddings.model,
+                provider=OpenAIProvider(
+                    base_url=settings.embeddings.base_url, api_key=embedding_key
+                ),
             )
         ),
-        dimensions=settings.embedding_dimensions,
+        dimensions=settings.embeddings.dimensions,
     )
 
     dataset = EvalDataset.model_validate_json(Path(args.questions).read_text(encoding="utf-8"))
-    top_k = args.top_k or settings.top_k
+    top_k = args.top_k or settings.agent.top_k
 
     with tempfile.TemporaryDirectory() as temp_dir:
         work = Path(args.index).parent if args.index else Path(temp_dir)
@@ -82,9 +84,11 @@ async def run(args: argparse.Namespace) -> int:
         # would leave every score unchanged.
         captioner = PydanticAICaptioner(
             Agent(
-                OpenRouterModel(
-                    settings.effective_caption_model.removeprefix("openrouter:"),
-                    provider=OpenRouterProvider(api_key=key),
+                OpenAIChatModel(
+                    settings.provider.effective_caption_model,
+                    provider=OpenAIProvider(
+                        base_url=settings.provider.base_url, api_key=provider_key
+                    ),
                 )
             ),
             cache_dir=work / "images" / "captions",
@@ -92,8 +96,8 @@ async def run(args: argparse.Namespace) -> int:
 
         store = ChromaVectorStore(
             index_path,
-            embedding_model=settings.embedding_model,
-            embedding_dimensions=settings.embedding_dimensions,
+            embedding_model=settings.embeddings.model,
+            embedding_dimensions=settings.embeddings.dimensions,
         )
 
         ingest = await ingest_paths(
@@ -101,8 +105,8 @@ async def run(args: argparse.Namespace) -> int:
             store=store,
             embeddings=embeddings,
             loaders=default_loaders(),
-            chunk_size=settings.chunk_size,
-            chunk_overlap=settings.chunk_overlap,
+            chunk_size=settings.ingestion.chunk_size,
+            chunk_overlap=settings.ingestion.chunk_overlap,
             image_store=FileImageStore(work / "images"),
             captioner=captioner,
         )

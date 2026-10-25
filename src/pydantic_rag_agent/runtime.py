@@ -12,12 +12,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from pydantic_ai import Agent, Embedder
 from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
-from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from pydantic_rag_agent.adapters.agent import AgentDeps, build_agent
 from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
@@ -25,6 +25,7 @@ from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
 from pydantic_rag_agent.adapters.conversations import InMemoryConversationStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
+from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
 from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.application.index_guard import assert_index_compatible
 from pydantic_rag_agent.application.retrieval import RetrievalService
@@ -35,8 +36,6 @@ from pydantic_rag_agent.domain.ports import (
     ImageStore,
     VectorStore,
 )
-
-_OPENROUTER_PREFIX = "openrouter:"
 
 
 @dataclass(frozen=True)
@@ -57,45 +56,54 @@ class Runtime:
 def build_runtime(settings: Settings | None = None) -> Runtime:
     """Construct the object graph from configuration."""
     settings = settings or load_settings()
-    key = settings.openrouter_api_key.get_secret_value()
+
+    provider_key = settings.require_provider_api_key()
+    embedding_key = settings.require_embedding_api_key()
 
     embeddings = EmbeddingService(
         Embedder(
             OpenAIEmbeddingModel(
-                settings.embedding_model,
-                provider=OpenAIProvider(base_url=settings.embedding_base_url, api_key=key),
+                settings.embeddings.model,
+                provider=OpenAIProvider(
+                    base_url=settings.embeddings.base_url, api_key=embedding_key
+                ),
             )
         ),
-        dimensions=settings.embedding_dimensions,
+        dimensions=settings.embeddings.dimensions,
     )
 
-    store = ChromaVectorStore(
-        settings.chroma_path,
-        embedding_model=settings.embedding_model,
-        embedding_dimensions=settings.embedding_dimensions,
-    )
-    images = FileImageStore(settings.image_dir)
+    if settings.vector_store.backend == "memory":
+        store: VectorStore = InMemoryVectorStore(
+            embedding_model=settings.embeddings.model,
+            embedding_dimensions=settings.embeddings.dimensions,
+        )
+    else:
+        store = ChromaVectorStore(
+            settings.vector_store.chroma_path,
+            embedding_model=settings.embeddings.model,
+            embedding_dimensions=settings.embeddings.dimensions,
+            collection_name=settings.vector_store.collection,
+        )
 
-    caption_model = _openrouter_model_id(settings.effective_caption_model)
+    image_dir = Path(settings.storage.images.directory)
+    images = FileImageStore(image_dir)
+
+    def chat_model(model_id: str) -> OpenAIChatModel:
+        return OpenAIChatModel(
+            model_id,
+            provider=OpenAIProvider(base_url=settings.provider.base_url, api_key=provider_key),
+        )
+
+    caption_model = settings.provider.effective_caption_model
     captioner = PydanticAICaptioner(
-        Agent(
-            OpenRouterModel(
-                caption_model,
-                provider=OpenRouterProvider(api_key=key),
-            )
-        ),
-        cache_dir=settings.image_dir / "captions",
+        Agent(chat_model(caption_model)),
+        cache_dir=image_dir / "captions",
         # Part of the cache key: switching caption models must re-caption rather
         # than silently serving descriptions from the previous one (IMG-5).
         model_name=caption_model,
     )
 
-    agent = build_agent(
-        OpenRouterModel(
-            _openrouter_model_id(settings.model),
-            provider=OpenRouterProvider(api_key=key),
-        )
-    )
+    agent = build_agent(chat_model(settings.provider.model))
 
     return Runtime(
         settings=settings,
@@ -104,16 +112,16 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
         retrieval=RetrievalService(
             store=store,
             embeddings=embeddings,
-            top_k=settings.top_k,
-            min_score=settings.min_score,
+            top_k=settings.agent.top_k,
+            min_score=settings.agent.min_score,
         ),
         images=images,
         captioner=captioner,
         loaders=default_loaders(),
         agent=agent,
         conversations=InMemoryConversationStore(
-            keep_turns=settings.history_turns,
-            max_conversations=settings.max_conversations,
+            keep_turns=settings.agent.history_turns,
+            max_conversations=settings.agent.max_conversations,
         ),
     )
 
@@ -127,21 +135,6 @@ async def ensure_index_compatible(runtime: Runtime) -> None:
     stats = await runtime.store.stats()
     assert_index_compatible(
         stats,
-        embedding_model=runtime.settings.embedding_model,
-        embedding_dimensions=runtime.settings.embedding_dimensions,
+        embedding_model=runtime.settings.embeddings.model,
+        embedding_dimensions=runtime.settings.embeddings.dimensions,
     )
-
-
-def _openrouter_model_id(model_string: str) -> str:
-    """Strip ``pydantic-ai``'s provider prefix for explicit construction.
-
-    The prefix is how the framework resolves a provider from the environment, but this
-    project builds providers explicitly — ``.env`` is read by ``Settings`` and is not
-    exported to the process. Anything other than OpenRouter is refused rather than
-    silently passed through to a provider that will not understand it.
-    """
-    if not model_string.startswith(_OPENROUTER_PREFIX):
-        raise ValueError(
-            f"only the {_OPENROUTER_PREFIX!r} provider is supported, got {model_string!r}"
-        )
-    return model_string[len(_OPENROUTER_PREFIX) :]

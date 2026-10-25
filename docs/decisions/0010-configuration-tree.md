@@ -26,8 +26,8 @@ Three specific problems:
 
 ## Decision
 
-Replace the flat class with a tree. Each node is its own `BaseSettings`, and the root
-composes them:
+Replace the flat class with a tree. Each node is its own plain Pydantic model, and the
+root is the only `BaseSettings`:
 
 ```text
 Settings
@@ -80,6 +80,34 @@ nobody can find is a migration that breaks someone's Sunday.
 
 `PRAGENT_API_URL` moves out of `Settings` entirely: it is a client concern, not
 something the library needs to know.
+
+## Revision — 2026-10-25, while building CFG-1
+
+Three things the implementation settled, all of them discovered rather than guessed:
+
+1. **The nodes are plain models, not `BaseSettings`.** The first draft made each node a
+   settings class with its own prefix and `env_file`. That does not work: a
+   `BaseSettings` with `env_file` set reads **every** key in the file, not only those
+   matching its prefix, so `ProviderSettings` saw `PRAGENT_EMBEDDING_MODEL` as an extra
+   and refused to start. One reader, one file: only the root opens `.env`, and the nodes
+   are models the root feeds. The happy side effect is the one CFG-2 needs — a node can
+   be constructed in code with no file and no environment at all.
+2. **Legacy names are a settings source, not a model validator.** `pydantic-settings`
+   discards names that match no field *before* validation, so a flat `PRAGENT_TOP_K`
+   never reaches a `mode="before"` validator. A `PydanticBaseSettingsSource` sits below
+   that filter, reads the raw `env_vars` that the environment and dotenv sources already
+   loaded, and emits the nested structure. It is added last, so every new name outranks
+   its old spelling.
+3. **`OPENROUTER_API_KEY` needs an explicit alias.** `env_prefix` filters unprefixed
+   environment variables, so a root field cannot see the provider's conventional name
+   without `validation_alias`. That field is the fallback credential;
+   `Settings.require_provider_api_key()` resolves the two names in order and raises with
+   both in the message.
+
+One behaviour change came with the move: `PRAGENT_MODEL` used to need the `openrouter:`
+prefix. The prefix is now redundant, because the composition root builds an
+`OpenAIChatModel` against `PRAGENT_PROVIDER__BASE_URL` explicitly instead of letting a
+provider prefix resolve the vendor. Legacy values lose the prefix on the way in.
 
 ## Consequences
 

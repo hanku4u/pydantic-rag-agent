@@ -93,10 +93,7 @@ Planned for M7 ([ADR 0011](decisions/0011-public-facade.md)):
 src/pydantic_rag_agent/
 ├── __init__.py           # public surface: RagAgent, settings, models, errors
 ├── agent.py              # RagAgent façade — absorbs runtime.py
-├── config/               # settings tree (CFG-1)
-│   ├── provider.py       ├── embeddings.py     ├── vector_store.py
-│   ├── storage.py        ├── ingestion.py      ├── agent.py
-│   └── settings.py       # root Settings composing the six nodes
+├── config.py             # settings tree: six node models + root Settings (CFG-1)
 ├── cli.py                # in-process client by default; --api-url optional
 ├── domain/
 ├── application/
@@ -109,6 +106,11 @@ src/pydantic_rag_agent/
 
 `api/` disappears into `integrations/fastapi/`; `runtime.py` disappears into `agent.py`.
 Both are moves, not rewrites — the same objects, reached through one public door.
+
+The settings tree stays one module. An earlier sketch split it into a `config/` package
+with a file per node; six models of three to five fields each do not justify six files,
+and a package that only re-exports is the abstraction the project's own rules tell us to
+avoid. CFG-1 landed as `config.py` for that reason.
 
 `api/schemas.py` is deliberately separate from `domain/models.py`. The wire contract
 and the domain model will diverge at the edges, and welding them together turns an

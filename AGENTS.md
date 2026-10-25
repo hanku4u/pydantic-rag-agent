@@ -33,10 +33,12 @@ Orientation for automated coding assistants and for anyone joining the project.
   only in `cli.py` and `ui/`. Use one injected `Console` — no bare `print`, no
   module-level `Console`, and never import `rich` from domain, application, or
   adapter code.
-- **One provider.** OpenRouter serves chat (`openrouter:…`), image captions, and
-  embeddings, all with `OPENROUTER_API_KEY`. The embedding model id is
-  `qwen/qwen3-embedding-8b` — a slash, because it is a plain OpenRouter model id routed
-  through its OpenAI-compatible endpoint, not a `pydantic-ai` provider prefix.
+- **One provider, configured rather than assumed.** OpenRouter serves chat, image
+  captions, and embeddings, all with `OPENROUTER_API_KEY`. Chat is built as
+  `OpenAIChatModel(model_id, provider=OpenAIProvider(base_url=…))`, so the endpoint is
+  `PRAGENT_PROVIDER__BASE_URL` — no `openrouter:` prefix in a model id. The embedding
+  model id is `qwen/qwen3-embedding-8b` — a slash, because it is a plain OpenRouter model
+  id routed through its OpenAI-compatible endpoint.
   It is natively 4096-wide; we request 1024 via Matryoshka truncation, and must
   truncate + L2-renormalise documents and queries **identically** if the provider
   ignores `dimensions`.
@@ -71,8 +73,10 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 ## Where to pick up
 
 State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
-**M7 — distribution and embedding — is planned but not started.** The design is written
-and no code has changed for it yet.
+**M7 — distribution and embedding — has started: CFG-1 is done.** `config.py` is now a
+tree of six plain models under one `BaseSettings` root, legacy flat names are lifted by a
+settings source, and `runtime.py` builds an `OpenAIChatModel` against a configurable
+`base_url` instead of an `openrouter:` prefix. CFG-2 and CFG-3 are next.
 
 Read these before touching anything:
 
@@ -85,8 +89,9 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: **CFG-1** first — everything else depends on the settings tree — then
-**CORE-1** (the façade), then **SRC-1** and **PKG-1** in parallel, then the integrations.
+Suggested order: **CFG-2** (nodes already accept code-built values; the remaining work is
+the façade accepting them), then **CORE-1**, then **SRC-1** and **PKG-1** in parallel,
+then the integrations. CFG-3 (this page's sibling, the variable reference) is done.
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

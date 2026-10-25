@@ -65,7 +65,7 @@ Accurate as of the planning commit:
 | --- | --- |
 | Repository, docs, decision records | Done |
 | `uv` project, lockfile, full dependency stack | Done — FND-1 |
-| Settings model (`config.Settings`) | Done — FND-2 |
+| Settings model (`config.Settings`) | Done — FND-2; restructured as a tree of six nodes — CFG-1 |
 | Test harness and offline guard | Done — FND-3 |
 | Docs link check in CI | Done — FND-5 |
 | CI workflow (lint, types, tests, docs links) | Done — FND-4 |
@@ -88,7 +88,8 @@ Accurate as of the planning commit:
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 
-**Milestone 7 is planned, not built.** It turns the application into a published package:
+**Milestone 7 has started.** CFG-1 restructured configuration into a tree of six nodes;
+the rest is planned, not built. M7 turns the application into a published package:
 a configuration tree instead of one flat settings class, a `RagAgent` façade with FastAPI
 as an optional integration, original documents kept locally or in S3 with stable locators
 in citations, and a 0.1.0 release on PyPI. See

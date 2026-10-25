@@ -94,14 +94,16 @@ def create_app(runtime: Runtime) -> FastAPI:
         response: Response,
         files: Annotated[list[UploadFile], File()],
     ) -> IngestReportResponse:
-        paths = [_spool(upload, runtime.settings.upload_dir) for upload in files]
+        paths = [
+            _spool(upload, Path(runtime.settings.storage.documents.local_path)) for upload in files
+        ]
         report = await ingest_paths(
             paths,
             store=runtime.store,
             embeddings=runtime.embeddings,
             loaders=runtime.loaders,
-            chunk_size=runtime.settings.chunk_size,
-            chunk_overlap=runtime.settings.chunk_overlap,
+            chunk_size=runtime.settings.ingestion.chunk_size,
+            chunk_overlap=runtime.settings.ingestion.chunk_overlap,
             image_store=runtime.images,
             captioner=runtime.captioner,
         )
@@ -136,7 +138,7 @@ def create_app(runtime: Runtime) -> FastAPI:
             deps,
             request.question,
             history=conversation.history,
-            request_limit=runtime.settings.max_tool_calls,
+            request_limit=runtime.settings.agent.max_tool_calls,
         )
         runtime.conversations.record(conversation_id, turn.messages)
         return _to_answer_response(turn)
@@ -195,7 +197,7 @@ async def _stream_turn(
             deps,
             question,
             history=history,
-            request_limit=runtime.settings.max_tool_calls,
+            request_limit=runtime.settings.agent.max_tool_calls,
         ):
             if isinstance(update, TokenEvent):
                 yield _sse("token", {"text": update.text})

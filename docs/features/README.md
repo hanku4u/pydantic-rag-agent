@@ -40,7 +40,7 @@ stay the canonical list.
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
-| M7 Distribution | — | — |
+| M7 Distribution | CFG-1 | CFG-2 |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
 runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
@@ -162,7 +162,7 @@ package becomes something another project can install, import, and mount. Design
 
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
-| CFG-1 | Settings tree | — | Six nodes load independently; the flat names from 0.0.x still work through the migration table |
+| CFG-1 | Settings tree | — | Six nodes load independently; the flat names from 0.0.x still work through the migration table. **Done:** `config.py` holds six plain models under one root; nested names load, legacy names are lifted by a settings source, and a missing credential fails at construction naming both variables |
 | CFG-2 | Programmatic construction | CFG-1 | Every node can be built in code; `RagAgent(settings)` needs no environment at all |
 | CFG-3 | Reference and `.env.example` rewritten | CFG-1 | Nested names documented with the mapping table, and `.env.example` matches |
 | SRC-1 | `DocumentStore` protocol and local adapter | CFG-1 | Originals are copied on ingest and a `file://` locator reaches citations |

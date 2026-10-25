@@ -41,8 +41,8 @@ def _settings_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 def build_runtime(tmp_path: Path) -> Runtime:
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     store = InMemoryVectorStore(
-        embedding_model=settings.embedding_model,
-        embedding_dimensions=settings.embedding_dimensions,
+        embedding_model=settings.embeddings.model,
+        embedding_dimensions=settings.embeddings.dimensions,
     )
     service, _ = build_embedding_service(dimensions=DIMENSIONS)
     return Runtime(

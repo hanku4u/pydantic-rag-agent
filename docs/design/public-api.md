@@ -104,7 +104,10 @@ and the standalone app are the same routes; only the wiring differs.
 
 ## Configuration
 
-Every node is a `BaseSettings`; the tree is addressed in the environment with `__`.
+Every node is a plain Pydantic model; only the root `Settings` reads the environment,
+and the tree is addressed with `__`. Each node can also be built in code, which is why
+they are not settings classes — see the revision note in
+[ADR 0010](../decisions/0010-configuration-tree.md).
 
 | Node | Fields | Example variable |
 | --- | --- | --- |
@@ -113,7 +116,7 @@ Every node is a `BaseSettings`; the tree is addressed in the environment with `_
 | `vector_store` | `backend`, `chroma_path`, `collection` | `PRAGENT_VECTOR_STORE__CHROMA_PATH` |
 | `storage.documents` | `backend`, `local_path`, `s3_bucket`, `s3_prefix`, `s3_region` | `PRAGENT_STORAGE__DOCUMENTS__BACKEND` |
 | `storage.images` | `directory` | `PRAGENT_STORAGE__IMAGES__DIRECTORY` |
-| `ingestion` | `chunk_size`, `chunk_overlap`, `caption_images` | `PRAGENT_INGESTION__CHUNK_SIZE` |
+| `ingestion` | `chunk_size`, `chunk_overlap` | `PRAGENT_INGESTION__CHUNK_SIZE` |
 | `agent` | `top_k`, `min_score`, `max_tool_calls`, `history_turns`, `max_conversations` | `PRAGENT_AGENT__TOP_K` |
 
 Flat names from before 0.1.0 keep working for one release; the mapping table is in

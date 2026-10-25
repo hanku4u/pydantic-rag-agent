@@ -43,6 +43,26 @@ client at the base URL. The dedicated provider carries OpenRouter-specific setti
 tests against. "OpenAI-compatible wire format" is a transport detail, not a reason to
 hand-roll the client.
 
+## Revision — 2026-10-25, during CFG-1
+
+**The dedicated provider is gone.** The composition root now builds
+`OpenAIChatModel(model_id, provider=OpenAIProvider(base_url=…, api_key=…))` for chat and
+captions, and the `openrouter:` prefix has been removed from the configured model id.
+
+The reason is publication. `PRAGENT_PROVIDER__BASE_URL` has to mean something: a library
+that can only talk to OpenRouter cannot be pointed at a local vLLM server, a company
+gateway, or an Azure deployment — which are the first three things an embedding user
+asks for. Configuration was the pressure point; CFG-1 was the moment to pay it.
+
+What we gave up, honestly: OpenRouter-specific knobs (reasoning fields, app
+attribution, its own usage accounting) and its typed error bodies. Usage accounting was
+already covered by OPS-2 reading the framework's own `TurnUsage`, so nothing observable
+regressed. What we kept: the pinned slug, the single credential, and the OpenAI-compatible
+endpoint as the default.
+
+Revisit when a user needs an OpenRouter-only feature. The answer then is a provider
+adapter chosen by configuration, not a global switch back to one vendor.
+
 ### Embeddings — OpenRouter's embeddings endpoint
 
 - Model: **`voyageai/voyage-4-large`** — 1024 dimensions by default, 32K token context.
