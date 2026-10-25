@@ -20,6 +20,7 @@ from pathlib import Path
 
 import docx
 from docx.document import Document as DocxDocument
+from docx.oxml.ns import qn
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
@@ -39,14 +40,15 @@ class DocxLoader:
     def load(self, path: Path, *, document_id: str) -> ExtractedDocument:
         # A corrupt or mislabelled file raises; the pipeline reports it per file.
         document = docx.Document(str(path))
+        blocks, images = _extract(document, path)
 
         return ExtractedDocument(
             document_id=document_id,
             title=_title(document, path),
             source_path=str(path),
             media_type=DOCX_MEDIA_TYPE,
-            blocks=tuple(_blocks(document)),
-            images=tuple(_images(path)),
+            blocks=tuple(blocks),
+            images=tuple(images),
         )
 
 
@@ -85,8 +87,14 @@ def _heading_level(style_name: str | None) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _blocks(document: DocxDocument) -> list[ExtractedBlock]:
+def _extract(
+    document: DocxDocument,
+    path: Path,
+) -> tuple[list[ExtractedBlock], list[ExtractedImage]]:
+    """Walk the body once, attributing text and inline images to their section."""
     blocks: list[ExtractedBlock] = []
+    images: list[ExtractedImage] = []
+    seen_images: set[str] = set()
     heading_stack: dict[int, str] = {}
     buffer: list[str] = []
 
@@ -102,19 +110,21 @@ def _blocks(document: DocxDocument) -> list[ExtractedBlock]:
     for item in document.iter_inner_content():
         if isinstance(item, Paragraph):
             text = item.text.strip()
-            if not text:
-                continue
-
             level = _heading_level(_style_name(item))
-            if level is None:
-                buffer.append(text)
-                continue
 
-            flush()
-            heading_stack[level] = text
-            # Deeper headings belonged to a previous section.
-            for deeper in [key for key in heading_stack if key > level]:
-                del heading_stack[deeper]
+            if text and level is not None:
+                flush()
+                heading_stack[level] = text
+                # Deeper headings belonged to a previous section.
+                for deeper in [key for key in heading_stack if key > level]:
+                    del heading_stack[deeper]
+            elif text:
+                buffer.append(text)
+
+            for image in _inline_images(item, document, heading_path=heading_path()):
+                if image.image_id not in seen_images:
+                    seen_images.add(image.image_id)
+                    images.append(image)
 
         elif isinstance(item, Table):
             rendered = render_table([cell.text for cell in row.cells] for row in item.rows)
@@ -122,12 +132,57 @@ def _blocks(document: DocxDocument) -> list[ExtractedBlock]:
                 buffer.append(rendered)
 
     flush()
-    return blocks
+
+    # Anything not reachable from the body — headers, footers, floating shapes — is
+    # still worth indexing, just without a section to attribute it to.
+    images.extend(_unreferenced_images(path, seen_images))
+
+    return blocks, images
 
 
-def _images(path: Path) -> list[ExtractedImage]:
+def _inline_images(
+    paragraph: Paragraph,
+    document: DocxDocument,
+    *,
+    heading_path: tuple[str, ...],
+) -> list[ExtractedImage]:
+    """Images embedded in one paragraph, carrying the section they appeared in.
+
+    ``python-docx`` exposes no public API for this, so the paragraph's XML is searched
+    for drawing blips and each relationship id is resolved back to its part. That is the
+    documented workaround, and it is what lets a DOCX caption keep its section context.
+    """
     images: list[ExtractedImage] = []
-    seen: set[str] = set()
+
+    for blip in paragraph._p.findall(".//" + qn("a:blip")):
+        relationship_id = blip.get(qn("r:embed"))
+        if not relationship_id:
+            continue
+
+        part = document.part.related_parts.get(relationship_id)
+        data = getattr(part, "blob", None)
+        if not data:
+            continue
+
+        images.append(
+            ExtractedImage(
+                image_id=hashlib.sha256(data).hexdigest(),
+                data=data,
+                media_type=getattr(part, "content_type", None) or "application/octet-stream",
+                heading_path=heading_path,
+            )
+        )
+
+    return images
+
+
+def _unreferenced_images(path: Path, seen: set[str]) -> list[ExtractedImage]:
+    """Media in the package that the body walk did not reach.
+
+    Headers, footers and floating shapes are not paragraphs in the body, so the inline
+    walk cannot attribute them. They are still indexed, without a section.
+    """
+    images: list[ExtractedImage] = []
 
     with zipfile.ZipFile(path) as archive:
         for name in archive.namelist():

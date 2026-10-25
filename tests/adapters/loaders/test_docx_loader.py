@@ -138,6 +138,47 @@ def docx_loader_with_an_embedded_image_should_discover_it(tmp_path: Path) -> Non
     assert image.data
 
 
+def docx_loader_should_attach_the_section_to_an_image(tmp_path: Path) -> None:
+    # given: a picture inside a headed section, followed by another section
+    picture = tmp_path / "rack.png"
+    Image.new("RGB", (40, 30), "green").save(picture)
+
+    path = tmp_path / "illustrated.docx"
+    document = docx.Document()
+    document.add_heading("Hardware", level=1)
+    document.add_paragraph("Servers are tagged with a location label.")
+    document.add_picture(str(picture))
+    document.add_heading("Reporting", level=1)
+    document.add_paragraph("Report a missing label to the platform team.")
+    document.save(path)
+
+    # when: the document is loaded
+    loaded = DocxLoader().load(path, document_id=DOCUMENT_ID)
+
+    # then: the image carries the section it appeared in, so its caption is not orphaned
+    assert len(loaded.images) == 1
+    assert loaded.images[0].heading_path == ("Hardware",)
+
+
+def docx_loader_with_an_image_outside_any_heading_should_leave_the_path_empty(
+    tmp_path: Path,
+) -> None:
+    # given: a picture before any heading
+    picture = tmp_path / "cover.png"
+    Image.new("RGB", (40, 30), "grey").save(picture)
+
+    path = tmp_path / "cover.docx"
+    document = docx.Document()
+    document.add_picture(str(picture))
+    document.add_heading("Body", level=1)
+    document.add_paragraph("text")
+    document.save(path)
+
+    # when / then: there is no section to attribute, and nothing is invented
+    loaded = DocxLoader().load(path, document_id=DOCUMENT_ID)
+    assert loaded.images[0].heading_path == ()
+
+
 def docx_loader_should_report_the_docx_media_type(tmp_path: Path) -> None:
     # given: a valid document
     path = build_handbook(tmp_path / "handbook.docx")
