@@ -99,8 +99,10 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-**M7 is complete and 0.1.0 is published on PyPI.** The next work is chosen, not queued:
-persistent conversations, `pgvector`, or authentication each have a recorded trigger in
+**M7 is complete and 0.1.0 is published on PyPI.** **M8 is planned, not started**:
+readable document storage with a SQLite/PostgreSQL catalogue (SRC-4) and citations that
+open or download the original (CIT-1). Persistent conversations, `pgvector` and
+authentication remain deferred with their triggers in
 [docs/features/README.md](docs/features/README.md#deferred).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.

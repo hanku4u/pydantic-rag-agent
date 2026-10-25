@@ -42,6 +42,7 @@ stay the canonical list.
 | API-6 (post-M7) | API-6 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 | M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1, PKG-2, PKG-3, PKG-4, PKG-5 | — |
+| M8 Storage and citation ergonomics | — | SRC-4, CIT-1 |
 
 M0 is closed: `RagAgent` loads `Settings` at startup and checks the index on first use
 (on startup, for the standalone app), which is what FND-2 was waiting for. M5 is closed too — the
@@ -179,6 +180,45 @@ package becomes something another project can install, import, and mount. Design
 | PKG-3 | Public surface and an export test | CORE-1 | `__all__` names are asserted, so an accidental addition is a deliberate act. **Done:** `tests/test_public_api.py` pins the exact set, asserts every name resolves, keeps internals out, checks `__version__` against `pyproject.toml`, and does the same for the FastAPI integration. It caught `DocumentStore` being documented as exported while missing from `__all__` |
 | PKG-4 | Release workflow | PKG-2 | A tag publishes to PyPI via trusted publishing; a TestPyPI dispatch rehearses it first. **Done:** `.github/workflows/release.yml` runs the full gate set, refuses a tag that disagrees with `pyproject.toml`, builds, runs `twine check`, installs the wheel in a clean venv, uploads the artefacts, and publishes to TestPyPI (dispatch) or PyPI (tag) over OIDC — no token anywhere. The runbook records the trusted-publisher fields for both indexes |
 | PKG-5 | Changelog and release runbook | PKG-4 | [Releasing](../development/releasing.md) executed once, successfully, by someone other than its author. **Done:** `CHANGELOG.md` started at 0.1.0; the runbook was rehearsed on TestPyPI and then executed for the PyPI release on 2026-10-25. The independent-execution clause is still outstanding — this is a single-maintainer project, and the runbook has only been followed by its author |
+
+---
+
+## M8 — Storage and citation ergonomics
+
+Two things work and are unfriendly in use. Originals sit under
+`documents/<aa>/<sha256>/<name>` — safe, deduplicated, and impossible to browse. And a
+citation is an address (`file://…`, `s3://…`) rather than an action: a reader cannot click
+it.
+
+This milestone is **planned, not started**. It changes how data is laid out, so it needs its
+own decision record before code; it revisits the layout in
+[ADR 0012](../decisions/0012-source-documents.md) while keeping its principle — ingest
+copies the original, so a citation cannot 404 when someone moves a file. Vectors stay in
+the vector store (Chroma, later `pgvector`); this catalogue is document metadata, not a
+second index.
+
+| ID | Feature | Depends on | Done when |
+| --- | --- | --- | --- |
+| SRC-4 | Readable document tree and a metadata catalogue | SRC-1…SRC-3, CFG-1 | A stored original lands at a path a person can predict from its name; SQLite (the default) or PostgreSQL (when configured) records document id, source, stored path, hash, chunk count, caption ids and timestamps; re-ingesting an edited file replaces rather than duplicates; a documented migration moves an existing content-addressed store |
+| CIT-1 | Citations that open or download the original | SRC-1…SRC-3, CORE-2, CORE-3 | In Streamlit, a citation downloads the original through the API; in the CLI it is a terminal hyperlink where the terminal supports one, with the locator printed as fallback; `GET /documents/{id}/download` streams the file with its name and content type; an S3 store proxies or presigns according to configuration; tests cover local and S3 forms plus an unknown document |
+
+### Open questions to settle before implementing
+
+- **Naming and collisions.** Preserve the ingested relative path under a collection root, or
+  derive a slug from the title? Two `handbook.md` files from different folders must not
+  overwrite each other.
+- **Authority.** Is the catalogue the source of truth, or a derived index rebuildable from
+  the tree? The second survives a lost database; the first makes queries cheap.
+- **What captions become.** Today they are files under `storage.images`. The catalogue
+  could own caption text and metadata while bytes stay content-addressed — or image bytes
+  move into the readable tree too, at the cost of losing deduplication.
+- **PostgreSQL.** A new settings node plus an extra (`psycopg` or `asyncpg`), or a single
+  `DATABASE_URL`? One driver, not two, and migrations need a story (plain SQL vs Alembic).
+- **Migration.** Existing locators live in chunk metadata. A reindex is acceptable, but the
+  feature has to say so rather than surprise anyone mid-upgrade.
+- **Downloads and auth.** The API has no authentication today, and a download route hands
+  out documents. It must inherit whatever the host adds; S3 presigning moves the question
+  into the bucket policy. Proxy versus presign is a security decision, not a convenience.
 
 ---
 

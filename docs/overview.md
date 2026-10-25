@@ -95,15 +95,19 @@ Accurate as of 2026-10-25.
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 | Release: workflow and first PyPI publication | Done — PKG-4, PKG-5; **0.1.0 live on PyPI** |
+| Readable document storage and a metadata catalogue | **Planned** — M8, SRC-4 |
+| Clickable citations that download the original | **Planned** — M8, CIT-1 |
 
-**Milestone 7 is thirteen of fifteen features done.** Configuration is a tree of six
-nodes (CFG-1…3); the `RagAgent` façade exists and is the only builder (CORE-1…4); originals
-are kept locally or in S3 and cited by locator (SRC-1…3); the package installs lean and
-carries real metadata (PKG-1…3). What remains is the release itself — the workflow
-(PKG-4) and the runbook rehearsal (PKG-5) — so **0.1.0 is not on PyPI yet**. API-6, the
-OpenAI-compatible endpoint, landed after M7 began and is done. See
-[Public API](design/public-api.md) and [ADR 0010](decisions/0010-configuration-tree.md)
-onwards.
+**Milestone 7 is complete** and 0.1.0 is published. **Milestone 8 is planned, not
+started**: readable document storage with a SQLite/PostgreSQL catalogue (SRC-4), and
+citations that open or download the original (CIT-1).
+
+**Milestone 7, in detail.** Configuration is a tree of six nodes (CFG-1…3); the
+`RagAgent` façade exists and is the only builder (CORE-1…4); originals are kept locally or
+in S3 and cited by locator (SRC-1…3); the package installs lean, carries real metadata,
+and is published by a tag-driven workflow (PKG-1…5). API-6, the OpenAI-compatible endpoint,
+landed after M7 began. See [Public API](design/public-api.md) and
+[ADR 0010](decisions/0010-configuration-tree.md) onwards.
 
 Everything in that table is built and verified except the deferred items;
 [Features](features/README.md) is the canonical list of what remains.

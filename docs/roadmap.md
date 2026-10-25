@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status:** stable — M0–M7 complete, and 0.1.0 is published on PyPI. One feature, API-6,
-landed after M7 started.
+**Status:** stable — M0–M7 complete, and 0.1.0 is published on PyPI. M8 is planned, not
+started. One feature, API-6, landed after M7 started.
 
 The order in which the backlog gets built, and what "done" means for each stage. The
 granular work is in [Features](features/README.md); this page is the narrative.
@@ -25,6 +25,7 @@ it is a bet.
 | 6 | Hardening | Evaluation, coverage, cost visibility, security review — instrumentation out of scope | EVAL-1, TST-1, OPS-2, SEC-1 |
 | 7 | Distribution | Installable library, optional API, first PyPI release | CFG-1…CFG-3, SRC-1…SRC-3, CORE-1…CORE-4, PKG-1…PKG-5 |
 | — | API-6 (post-M7) | Any OpenAI-speaking chat UI can use the agent | API-6 |
+| 8 | Storage and citation ergonomics | Documents a person can find, and citations a person can click | SRC-4, CIT-1 |
 
 Milestones 0–6 are complete. **OPS-1** (instrumentation) is the one feature deliberately
 not built: this is a personal, single-user tool and nobody reads the traces. It is listed in
@@ -43,6 +44,25 @@ documents (SRC-1…3), packaging and release (PKG-1…5). API-6, the OpenAI-comp
 endpoint, was added afterwards because it needed the integration that M7 built. The
 per-feature record is [the progress table](features/README.md#progress); the authoritative
 accounting of the whole project is [the overview](overview.md#current-state).
+
+## M8 — Storage and citation ergonomics (planned)
+
+Not started. Two pieces of feedback from actually using 0.1.0:
+
+- **The originals are unreadable.** Content addressing under
+  `documents/<aa>/<sha256>/<name>` is safe and deduplicates, but a person cannot browse it,
+  and captions and index metadata live in unrelated corners. A readable tree plus a
+  catalogue — SQLite by default, PostgreSQL when configured — would make a document
+  legible and give that metadata somewhere to live.
+- **Citations are addresses, not actions.** A `file://` or `s3://` URI in a terminal or the
+  UI is something to copy, not something to click. A download route, Streamlit download
+  controls and terminal hyperlinks would turn a citation into the thing the user actually
+  wants: the document.
+
+Both need design work before code — naming and collision policy, whether the catalogue is
+authoritative, how migrations run, and how a download endpoint interacts with
+authentication. The open questions are recorded with the features in
+[the backlog](features/README.md#m8--storage-and-citation-ergonomics).
 
 ## The two milestones that matter
 
@@ -81,7 +101,9 @@ persistent conversations are the three most likely to be pulled forward.
 2. **Does the first release include session persistence?** Not built. A chat UI can use
    the stateless endpoint today; resuming a conversation needs the design in
    [ADR 0014](decisions/0014-openai-compatible-endpoint.md) to be extended.
-3. **Which Python versions are supported?** CI tests 3.11 only, and the classifiers say
+3. **What is the readable path derived from?** Source relative path, title, or a
+   caller-supplied collection? SRC-4 cannot start without this answer.
+4. **Which Python versions are supported?** CI tests 3.11 only, and the classifiers say
    so. A matrix is a deliberate decision, not an omission.
 
 ## Related
