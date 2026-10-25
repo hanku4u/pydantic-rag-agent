@@ -8,30 +8,33 @@ name: Release
 # Authentication is OIDC trusted publishing. There is no API token in this file, in the
 # repository, or in anyone's shell history: GitHub proves the workflow's identity to PyPI,
 # and the `release` environment is the one the publisher is registered against.
+#
+# Build and publish are separate jobs on purpose. Environment protection rules gate a job
+# *before its first step*, so a single job would ask for approval before anything had been
+# built. Here the reviewer approves after the gates, the artefacts and the smoke install
+# have all succeeded, with the uploaded artefacts in hand.
 
 on:
   push:
     tags: ["v*"]
-  # No inputs: a dispatch is a rehearsal, and a rehearsal goes to TestPyPI. An input
-  # that only ever had one legal value would be a knob pretending to be a choice.
+  # No inputs: a dispatch is a rehearsal, and a rehearsal goes to TestPyPI. An input that
+  # only ever had one legal value would be a knob pretending to be a choice.
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  # A tag and a manual rehearsal for the same ref must not overlap; two publishes for one
-  # version fail on the second with an immutability error.
-  group: release-${{ github.ref }}
+  # One release pipeline at a time. A rehearsal for 0.1.0 and a tag for 0.1.0 upload
+  # different indexes, but two runs of the same workflow racing is still a mess to read.
+  group: release
   cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
-    environment: release
     permissions:
       contents: read
-      id-token: write # the OIDC token trusted publishing exchanges for an upload
 
     steps:
       - name: Check out the repository
@@ -88,17 +91,38 @@ jobs:
           "$RUNNER_TEMP/smoke/bin/python" -c "import pydantic_rag_agent; print(pydantic_rag_agent.__version__)"
           "$RUNNER_TEMP/smoke/bin/pydantic-rag-agent" --help >/dev/null
 
+      # Handed to the publish job, which is the one a reviewer gates.
       - name: Upload the artefacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ github.ref_name }}
+          name: dist
           path: dist/
           retention-days: 30
 
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # the OIDC token trusted publishing exchanges for an upload
+
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+
+      - name: Download the built artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
       - name: Publish to TestPyPI
         if: github.event_name == 'workflow_dispatch'
-        run: uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always
+        run: uv publish dist/* --publish-url https://test.pypi.org/legacy/ --trusted-publishing always
 
       - name: Publish to PyPI
         if: startsWith(github.ref, 'refs/tags/')
-        run: uv publish --trusted-publishing always
+        run: uv publish dist/* --trusted-publishing always

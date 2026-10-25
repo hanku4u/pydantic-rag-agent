@@ -14,8 +14,11 @@ How a version gets from `main` to PyPI. Decisions behind it:
 | Manual dispatch (`workflow_dispatch`) | **TestPyPI** | Rehearsal: same build, disposable index |
 
 The workflow is [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
-Both paths run the same gates, build, `twine check` and a smoke install; only the publish
-step differs.
+It has two jobs: **build** runs the gates, builds, `twine check`s and smoke-installs the
+wheel; **publish** downloads those artefacts and uploads them. Only the publish job uses
+the `release` environment, so a required reviewer approves *after* the build has succeeded
+— approving before anything exists would be a rubber stamp. Both triggers run the same
+build; only the publish step differs.
 
 Publication uses **trusted publishing**: GitHub Actions proves its identity to PyPI with an
 OIDC token, so there is no API token in the repository, in secrets, or in anyone's shell
@@ -85,14 +88,15 @@ already existing, bump the patch version for the rehearsal rather than fighting 
 
 | Step | Why |
 | --- | --- |
-| `uv sync --locked` | The release is built from the committed lockfile graph |
-| format, lint, types, tests, docs links | The same gates CI runs; a tag can point at a commit whose CI never finished |
-| Tag matches `pyproject.toml` | A tag is a promise about the contents; a mismatch is unresolvable for a user |
-| `uv build` | sdist and wheel from the same source |
-| `twine check dist/*` | Catches a malformed `README` or missing metadata *before* upload |
-| Install the wheel in a clean venv | A wheel that installs but cannot import is the classic release bug |
-| Upload the artefacts | Inspectable from the run, for 30 days |
-| `uv publish --trusted-publishing always` | TestPyPI or PyPI depending on the trigger |
+| **build:** `uv sync --locked` | The release is built from the committed lockfile graph |
+| **build:** format, lint, types, tests, docs links | The same gates CI runs; a tag can point at a commit whose CI never finished |
+| **build:** tag matches `pyproject.toml` | A tag is a promise about the contents; a mismatch is unresolvable for a user |
+| **build:** `uv build` | sdist and wheel from the same source |
+| **build:** `twine check dist/*` | Catches a malformed `README` or missing metadata *before* upload |
+| **build:** install the wheel in a clean venv | A wheel that installs but cannot import is the classic release bug |
+| **build:** upload the artefacts | Inspectable from the run for 30 days, and handed to the publish job |
+| **publish:** environment approval | A human sees the green build and the artefacts before an immutable upload |
+| **publish:** `uv publish --trusted-publishing always` | TestPyPI or PyPI depending on the trigger |
 
 ## Rollback
 

@@ -92,6 +92,9 @@ recording:
 - **A manual dispatch cannot publish to PyPI.** Rehearsal is dispatch to TestPyPI; a real
   release is a tag. Retrying a failed tag run is GitHub's "Re-run jobs", which keeps one
   meaning per trigger.
+- **Build and publish are separate jobs.** Protection rules gate a job before its first
+  step, so a single-job workflow would ask for approval before anything had been built. The
+  split puts the reviewer after the gates, the artefacts and the smoke install.
 
 ## Consequences
 
