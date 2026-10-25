@@ -4,8 +4,8 @@ Until now the agent was only reachable through FastAPI, with the CLI and the Str
 as HTTP clients. That made sense for one application; it is wrong for a library, where the
 common case is a script or a notebook that installs the package and calls it directly.
 
-``RagAgent`` is that door. It builds the same object graph the API builds — through
-``runtime.build_runtime``, the one composition root — and exposes the operations. It is
+``RagAgent`` is that door. It builds the object graph itself — the wiring lives in one
+private function in this module — and exposes the operations. It is
 not a second implementation of anything: ``ask`` and ``stream`` delegate to the same
 functions the router uses, so history, compaction, citations and usage cannot drift
 between the two.
@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Coroutine, Iterable, Iterator, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, TypeVar
 
+from pydantic_ai import Agent, Embedder
+from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -30,6 +32,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
 from pydantic_rag_agent.adapters.agent import (
     AgentDeps,
@@ -39,23 +43,163 @@ from pydantic_rag_agent.adapters.agent import (
     ToolCallEvent,
     TurnCompleted,
     ask,
+    build_agent,
     stream_turn,
 )
+from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
 from pydantic_rag_agent.adapters.compaction import compact
-from pydantic_rag_agent.adapters.conversations import Conversation
+from pydantic_rag_agent.adapters.conversations import Conversation, InMemoryConversationStore
+from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
+from pydantic_rag_agent.adapters.image_store import FileImageStore
+from pydantic_rag_agent.adapters.loaders import default_loaders
+from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
 from pydantic_rag_agent.application.embedding import EmbeddingService
+from pydantic_rag_agent.application.index_guard import assert_index_compatible
 from pydantic_rag_agent.application.ingestion import (
     IngestReport,
     ingest_paths,
     ingest_uploads,
 )
+from pydantic_rag_agent.application.retrieval import RetrievalService
 from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.errors import InvalidThreadError, UnknownConversationError
 from pydantic_rag_agent.domain.models import ChatMessage, DocumentSummary, StoreStats
-from pydantic_rag_agent.domain.ports import DocumentStore, VectorStore
-from pydantic_rag_agent.runtime import Runtime, build_runtime, ensure_index_compatible
+from pydantic_rag_agent.domain.ports import (
+    DocumentLoader,
+    DocumentStore,
+    ImageCaptioner,
+    ImageStore,
+    VectorStore,
+)
+from pydantic_rag_agent.extras import require
 
 _T = TypeVar("_T")
+
+
+@dataclass(frozen=True)
+class _Runtime:
+    """Everything a running agent needs, built once.
+
+    Private on purpose: ``RagAgent`` is the only door. Keeping the wiring in one function
+    rather than spreading it through the constructor is what makes it reviewable.
+    """
+
+    settings: Settings
+    store: VectorStore
+    embeddings: EmbeddingService
+    retrieval: RetrievalService
+    images: ImageStore
+    documents: DocumentStore
+    captioner: ImageCaptioner
+    loaders: Sequence[DocumentLoader]
+    agent: Agent[AgentDeps, str]
+    conversations: InMemoryConversationStore
+
+
+def _build_runtime(
+    settings: Settings,
+    *,
+    vector_store: VectorStore | None = None,
+    embeddings: EmbeddingService | None = None,
+    model: Model[Any] | None = None,
+    document_store: DocumentStore | None = None,
+) -> _Runtime:
+    """Construct the object graph. The one place allowed to know every layer.
+
+    The keyword arguments are the injection seams: a host application can supply a store
+    it already runs, an embedding service it has already authenticated, a model that is
+    already instrumented, or a document store that keeps originals where it does. Anything
+    omitted is built from ``settings``.
+    """
+
+    provider_key = settings.require_provider_api_key()
+    embedding_key = settings.require_embedding_api_key()
+
+    if embeddings is None:
+        embeddings = EmbeddingService(
+            Embedder(
+                OpenAIEmbeddingModel(
+                    settings.embeddings.model,
+                    provider=OpenAIProvider(
+                        base_url=settings.embeddings.base_url, api_key=embedding_key
+                    ),
+                )
+            ),
+            dimensions=settings.embeddings.dimensions,
+        )
+
+    if vector_store is not None:
+        store = vector_store
+    elif settings.vector_store.backend == "memory":
+        store = InMemoryVectorStore(
+            embedding_model=settings.embeddings.model,
+            embedding_dimensions=settings.embeddings.dimensions,
+        )
+    else:
+        # Imported here rather than at module scope: `chromadb` is an extra, and a base
+        # install must still be able to import the package and use the memory store.
+        require("chroma", "chromadb")
+        from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
+
+        store = ChromaVectorStore(
+            settings.vector_store.chroma_path,
+            embedding_model=settings.embeddings.model,
+            embedding_dimensions=settings.embeddings.dimensions,
+            collection_name=settings.vector_store.collection,
+        )
+
+    image_dir = Path(settings.storage.images.directory)
+    images = FileImageStore(image_dir)
+
+    if document_store is not None:
+        documents = document_store
+    elif settings.storage.documents.backend == "local":
+        documents = LocalDocumentStore(settings.storage.documents.local_path)
+    else:
+        # Configured but unbuilt. Failing here beats silently indexing without the
+        # originals a citation promises.
+        raise NotImplementedError(
+            "the s3 document store is not implemented yet (SRC-2); "
+            "set PRAGENT_STORAGE__DOCUMENTS__BACKEND=local"
+        )
+
+    def chat_model(model_id: str) -> OpenAIChatModel:
+        return OpenAIChatModel(
+            model_id,
+            provider=OpenAIProvider(base_url=settings.provider.base_url, api_key=provider_key),
+        )
+
+    caption_model = settings.provider.effective_caption_model
+    captioner = PydanticAICaptioner(
+        Agent(chat_model(caption_model)),
+        cache_dir=image_dir / "captions",
+        # Part of the cache key: switching caption models must re-caption rather
+        # than silently serving descriptions from the previous one (IMG-5).
+        model_name=caption_model,
+    )
+
+    agent = build_agent(model if model is not None else chat_model(settings.provider.model))
+
+    return _Runtime(
+        settings=settings,
+        store=store,
+        embeddings=embeddings,
+        retrieval=RetrievalService(
+            store=store,
+            embeddings=embeddings,
+            top_k=settings.agent.top_k,
+            min_score=settings.agent.min_score,
+        ),
+        images=images,
+        documents=documents,
+        captioner=captioner,
+        loaders=default_loaders(),
+        agent=agent,
+        conversations=InMemoryConversationStore(
+            keep_turns=settings.agent.history_turns,
+            max_conversations=settings.agent.max_conversations,
+        ),
+    )
 
 
 class RagAgent:
@@ -86,7 +230,7 @@ class RagAgent:
         model: Model[Any] | None = None,
         document_store: DocumentStore | None = None,
     ) -> None:
-        self._runtime: Runtime = build_runtime(
+        self._runtime: _Runtime = _build_runtime(
             settings,
             vector_store=vector_store,
             embeddings=embeddings,
@@ -374,7 +518,11 @@ class RagAgent:
             loop.close()
 
     async def _check_index_compatible(self) -> None:
-        await ensure_index_compatible(self._runtime)
+        assert_index_compatible(
+            await self._runtime.store.stats(),
+            embedding_model=self._runtime.settings.embeddings.model,
+            embedding_dimensions=self._runtime.settings.embeddings.dimensions,
+        )
 
     def _deps(self) -> AgentDeps:
         # Fresh per turn: citations belong to the turn, not the conversation.

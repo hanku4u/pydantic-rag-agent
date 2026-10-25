@@ -22,6 +22,7 @@ from factories import (
     EMBEDDING_MODEL,
     build_chunk,
     build_embedded,
+    build_embedding_service,
     build_facade,
     build_memory_store,
 )
@@ -33,6 +34,8 @@ from pydantic_rag_agent.adapters.agent import TokenEvent, TurnCompleted
 from pydantic_rag_agent.adapters.memory_store import InMemoryVectorStore
 from pydantic_rag_agent.agent import RagAgent
 from pydantic_rag_agent.config import (
+    DocumentStoreSettings,
+    EmbeddingSettings,
     ImageStoreSettings,
     ProviderSettings,
     Settings,
@@ -44,7 +47,7 @@ from pydantic_rag_agent.domain.errors import (
     InvalidThreadError,
     UnknownConversationError,
 )
-from pydantic_rag_agent.domain.models import ChatMessage
+from pydantic_rag_agent.domain.models import ChatMessage, StoreStats
 
 DOCUMENT = "# Handbook\n\n## Backups\n\nBackups run nightly at 02:00 UTC.\n"
 
@@ -492,3 +495,92 @@ async def chat_with_consecutive_user_messages_should_still_answer() -> None:
 
     # then: the framework accepts it and the turn completes
     assert turn.text == ANSWER
+
+
+async def the_default_store_should_be_chroma_and_the_seams_should_win(
+    tmp_path: Path,
+) -> None:
+    # given: the production default — no vector store injected — with private paths
+    from pydantic_ai.models.test import TestModel
+
+    from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
+
+    service, _ = build_embedding_service(dimensions=DIMENSIONS)
+    settings = Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        provider=ProviderSettings(api_key=SecretStr("test-key")),
+        embeddings=EmbeddingSettings(
+            model=EMBEDDING_MODEL, dimensions=DIMENSIONS, api_key=SecretStr("test-key")
+        ),
+        vector_store=VectorStoreSettings(chroma_path=str(tmp_path / "chroma")),
+        storage=StorageSettings(
+            documents=DocumentStoreSettings(backend="local", local_path=str(tmp_path / "unused")),
+            images=ImageStoreSettings(directory=str(tmp_path / "images")),
+        ),
+    )
+
+    # when: the agent is built with the pieces a host would supply
+    agent = RagAgent(
+        settings,
+        embeddings=service,
+        model=TestModel(),
+        document_store=LocalDocumentStore(tmp_path / "injected"),
+    )
+
+    # then: the real Chroma adapter was built, and an injected store was not replaced
+    assert (await agent.stats()).chunk_count == 0
+    assert (tmp_path / "chroma").exists()
+    await agent.aclose()
+
+
+def chat_sync_outside_a_loop_should_answer_the_last_message() -> None:
+    # given: synchronous code, as a script has
+    agent = build_facade()
+
+    # when: a caller-owned thread is answered
+    turn = agent.chat_sync([ChatMessage(role="user", content="When do backups run?")])
+
+    # then: the same answer the async method gives, with no conversation to continue
+    assert turn.text == ANSWER
+    assert turn.conversation_id is None
+
+
+def stream_chat_sync_outside_a_loop_should_yield_the_turn() -> None:
+    # given: synchronous code that wants incremental output
+    agent = build_facade()
+
+    # when: the stateless stream is consumed
+    updates = list(agent.stream_chat_sync([ChatMessage(role="user", content="anything")]))
+
+    # then: it ends with the completed turn
+    assert isinstance(updates[-1], TurnCompleted)
+
+
+def close_sync_without_a_sync_loop_should_be_a_no_op() -> None:
+    # given: an agent that has only ever been used asynchronously
+    agent = build_facade()
+
+    # when / then: there is nothing to close, and that is not an error
+    agent.close_sync()
+
+
+async def concurrent_index_checks_should_run_the_guard_once() -> None:
+    # given: a store that counts how often it is asked for stats
+    class CountingStore(InMemoryVectorStore):
+        stats_calls = 0
+
+        async def stats(self) -> StoreStats:
+            self.stats_calls += 1
+            # A real store does I/O here, which is what lets a second caller block on the
+            # lock; without a suspension point the two checks can never interleave.
+            await asyncio.sleep(0)
+            return await super().stats()
+
+    store = CountingStore(embedding_model=EMBEDDING_MODEL, embedding_dimensions=DIMENSIONS)
+    agent = build_facade(store=store)
+
+    # when: two first operations race
+    await asyncio.gather(agent.check_index(), agent.check_index())
+
+    # then: the second found the work done inside the lock rather than repeating it
+    assert store.stats_calls == 1

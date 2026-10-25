@@ -157,7 +157,7 @@ where framework-provided behaviour should come from rather than being hand-rolle
 
 They are **not** an application wiring mechanism. A capability cannot construct a vector
 store, an embedder, a provider holding credentials, or the image store — it shapes one
-agent's behaviour. The composition root still owns the object graph; see
+agent's behaviour. `RagAgent` still owns the object graph; see
 [Architecture](../architecture.md).
 
 ### Planned for this project

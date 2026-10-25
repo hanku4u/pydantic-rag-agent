@@ -41,10 +41,10 @@ stay the canonical list.
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | API-6 (post-M7) | API-6 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
-| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, SRC-1, PKG-1 | CORE-4 |
+| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, PKG-1 | SRC-2 |
 
-M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
-runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
+M0 is closed: `RagAgent` loads `Settings` at startup and checks the index on first use
+(on startup, for the standalone app), which is what FND-2 was waiting for. M5 is closed too — the
 Streamlit UI (UI-1…UI-3) and the `dev` command (DX-1) landed after this paragraph was
 written.
 
@@ -173,7 +173,7 @@ package becomes something another project can install, import, and mount. Design
 | CORE-1 | `RagAgent` façade | CFG-1 | The library examples in [Public API](../design/public-api.md) run end to end. **Done:** `agent.py` composes the existing wiring and delegates to the same turn functions as the router; ingest, ask, stream, documents, delete, stats and close are tested offline through the injection seams |
 | CORE-2 | `KnowledgeClient` protocol and in-process client | CORE-1 | The CLI and Streamlit work with no server running. **Done:** `client.KnowledgeClient` is the protocol, `RagClient` the HTTP implementation and `in_process.InProcessClient` the local one; a parity test asserts both speak exactly the fields `integrations.fastapi.schemas` declares, including the streaming payloads |
 | CORE-3 | FastAPI moved to an integration | CORE-1, PKG-1 | A host app mounts `create_router(agent)`; the standalone app still serves the CLI's `--api-url` mode. **Done:** `integrations/fastapi` holds `create_router` and `create_app`; routes call only the façade, and map 404/409/502 themselves so a mounted router behaves like the standalone one. `api/` is gone, and the CLI's `serve` starts the integration over `RagAgent.from_env()` |
-| CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function |
+| CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function. **Done:** `runtime.py` is gone; its wiring is a private `_build_runtime` inside `agent.py`, `RagAgent` is the only door, and `serve`, the CLI, the UI and the router all construct through `RagAgent.from_env()` / `RagAgent(settings)` |
 | PKG-1 | Dependency extras | — | A base install pulls no Streamlit, Chroma, FastAPI or boto3; each extra is documented. **Done:** core is agent + loaders + CLI + memory store; `[chroma]`, `[api]`, `[ui]`, `[s3]` and `[all]` declared; optional imports are late and `MissingExtraError` names the install command. Verified by installing the built wheel into a clean venv: no extra present, `--help` and a memory-backed `stats` work, `serve` explains the missing `[api]` |
 | PKG-2 | Package metadata | — | Classifiers, project URLs and keywords set; `twine check` passes |
 | PKG-3 | Public surface and an export test | CORE-1 | `__all__` names are asserted, so an accidental addition is a deliberate act |

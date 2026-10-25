@@ -17,7 +17,9 @@ import pytest
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
-from pydantic_rag_agent import cli, runtime
+from pydantic_rag_agent import agent as agent_module
+from pydantic_rag_agent import cli
+from pydantic_rag_agent.agent import RagAgent
 from pydantic_rag_agent.config import ProviderSettings, Settings
 from pydantic_rag_agent.extras import MissingExtraError, require
 
@@ -68,14 +70,14 @@ def importing_the_package_should_not_import_any_optional_dependency() -> None:
     assert json.loads(result.stdout) == []
 
 
-def build_runtime_with_the_chroma_backend_should_name_the_extra_when_it_is_missing(
+def a_rag_agent_with_the_chroma_backend_should_name_the_extra_when_it_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # given: a chroma configuration and an environment where chromadb cannot be imported
     def missing(extra: str, package: str) -> object:
         raise MissingExtraError(extra, package)
 
-    monkeypatch.setattr(runtime, "require", missing)
+    monkeypatch.setattr(agent_module, "require", missing)
     settings = Settings(
         _env_file=None,  # type: ignore[call-arg]
         provider=ProviderSettings(api_key=SecretStr("test-key")),
@@ -83,7 +85,7 @@ def build_runtime_with_the_chroma_backend_should_name_the_extra_when_it_is_missi
 
     # when / then: the failure names the extra rather than "No module named chromadb"
     with pytest.raises(MissingExtraError) as excinfo:
-        runtime.build_runtime(settings)
+        RagAgent(settings)
     assert excinfo.value.extra == "chroma"
 
 
@@ -133,8 +135,8 @@ def serve_with_the_api_extra_but_no_chroma_should_explain_too(
     def missing(extra: str, package: str) -> object:
         raise MissingExtraError(extra, package)
 
-    # the runtime imports `require` into its own namespace, so patch it there
-    monkeypatch.setattr(runtime, "require", missing)
+    # the façade imports `require` into its own namespace, so patch it there
+    monkeypatch.setattr(agent_module, "require", missing)
 
     # when: the server is started
     result = runner.invoke(cli.app, ["serve"])

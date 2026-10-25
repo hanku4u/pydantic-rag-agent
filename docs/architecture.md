@@ -47,8 +47,8 @@ The second rule, added with [ADR 0011](decisions/0011-public-facade.md): **the r
 the CLI call the façade; neither calls an application service directly.** Two paths to the
 same behaviour is how the CLI and the API start disagreeing about history and citations.
 The façade exists (CORE-1), the CLI and UI reach it through a `KnowledgeClient`
-(CORE-2), and the router calls it directly (CORE-3). CORE-4 folds the composition root
-itself into the façade, so there is one builder rather than one builder and one wrapper.
+(CORE-2), and the router calls it directly (CORE-3). CORE-4 folded the composition root
+into the façade, so there is one builder and no wrapper around a wrapper.
 
 ## Module map
 
@@ -60,7 +60,6 @@ src/pydantic_rag_agent/
 ├── agent.py              # RagAgent façade — the public door (CORE-1)
 ├── cli.py                # typer app — in-process by default, HTTP with --api-url
 ├── config.py             # settings tree: six node models + root Settings
-├── runtime.py            # composition root: builds the object graph
 ├── domain/
 │   ├── models.py         # Document, Chunk, RetrievedChunk, Citation
 │   ├── ports.py          # VectorStore protocol
@@ -111,14 +110,13 @@ src/pydantic_rag_agent/
 ├── adapters/
 │   └── document_store/   # local.py (SRC-1, done), s3.py (SRC-2)
 ├── integrations/
-│   └── fastapi/          # create_router, create_app, schemas (CORE-3)
+│   └── fastapi/          # create_router, create_app, openai (/v1), schemas
 └── ui/                   # Streamlit, same transport choice as the CLI
 ```
 
-`api/` disappears into `integrations/fastapi/`; `runtime.py` is folded into `agent.py`
-once the CLI, the UI and the router all build through the façade (CORE-4). For now the
-façade delegates to the composition root rather than duplicating it — one wiring function,
-two callers, which is the point. Both changes are moves, not rewrites.
+`api/` has become `integrations/fastapi/`, and `runtime.py` is gone: its wiring now sits
+in `agent.py` as a private function behind the façade (CORE-4). Both changes were moves,
+not rewrites — the same objects, reached through one public door.
 
 The settings tree stays one module. An earlier sketch split it into a `config/` package
 with a file per node; six models of three to five fields each do not justify six files,
@@ -147,18 +145,19 @@ implementation and no test double is a layer of indirection that only costs read
 
 ## Composition
 
-`runtime.py` is the composition root and the one module allowed to import every layer. It
-builds the store, embedder, document store, captioner, image store, loaders, conversation
-store and agent. `RagAgent` wraps the result and is the only public way in:
+`agent.py` is the composition root as well as the public surface: one private
+`_build_runtime` function is the only place that may import every layer, and `RagAgent` is
+the only way to reach the result.
 
 ```python
-def build_runtime(settings, *, vector_store=None, embeddings=None, model=None, document_store=None) -> Runtime: ...
-class RagAgent:  # builds a Runtime from Settings, or takes those seams
+def _build_runtime(settings, *, vector_store=None, embeddings=None, model=None, document_store=None) -> _Runtime: ...
+class RagAgent:  # builds that graph from Settings, or takes the seams above
 def create_app(agent: RagAgent) -> FastAPI: ...
 ```
 
 The router, the CLI and the UI all go through the façade, so they cannot grow different
 object graphs — the failure that would let the index guard run in one and not the others.
+There is no second builder to keep in step.
 
 **Capabilities do not replace this.** They shape one agent's behaviour — tools,
 instructions, model settings, hooks — but cannot own a vector store or resolve
