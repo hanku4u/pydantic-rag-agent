@@ -70,21 +70,14 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Where to pick up
 
-State at the last handoff: **M0–M5 complete**, M6 started (EVAL-1 and SEC-1 done).
-"Complete" carries one asterisk: **AGT-6's `Compaction` was never built** — multi-turn
-history works, but nothing trims a conversation that outgrows the window. It needs
-`pydantic-ai-harness`, which ADR 0008 defers, so it travels with OPS-1 below.
+State at the last handoff: **M0–M5 complete**, and M6 down to one item (**OPS-1**,
+instrumentation, deliberately left out of scope — this is a personal tool and nobody is
+reading the traces). AGT-6's `Compaction` was the one thing marked done without being
+built; it now exists in `adapters/compaction.py` and is applied by the conversation store.
 
-Next two tasks, in order — the reasoning for the order is in the M6 table and in
-[docs/decisions/0008-prompt-injection-defence.md](docs/decisions/0008-prompt-injection-defence.md):
-
-1. **OPS-1 — instrumentation.** Prefer the framework's `Instrumentation` capability to a
-   hand-rolled logger. Adopting `pydantic-ai-harness` — needed for that, for
-   `PromptInjectionDefender` and for `Compaction` — requires a decision record first;
-   ADR 0008 explains why it was deferred.
-2. **TST-1 — coverage.** Loaders, chunker, stores and the agent loop. The suite must stay
-   offline: `tests/conftest.py` sets `ALLOW_MODEL_REQUESTS = False` so a forgotten fake
-   fails rather than spends.
+Next task: **OPS-1 — instrumentation**, if it is ever wanted. The framework's core
+`Instrumentation` capability already ships with `pydantic-ai`; the harness is not needed
+for it. See [docs/features/README.md](docs/features/README.md).
 
 Known debts: none outstanding at this handoff. The four that were listed here — no `delete`
 command, `help` reaching the model, `documents` printing content-addressed paths, and

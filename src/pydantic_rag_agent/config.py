@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # baked into the service. See docs/design/retrieval.md.
     min_score: float | None = Field(default=None, ge=-1.0, le=1.0)
     max_tool_calls: int = Field(default=8, gt=0)
+    # How many recent turns a conversation keeps. Whole turns only, so a follow-up can
+    # still resolve its referent; see adapters/compaction.py and AGT-6.
+    history_turns: int = Field(default=6, gt=0)
 
     chroma_path: Path = Path("./data/chroma")
     image_dir: Path = Path("./data/images")

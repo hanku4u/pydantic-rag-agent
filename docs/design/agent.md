@@ -167,7 +167,7 @@ agent's behaviour. The composition root still owns the object graph; see
 | `Instrumentation` | OPS-1 hand-rolled logging | OTel spans for every model and tool call |
 | `SpendLimits` | part of AGT-4 | Cross-window USD and token budgets, per-response cost |
 | `PromptInjectionDefender` | most of SEC-1 | Classifies **tool results** for indirect injection and can withhold high-risk ones. Retrieved chunks are tool results, so this is our threat model as shipped code |
-| `Compaction` | ad-hoc context trimming (AGT-6) | Long conversations otherwise outgrow the window |
+| `Compaction` | ad-hoc context trimming (AGT-6) | Long conversations otherwise outgrow the window. **Not adopted**: AGT-6 is served by `adapters/compaction.py`, which trims whole turns. The swap remains open — see [ADR 0009](../decisions/0009-conversation-compaction.md) |
 | `Caching` | nothing yet | Provider-adaptive prompt caching |
 
 ### Retrieval as a capability

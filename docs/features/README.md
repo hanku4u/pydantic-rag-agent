@@ -37,7 +37,7 @@ stay the canonical list.
 | M1 Domain and storage | DOM-1, STO-1, STO-2, STO-3, EMB-1 | — |
 | M2 Ingestion | ING-1…ING-8, IMG-1, IMG-2, IMG-3, IMG-4 | — |
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
-| M4 Agent | AGT-1…AGT-5, AGT-7 (AGT-6 partial: multi-turn works, `Compaction` not built) | — |
+| M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 
@@ -117,7 +117,7 @@ See [Agent design](../design/agent.md).
 | AGT-3 | Instructions and citation discipline | AGT-2 | Answers cite document and page; "not in the documents" is said when retrieval is empty |
 | AGT-4 | Usage budget | AGT-1 | A model that loops is stopped at the configured limit and the user is told |
 | AGT-5 | `view_image` tool | IMG-3, AGT-1 | A vision-capable model can view a retrieved image; unknown ids return a message, not an exception |
-| AGT-6 | Multi-turn history | AGT-1 | A follow-up question resolves its referent from the previous turn; history is server-side; `Compaction` handles conversations that outgrow the window — **the compaction third is not built**; it needs `pydantic-ai-harness`, which ADR 0008 defers |
+| AGT-6 | Multi-turn history | AGT-1 | A follow-up question resolves its referent from the previous turn; history is server-side; `Compaction` handles conversations that outgrow the window. **Done:** history is trimmed in `InMemoryConversationStore.record` to `PRAGENT_HISTORY_TURNS` recent turns (default 6), whole turns only — never mid tool round trip, because a tool return whose call was dropped is a malformed conversation rather than a shorter one. Implemented in `adapters/compaction.py` rather than via `pydantic-ai-harness`, which ADR 0008 defers; the seam is one function, so adopting the harness version later is a small change. No summarisation: that would need a model call, and dropping old turns loses less than it sounds because the agent can re-retrieve |
 | AGT-7 | Offline agent tests | AGT-2 | `TestModel` drives a tool call and an answer with no network |
 
 ## M5 — Interfaces

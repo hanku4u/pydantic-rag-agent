@@ -111,7 +111,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
         captioner=captioner,
         loaders=default_loaders(),
         agent=agent,
-        conversations=InMemoryConversationStore(),
+        conversations=InMemoryConversationStore(keep_turns=settings.history_turns),
     )
 
 

@@ -69,7 +69,7 @@ Accurate as of the planning commit:
 | Retrieval: query embedding, ranking, score floor, explicit empty results | Done — RET-1…RET-4 |
 | Evaluation: recall@5, MRR, floor calibration | Done — EVAL-1 |
 | Security: prompt-injection defence (instructions, fencing, no system-prompt injection) | Done — SEC-1 |
-| Agent: capability, tools, budgets, multi-turn | Done — AGT-1…AGT-7, except AGT-6's `Compaction` (deferred with the harness, see ADR 0008) |
+| Agent: capability, tools, budgets, multi-turn, compaction | Done — AGT-1…AGT-7 |
 | API: health, documents, conversations, messages, streaming, error mapping | Done — API-1…API-5 |
 | Cost visibility: per-turn tokens, requests and cost on every answer | Done — OPS-2 |
 | CLI: `serve`, `ingest`, `ask`, `chat`, `documents`, `stats`, `delete`, `dev` | Done — CLI-1…CLI-3, DX-1 |
