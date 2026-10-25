@@ -8,8 +8,9 @@ Three modes, and the safe one is the default:
     uv run python scripts/release.py --release      # tag and push; the workflow publishes
 
 The split is deliberate. A rehearsal is fast and needs no ceremony, so it publishes
-straight to TestPyPI with a token from ``UV_PUBLISH_TOKEN`` — a disposable index and a
-disposable credential. The real upload does **not** happen here: ``--release`` creates the
+straight to TestPyPI with a token from ``UV_PUBLISH_TOKEN`` — read from the environment, or
+from the project's ``.env``, which is gitignored — a disposable index and a disposable
+credential. The real upload does **not** happen here: ``--release`` creates the
 tag, and GitHub Actions publishes over OIDC trusted publishing, so no production token
 exists on this machine or in this repository. See docs/development/releasing.md.
 """
@@ -27,6 +28,8 @@ import tempfile
 import tomllib
 from collections.abc import Sequence
 from pathlib import Path
+
+from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
@@ -210,6 +213,24 @@ def _require_tag_absent(version: str) -> None:
     print(f"  ✓ {tag}")
 
 
+def _publish_token() -> str | None:
+    """The TestPyPI token: the environment first, then the project's `.env`.
+
+    Real environment variables win, so a token exported for one shell session overrides a
+    stale one in the file. Only ``--rehearse`` calls this; the real release never reads a
+    token, because PyPI publication happens in GitHub Actions over OIDC.
+    """
+    from_environment = os.environ.get("UV_PUBLISH_TOKEN", "").strip()
+    if from_environment:
+        return from_environment
+
+    env_file = ROOT / ".env"
+    if not env_file.is_file():
+        return None
+    from_file = (dotenv_values(env_file).get("UV_PUBLISH_TOKEN") or "").strip()
+    return from_file or None
+
+
 def _read_version() -> str:
     with (ROOT / "pyproject.toml").open("rb") as handle:
         return str(tomllib.load(handle)["project"]["version"])
@@ -269,12 +290,16 @@ def _dry_run(version: str) -> None:
 
 
 def _rehearse(version: str, *, assume_yes: bool) -> None:
-    if not os.environ.get("UV_PUBLISH_TOKEN"):
+    token = _publish_token()
+    if token is None:
         raise ReleaseError(
-            "UV_PUBLISH_TOKEN is not set. Create an API token on test.pypi.org "
-            "(Account settings → API tokens) and export it. A TestPyPI token is "
-            "disposable; this script never asks for a PyPI one."
+            "no TestPyPI token found. Put UV_PUBLISH_TOKEN in .env at the repository "
+            "root, or export it. Create one at test.pypi.org (Account settings → API "
+            "tokens); it is disposable, and this script never asks for a PyPI one."
         )
+    # Hand it to `uv publish` through the environment, never argv: a token in a command
+    # line is visible in `ps` and in shell history.
+    os.environ["UV_PUBLISH_TOKEN"] = token
 
     _confirm(f"Publish {version} to TestPyPI?", assume_yes=assume_yes)
     _step("Publish to TestPyPI")

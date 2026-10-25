@@ -20,9 +20,14 @@ install of the wheel — and then does one of three things:
 
 ```bash
 uv run python scripts/release.py --dry-run
-UV_PUBLISH_TOKEN=<testpypi token> uv run python scripts/release.py --rehearse
+uv run python scripts/release.py --rehearse     # token from the environment or `.env`
 uv run python scripts/release.py --release
 ```
+
+The rehearsal token is read from `UV_PUBLISH_TOKEN`, first in the environment and then in
+the project's `.env` (gitignored, and documented in `.env.example`). The environment wins,
+so a one-off export overrides a stale file. Use a **TestPyPI** token: the real release
+never reads one, because PyPI publication is the workflow's job.
 
 The asymmetry is deliberate. A TestPyPI token is disposable, so a local rehearsal can use
 one and skip the approval dance. A PyPI token would not be, so the real upload stays in
