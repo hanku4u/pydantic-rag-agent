@@ -53,7 +53,10 @@ uv run pydantic-rag-agent serve    # the API (terminal 1; everything else is a c
 uv run pydantic-rag-agent dev      # the API and the Streamlit UI together (DX-1)
 uv run pydantic-rag-agent ingest ./docs        # index documents
 uv run pydantic-rag-agent ask "…"              # one streamed answer
+uv run pydantic-rag-agent documents            # list the index, with document IDs
+uv run pydantic-rag-agent delete <id>          # remove a document (asks first; -y skips)
 uv run pytest                  # tests (offline; model requests disabled)
+uv run pytest --cov            # tests plus coverage; CI fails below 85%
 uv run ruff check .            # lint
 uv run ruff format --check .   # formatting
 uv run mypy src                # types
@@ -67,28 +70,18 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 
 ## Where to pick up
 
-State at the last handoff: **M0–M5 complete**, M6 started (EVAL-1 and SEC-1 done).
+State at the last handoff: **M0–M5 complete**, and M6 down to one item (**OPS-1**,
+instrumentation, deliberately left out of scope — this is a personal tool and nobody is
+reading the traces). AGT-6's `Compaction` was the one thing marked done without being
+built; it now exists in `adapters/compaction.py` and is applied by the conversation store.
 
-Next three tasks, in order — the reasoning for the order is in the M6 table and in
-[docs/decisions/0008-prompt-injection-defence.md](docs/decisions/0008-prompt-injection-defence.md):
+Next task: **OPS-1 — instrumentation**, if it is ever wanted. The framework's core
+`Instrumentation` capability already ships with `pydantic-ai`; the harness is not needed
+for it. See [docs/features/README.md](docs/features/README.md).
 
-1. **OPS-2 — cost visibility.** `AgentTurn` carries no usage. Add input/output tokens,
-   request count and cost (from `result.usage`), surface them in the SSE `done` event and
-   as a dim footer under the CLI's answer panel. See
-   [docs/features/README.md](docs/features/README.md) and
-   [docs/design/agent.md](docs/design/agent.md).
-2. **OPS-1 — instrumentation.** Prefer the framework's `Instrumentation` capability to a
-   hand-rolled logger. Adopting `pydantic-ai-harness` — needed for that and for
-   `PromptInjectionDefender` — requires a decision record first; ADR 0008 explains why it
-   was deferred.
-3. **TST-1 — coverage.** Loaders, chunker, stores and the agent loop. The suite must stay
-   offline: `tests/conftest.py` sets `ALLOW_MODEL_REQUESTS = False` so a forgotten fake
-   fails rather than spends.
-
-Known debts, each small: **IMG-5** (the caption cache is keyed by image hash alone, so
-changing `PRAGENT_CAPTION_MODEL` serves stale captions), no `delete` command in the CLI,
-`help` in `chat` is sent to the model, `documents` prints content-addressed storage paths,
-and `PRAGENT_API_URL` in `.env` is not read by the CLI (only the shell environment).
+Known debts: none outstanding at this handoff. The four that were listed here — no `delete`
+command, `help` reaching the model, `documents` printing content-addressed paths, and
+`PRAGENT_API_URL` being ignored in `.env` — are all fixed.
 
 Practical notes:
 

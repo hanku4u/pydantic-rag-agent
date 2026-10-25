@@ -39,11 +39,12 @@ stay the canonical list.
 | M3 Retrieval | RET-1, RET-2, RET-3, RET-4 | — |
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
-| M6 Hardening | EVAL-1, SEC-1 | — |
+| M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
-runs `ensure_index_compatible`, which is what FND-2 was waiting for. The remaining M5 work
-is the Streamlit UI (UI-1…UI-3) and the `dev` command (DX-1).
+runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
+Streamlit UI (UI-1…UI-3) and the `dev` command (DX-1) landed after this paragraph was
+written.
 
 ---
 
@@ -116,7 +117,7 @@ See [Agent design](../design/agent.md).
 | AGT-3 | Instructions and citation discipline | AGT-2 | Answers cite document and page; "not in the documents" is said when retrieval is empty |
 | AGT-4 | Usage budget | AGT-1 | A model that loops is stopped at the configured limit and the user is told |
 | AGT-5 | `view_image` tool | IMG-3, AGT-1 | A vision-capable model can view a retrieved image; unknown ids return a message, not an exception |
-| AGT-6 | Multi-turn history | AGT-1 | A follow-up question resolves its referent from the previous turn; history is server-side; `Compaction` handles conversations that outgrow the window |
+| AGT-6 | Multi-turn history | AGT-1 | A follow-up question resolves its referent from the previous turn; history is server-side; `Compaction` handles conversations that outgrow the window. **Done:** history is trimmed in `InMemoryConversationStore.record` to `PRAGENT_HISTORY_TURNS` recent turns (default 6), whole turns only — never mid tool round trip, because a tool return whose call was dropped is a malformed conversation rather than a shorter one. Implemented in `adapters/compaction.py` rather than via `pydantic-ai-harness`, which ADR 0008 defers; the seam is one function, so adopting the harness version later is a small change. No summarisation: that would need a model call, and dropping old turns loses less than it sounds because the agent can re-retrieve |
 | AGT-7 | Offline agent tests | AGT-2 | `TestModel` drives a tool call and an answer with no network |
 
 ## M5 — Interfaces
@@ -131,7 +132,7 @@ See [Interfaces](../design/interfaces.md).
 | API-4 | SSE streaming | API-3 | Tokens arrive incrementally; tool activity is visible as an event |
 | API-5 | Error mapping | API-1 | Provider errors return `502` with a categorised code; no traceback leaks |
 | CLI-1 | `typer` + `rich` skeleton and `serve` | API-1 | `--help` lists every command; `serve` runs the API; all output goes through one injected `Console`; `--no-color` and `NO_COLOR` are honoured |
-| CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output; answers render as Markdown with a numbered citation table; ingest shows progress per file |
+| CLI-2 | `ingest`, `ask`, `chat`, `documents`, `stats`, `delete` | API-2, API-3 | `chat` sustains a multi-turn session with streamed output; answers render as Markdown with a numbered citation table; ingest shows progress per file. `delete` arrived later — the API had it since API-2 but the CLI did not, so removing a document meant the UI or a hand-made request |
 | CLI-3 | Plain and JSON output modes | CLI-2 | Piped output contains no ANSI escapes or box drawing; `--json` emits one parseable object per result so the CLI is usable from scripts |
 | UI-1 | Streamlit chat | API-4 | A question streams into the chat window |
 | UI-2 | Streamlit ingest sidebar | API-2 | Files upload and ingest from the browser; document list reflects reality |
@@ -143,9 +144,9 @@ See [Interfaces](../design/interfaces.md).
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | EVAL-1 | Retrieval evaluation set | RET-1 | A fixed set of question/expected-chunk pairs scores retrieval quality; regressions are visible |
-| TST-1 | Coverage of the offline suite | M2–M4 | Loaders, chunker, store, and agent loop have tests; suite runs in CI without network |
+| TST-1 | Coverage of the offline suite | M2–M4 | Loaders, chunker, store, and agent loop have tests; suite runs in CI without network. **Done:** measured, not assumed — 92% branch coverage, gated in CI via `--cov` with `fail_under = 85`. The CLI's untested half was the error branches of every command plus the `chat` loop, all now covered. `ui/` is omitted from the metric deliberately: Streamlit is verified by launching it (see [testing.md](../development/testing.md)), and counting it as 0% would only obscure the number that matters |
 | OPS-1 | Structured logging | API-1 | Each run logs tool calls, token counts, and latency; no document text or secrets. Prefer the framework's `Instrumentation` capability over a hand-rolled logger |
-| OPS-2 | Cost visibility | AGT-4 | Token usage per conversation is retrievable; `SpendLimits` may satisfy this outright |
+| OPS-2 | Cost visibility | AGT-4 | Token usage per conversation is retrievable; `SpendLimits` may satisfy this outright. **Done:** `TurnUsage` on every `AgentTurn`, carried in the SSE `done` event and the `AnswerResponse`, rendered as a dim footer by the CLI. Limits are still request-count only (`UsageLimits(request_limit=…)`); `SpendLimits` has not been adopted |
 | SEC-1 | Prompt-injection review | AGT-3, IMG-3 | A malicious document cannot alter agent instructions; the attempt is documented as a test. Prefer `PromptInjectionDefender`, which classifies tool results, over a hand-rolled filter |
 
 ---

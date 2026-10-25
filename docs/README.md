@@ -78,6 +78,7 @@ rather than inventing one and writing it down as fact.
 - [0005 — Embedding model](decisions/0005-embedding-model-qwen3.md) — Qwen3-Embedding-8B, 1024 dimensions via Matryoshka truncation.
 - [0007 — MIT licence and pypdfium2](decisions/0007-mit-licence-and-pypdfium2.md) — dropping PyMuPDF to unblock a permissive licence, and what replaced it.
 - [0008 — Prompt-injection defence](decisions/0008-prompt-injection-defence.md) — structural fencing now, the harness classifier later.
+- [0009 — Conversation compaction](decisions/0009-conversation-compaction.md) — trim whole turns, never mid tool round trip, and do not summarise.
 
 ## For coding agents
 

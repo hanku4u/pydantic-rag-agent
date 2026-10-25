@@ -47,8 +47,9 @@ real value.
 | [0006](0006-licensing-deferred.md) | Defer project licensing; PyMuPDF bounds the future choice | Superseded by 0007 | 2026-10-24 |
 | [0007](0007-mit-licence-and-pypdfium2.md) | MIT licence; PyMuPDF replaced by pypdfium2 | Accepted | 2026-10-24 |
 | [0008](0008-prompt-injection-defence.md) | Prompt-injection defence: structural fencing now, no harness yet | Accepted | 2026-10-24 |
+| [0009](0009-conversation-compaction.md) | Conversation compaction: trim whole turns, do not summarise | Accepted | 2026-10-24 |
 
-Next number: **0009**.
+Next number: **0010**.
 
 ## Writing one
 

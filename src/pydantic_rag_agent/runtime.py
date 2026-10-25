@@ -76,14 +76,18 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     )
     images = FileImageStore(settings.image_dir)
 
+    caption_model = _openrouter_model_id(settings.effective_caption_model)
     captioner = PydanticAICaptioner(
         Agent(
             OpenRouterModel(
-                _openrouter_model_id(settings.effective_caption_model),
+                caption_model,
                 provider=OpenRouterProvider(api_key=key),
             )
         ),
         cache_dir=settings.image_dir / "captions",
+        # Part of the cache key: switching caption models must re-caption rather
+        # than silently serving descriptions from the previous one (IMG-5).
+        model_name=caption_model,
     )
 
     agent = build_agent(
@@ -107,7 +111,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
         captioner=captioner,
         loaders=default_loaders(),
         agent=agent,
-        conversations=InMemoryConversationStore(),
+        conversations=InMemoryConversationStore(keep_turns=settings.history_turns),
     )
 
 
