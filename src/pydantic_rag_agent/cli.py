@@ -660,8 +660,13 @@ def _render_citations(console: Console, citations: list[dict[str, Any]]) -> None
     table = Table(title="Sources", title_justify="left")
     table.add_column("#", justify="right")
     table.add_column("Reference", overflow="fold")
+    table.add_column("Document", overflow="fold")
     for index, citation in enumerate(citations, start=1):
-        table.add_row(str(index), str(citation["label"]))
+        # The locator is where the original actually lives: file:// on disk, s3:// in a
+        # bucket. Older indexes have only the ingest path, so fall back to it rather than
+        # showing an empty cell — the column is the answer to "where do I read this?".
+        document = citation.get("locator") or citation.get("source_path") or ""
+        table.add_row(str(index), str(citation["label"]), Text(str(document), style="dim"))
     console.print(table)
 
 

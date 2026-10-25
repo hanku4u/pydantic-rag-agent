@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 from factories import (
+    FakeS3,
     build_chunk,
     build_embedded,
     build_facade,
@@ -491,3 +492,26 @@ def stream_message_when_the_turn_fails_after_tokens_should_end_with_an_error() -
     # then: the partial answer is followed by a terminator, never by silence
     assert events[0] == ("token", {"text": "partial"})
     assert events[-1] == ("error", {"code": "RuntimeError", "detail": "the turn failed"})
+
+
+def ask_with_an_s3_backed_store_should_cite_an_s3_uri() -> None:
+    # given: an agent whose originals live in a bucket
+    from pydantic_rag_agent.adapters.document_store.s3 import S3DocumentStore
+
+    documents = S3DocumentStore(bucket="acme-docs", prefix="documents/", client=FakeS3())
+    agent = build_facade(answer=ANSWER, document_store=documents)
+
+    with TestClient(create_app(agent)) as client:
+        upload(client, "handbook.md", DOCUMENT)
+        conversation_id = client.post("/conversations").json()["conversation_id"]
+
+        # when: its content is cited
+        answer = client.post(
+            f"/conversations/{conversation_id}/messages",
+            json={"question": "When do backups run?"},
+        ).json()
+
+    # then: the locator names the bucket and key, not a local path
+    locator = answer["citations"][0]["locator"]
+    assert locator.startswith("s3://acme-docs/documents/")
+    assert locator.endswith("/handbook.md")

@@ -7,8 +7,10 @@ factory fixture through every test.
 
 from __future__ import annotations
 
+import io
 from collections.abc import Sequence
 from types import SimpleNamespace
+from typing import Any
 
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
@@ -19,6 +21,7 @@ from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.extraction import ExtractedImage
 from pydantic_rag_agent.domain.models import Chunk, EmbeddedChunk
+from pydantic_rag_agent.domain.ports import DocumentStore
 
 # The fake embedding identity every façade-level test configures. The store, the
 # settings and the embedding service must agree or the index guard refuses to run.
@@ -143,6 +146,7 @@ def build_facade(
     model: TestModel | FunctionModel | None = None,
     store: InMemoryVectorStore | None = None,
     settings: Settings | None = None,
+    document_store: DocumentStore | None = None,
     answer: str = ANSWER,
 ) -> RagAgent:
     """A ``RagAgent`` wired entirely to fakes: no network, no Chroma, no key beyond the
@@ -155,4 +159,38 @@ def build_facade(
         model=model
         if model is not None
         else TestModel(call_tools="all", custom_output_text=answer),
+        document_store=document_store,
     )
+
+
+class FakeClientError(Exception):
+    """Shaped like botocore's ClientError, without importing botocore."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.response = {"Error": {"Code": code}}
+
+
+class FakeS3:
+    """The slice of boto3's S3 client the document adapter uses, in memory.
+
+    A fake rather than moto: the interesting behaviour is our key layout and our handling
+    of a missing object, not S3's own semantics. Shared because both the adapter tests and
+    the surfaces that must show an ``s3://`` locator need it.
+    """
+
+    def __init__(self) -> None:
+        self.objects: dict[tuple[str, str], bytes] = {}
+        self.calls: list[tuple[str, str]] = []
+
+    def put_object(self, *, Bucket: str, Key: str, Body: bytes) -> None:
+        self.objects[(Bucket, Key)] = Body
+        self.calls.append(("put", Key))
+
+    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+        return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
+
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+        if (Bucket, Key) not in self.objects:
+            raise FakeClientError("404")
+        return {}

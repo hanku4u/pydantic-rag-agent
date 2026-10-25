@@ -409,3 +409,38 @@ def serve_without_the_flag_should_let_the_app_choose_the_default(
     # then: the default is resolved in one place, not duplicated in the command
     assert result.exit_code == 0, result.output
     assert seen == [None]
+
+
+def citation_table_should_show_the_stored_document_for_both_schemes() -> None:
+    # given: citations from a local store, an S3 store, and a legacy index
+    from io import StringIO
+
+    from rich.console import Console
+
+    buffer = StringIO()
+    console = Console(file=buffer, force_terminal=False, width=140)
+
+    # when: the sources table is rendered
+    cli._render_citations(
+        console,
+        [
+            {
+                "label": "Handbook — p. 2",
+                "locator": "file:///data/documents/ab/x/handbook.md",
+                "source_path": "/docs/handbook.md",
+            },
+            {
+                "label": "Policies",
+                "locator": "s3://acme-docs/documents/cd/y/policies.md",
+                "source_path": "policies.md",
+            },
+            {"label": "Legacy", "source_path": "/tmp/old.md"},
+        ],
+    )
+
+    # then: the locator is what a reader needs, and an index without one still says
+    # where the document came from
+    rendered = buffer.getvalue()
+    assert "file:///data/documents" in rendered
+    assert "s3://acme-docs/documents" in rendered
+    assert "/tmp/old.md" in rendered

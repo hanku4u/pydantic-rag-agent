@@ -171,6 +171,13 @@ configure it once.
 
 ### Terminal rendering
 
+The sources table has three columns: number, reference (document, section, page) and the
+stored original's locator — `file://…` or `s3://…`. An index built before SRC-1 has no
+locator on its chunks, so the column falls back to the path the document was ingested from
+rather than showing nothing. Locators are long; `--json` carries them verbatim for scripts
+that need to open the file.
+
+
 **Decision:** `typer` structures the commands, `rich` draws everything the user
 sees.
 
@@ -244,8 +251,8 @@ Layout, kept deliberately plain:
 
 - **Sidebar** — file uploader, ingest button, document list with delete, index stats.
 - **Main** — `st.chat_message` history, `st.chat_input` for questions.
-- **Per answer** — the streamed text, then an expander listing citations with
-  document title and page.
+- **Per answer** — the streamed text, then an expander listing citations with document
+  title, page and the locator of the stored original.
 - **Diagnostics** — expander showing tool calls and token usage from the last turn.
 
 `st.session_state` holds only the `conversation_id` and the rendered transcript. It

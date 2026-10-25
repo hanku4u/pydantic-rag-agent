@@ -61,7 +61,8 @@ print(agent.ask_sync("How long are backups retained?").text)
 
 The async methods (`await agent.ask(...)`, `async for update in agent.stream(...)`) are
 what a web app wants; the sync helpers exist so a script does not have to become async to
-ask one question. Answers carry citations back to the source document.
+ask one question. Answers carry citations back to the source document, including the
+locator of the stored original (`file://` or `s3://`).
 
 Already have a FastAPI app? Mount the router instead of running a second service:
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from factories import ANSWER, DIMENSIONS, EMBEDDING_MODEL, build_facade
+from factories import ANSWER, DIMENSIONS, EMBEDDING_MODEL, FakeS3, build_facade
 
 from pydantic_rag_agent.client import ClientError, KnowledgeClient
 from pydantic_rag_agent.in_process import InProcessClient
@@ -397,3 +397,21 @@ def in_process_payloads_should_match_the_api_schemas() -> None:
     assert set(client.delete_document(str(document["document_id"]))) == set(
         DeleteResponse.model_fields
     )
+
+
+def citations_should_carry_an_s3_locator_when_the_store_is_s3() -> None:
+    # given: an in-process agent whose originals live in a bucket
+    from pydantic_rag_agent.adapters.document_store.s3 import S3DocumentStore
+
+    client = build_client(
+        document_store=S3DocumentStore(bucket="acme-docs", prefix="documents/", client=FakeS3())
+    )
+    client.ingest_files([("handbook.md", b"# Handbook\n\n## Backups\n\nBackups run nightly.\n")])
+
+    # when: the answer is asked for
+    answer = client.ask(client.create_conversation(), "When do backups run?")
+
+    # then: the transport reports the same s3:// locator the HTTP API would
+    locator = str(answer["citations"][0]["locator"])  # type: ignore[index]
+    assert locator.startswith("s3://acme-docs/documents/")
+    assert locator.endswith("/handbook.md")

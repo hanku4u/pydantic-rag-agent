@@ -67,7 +67,7 @@ Accurate as of the planning commit:
 | `uv` project, lockfile, full dependency stack | Done — FND-1 |
 | Settings model (`config.Settings`) | Done — FND-2; restructured as a tree of six nodes — CFG-1 |
 | Public library surface (`RagAgent`) | Done — CORE-1; FastAPI becomes an optional integration |
-| Original documents stored and cited | Done — SRC-1; local store now, S3 with SRC-2 |
+| Original documents stored and cited | Done — SRC-1…SRC-3; local and S3 stores, locators in every surface |
 | Test harness and offline guard | Done — FND-3 |
 | Docs link check in CI | Done — FND-5 |
 | CI workflow (lint, types, tests, docs links) | Done — FND-4 |

@@ -199,6 +199,11 @@ def _render_citations(citations: list[dict[str, Any]]) -> None:
     with st.expander(f"Sources ({len(citations)})"):
         for index, citation in enumerate(citations, start=1):
             st.markdown(f"{index}. {citation['label']}")
+            # `file://` and `s3://` are addresses, not browser links; plain text is
+            # honest and copyable. A host that can mint HTTPS URLs can add a link.
+            document = citation.get("locator") or citation.get("source_path")
+            if document:
+                st.caption(str(document))
 
 
 def _handle_question(question: str) -> None:

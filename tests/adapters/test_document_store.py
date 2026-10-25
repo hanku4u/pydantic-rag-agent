@@ -7,11 +7,11 @@ document id. Those are the properties citations depend on.
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 from typing import Any
 
 import pytest
+from factories import FakeClientError, FakeS3
 
 from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.document_store.s3 import S3DocumentStore
@@ -122,38 +122,6 @@ def test_the_local_store_should_satisfy_the_document_store_protocol(tmp_path: Pa
 
     # when / then: the application depends on the protocol, not on the adapter
     assert isinstance(store, DocumentStore)
-
-
-class FakeS3:
-    """The slice of boto3's S3 client this adapter uses, in memory.
-
-    A fake rather than moto: the interesting behaviour is our key layout and our handling
-    of a missing object, not S3's own semantics.
-    """
-
-    def __init__(self) -> None:
-        self.objects: dict[tuple[str, str], bytes] = {}
-        self.calls: list[tuple[str, str]] = []
-
-    def put_object(self, *, Bucket: str, Key: str, Body: bytes) -> None:
-        self.objects[(Bucket, Key)] = Body
-        self.calls.append(("put", Key))
-
-    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
-        return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
-
-    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
-        if (Bucket, Key) not in self.objects:
-            raise FakeClientError("404")
-        return {}
-
-
-class FakeClientError(Exception):
-    """Shaped like botocore's, without importing botocore."""
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.response = {"Error": {"Code": code}}
 
 
 def build_s3(client: FakeS3, *, prefix: str = "documents/") -> S3DocumentStore:
