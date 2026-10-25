@@ -32,11 +32,16 @@ Coding agents should read [`AGENTS.md`](AGENTS.md) first.
 ## Install
 
 ```bash
-uv add "pydantic-rag-agent[chroma]"       # library, with the default persistent store
+uv add "pydantic-rag-agent"               # core: agent, loaders, CLI, in-memory store
+uv add "pydantic-rag-agent[chroma]"       # plus the default persistent store
 uv add "pydantic-rag-agent[chroma,ui]"    # plus the Streamlit UI
 uv add "pydantic-rag-agent[chroma,api]"   # plus the FastAPI integration
 uv add "pydantic-rag-agent[all]"          # everything
 ```
+
+The core install has no vector database: it runs with the in-memory store, which is fine
+for a script that ingests and asks in one go. Anything the agent does not need at import
+time is an extra, and a missing one tells you which to install.
 
 > **Not on PyPI yet.** The first release is milestone 7 — see
 > [`docs/features/`](docs/features/README.md) and

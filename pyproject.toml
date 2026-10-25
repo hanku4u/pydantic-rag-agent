@@ -9,25 +9,34 @@ authors = [
     { name = "Nick", email = "98120512+hanku4u@users.noreply.github.com" }
 ]
 requires-python = ">=3.11"
+# Core is what the agent needs to run at all: models, loaders, the CLI and the
+# in-memory store. Everything a user might not want — a vector database, a web
+# framework, a UI toolkit, an object store — is an extra.
 dependencies = [
-    "chromadb>=1.5.9",
-    "fastapi>=0.162.0",
     "httpx>=0.28.1",
     "pillow>=13.0.0",
     "pydantic>=2.14.1",
-    "pydantic-ai-slim[openai,openrouter]>=2.61,<3",
+    "pydantic-ai-slim[openai]>=2.61,<3",
     "pydantic-settings>=2.16.1",
     "pypdfium2>=5.14.0",
     "python-docx>=1.2.0",
     "python-dotenv>=1.2.4",
-    "python-multipart>=0.0.32",
     "python-pptx>=1.0.2",
     "rich>=15.0.0",
-    "streamlit>=1.66.1",
     "tiktoken>=0.14.0",
     "typer>=0.27.3",
+]
+
+[project.optional-dependencies]
+chroma = ["chromadb>=1.5.9"]
+api = [
+    "fastapi>=0.162.0",
+    "python-multipart>=0.0.32",
     "uvicorn[standard]>=0.54.0",
 ]
+ui = ["streamlit>=1.66.1"]
+s3 = ["boto3>=1.35"]
+all = ["pydantic-rag-agent[chroma,api,ui,s3]"]
 
 [project.scripts]
 pydantic-rag-agent = "pydantic_rag_agent.cli:main"
@@ -43,6 +52,16 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.17.2",
+    # The optional stacks, repeated here on purpose. uv 0.13 has no `default-extras`,
+    # and the suite imports FastAPI, Streamlit and Chroma; without these a plain
+    # `uv sync` would produce an environment that cannot run its own tests. Users get
+    # them through extras, not through this group.
+    "boto3>=1.35",
+    "chromadb>=1.5.9",
+    "fastapi>=0.162.0",
+    "python-multipart>=0.0.32",
+    "streamlit>=1.66.1",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [tool.ruff]

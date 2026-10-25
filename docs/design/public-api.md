@@ -117,6 +117,8 @@ implements the port must copy rather than reference, and return a URI from `loca
 
 `VectorStore`, `EmbeddingService` and `DocumentStore` are exported because they appear in
 this signature: a host implementing a seam needs a public type to annotate against.
+`MissingExtraError` is exported too: an optional dependency that is missing raises it, and
+a caller has to be able to catch that by type.
 
 Two things injection does **not** remove. An injected `embeddings` service must agree with
 `settings.embeddings`, because the index check compares against the settings — a mismatch

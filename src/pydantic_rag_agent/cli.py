@@ -38,6 +38,7 @@ from pydantic_rag_agent.client import (
     KnowledgeClient,
     RagClient,
 )
+from pydantic_rag_agent.extras import MissingExtraError, require
 
 if TYPE_CHECKING:
     import uvicorn
@@ -101,11 +102,25 @@ def serve(
 ) -> None:
     """Run the HTTP API, for remote clients and integrations."""
     # Imported late so `--help` stays instant and does not build a runtime.
+    # Stderr, because `--json` consumers read stdout: an error is not part of the payload.
+    errors = Console(stderr=True)
+    try:
+        require("api", "fastapi")
+        require("api", "uvicorn")
+        from pydantic_rag_agent.api.app import create_default_app
+
+        # Built inside the guard: `[api]` does not imply the default Chroma store, so a
+        # missing extra can surface here rather than only on the import above.
+        app = create_default_app()
+    except MissingExtraError as exc:
+        # Text, not markup: the message contains `pydantic-rag-agent[api]`, and rich
+        # would read the brackets as a style tag and quietly drop the extra's name.
+        errors.print(Text(str(exc), style="red"))
+        raise typer.Exit(code=1) from exc
+
     import uvicorn
 
-    from pydantic_rag_agent.api.app import create_default_app
-
-    uvicorn.run(create_default_app(), host=host, port=port)
+    uvicorn.run(app, host=host, port=port)
 
 
 @app.command()
@@ -318,12 +333,24 @@ def dev(
     import sys
     import threading
 
-    from pydantic_rag_agent.api.app import create_default_app
-
     console = Console()
+    try:
+        require("api", "fastapi")
+        require("api", "uvicorn")
+        # Checked before spawning `python -m streamlit`, so the message names the extra
+        # instead of being a subprocess's ModuleNotFoundError in another window.
+        require("ui", "streamlit")
+        from pydantic_rag_agent.api.app import create_default_app
+
+        # Built inside the guard for the same reason as `serve`.
+        app = create_default_app()
+    except MissingExtraError as exc:
+        console.print(Text(str(exc), style="red"))
+        raise typer.Exit(code=1) from exc
+
     api_url = f"http://{host}:{port}"
 
-    server = create_server(create_default_app(), host=host, port=port)
+    server = create_server(app, host=host, port=port)
     threading.Thread(target=server.run, daemon=True).start()
 
     if not _wait_for_api(api_url, timeout=30.0):
@@ -404,11 +431,20 @@ def _chat_help() -> Panel:
 
 
 def _client(api_url: str | None) -> KnowledgeClient:
-    """HTTP when a URL is configured; the agent in this process otherwise."""
+    """HTTP when a URL is configured; the agent in this process otherwise.
+
+    A missing extra is reported here rather than at each command: the default store is
+    Chroma, so on a base install every command would otherwise fail while building the
+    agent, before any command-level error handling exists.
+    """
     url = api_url or _configured_api_url()
     if url:
         return RagClient(url)
-    return _in_process()
+    try:
+        return _in_process()
+    except MissingExtraError as exc:
+        Console(stderr=True).print(Text(str(exc), style="red"))
+        raise typer.Exit(code=1) from exc
 
 
 def _in_process() -> KnowledgeClient:

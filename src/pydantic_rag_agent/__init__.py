@@ -43,6 +43,7 @@ from pydantic_rag_agent.domain.models import (
     TurnUsage,
 )
 from pydantic_rag_agent.domain.ports import VectorStore
+from pydantic_rag_agent.extras import MissingExtraError
 
 __all__ = [
     # The agent
@@ -75,4 +76,5 @@ __all__ = [
     # Failures a caller is expected to handle
     "IndexMismatchError",
     "UnknownConversationError",
+    "MissingExtraError",
 ]

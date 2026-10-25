@@ -40,7 +40,7 @@ stay the canonical list.
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
-| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, SRC-1 | CORE-3 |
+| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, SRC-1, PKG-1 | CORE-3 |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
 runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
@@ -172,7 +172,7 @@ package becomes something another project can install, import, and mount. Design
 | CORE-2 | `KnowledgeClient` protocol and in-process client | CORE-1 | The CLI and Streamlit work with no server running. **Done:** `client.KnowledgeClient` is the protocol, `RagClient` the HTTP implementation and `in_process.InProcessClient` the local one; a parity test asserts both speak exactly the fields `api.schemas` declares, including the streaming payloads |
 | CORE-3 | FastAPI moved to an integration | CORE-1, PKG-1 | A host app mounts `create_router(agent)`; the standalone app still serves the CLI's `--api-url` mode |
 | CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function |
-| PKG-1 | Dependency extras | — | A base install pulls no Streamlit, Chroma, FastAPI or boto3; each extra is documented |
+| PKG-1 | Dependency extras | — | A base install pulls no Streamlit, Chroma, FastAPI or boto3; each extra is documented. **Done:** core is agent + loaders + CLI + memory store; `[chroma]`, `[api]`, `[ui]`, `[s3]` and `[all]` declared; optional imports are late and `MissingExtraError` names the install command. Verified by installing the built wheel into a clean venv: no extra present, `--help` and a memory-backed `stats` work, `serve` explains the missing `[api]` |
 | PKG-2 | Package metadata | — | Classifiers, project URLs and keywords set; `twine check` passes |
 | PKG-3 | Public surface and an export test | CORE-1 | `__all__` names are asserted, so an accidental addition is a deliberate act |
 | PKG-4 | Release workflow | PKG-2 | A tag publishes to PyPI via trusted publishing; a TestPyPI dispatch rehearses it first |

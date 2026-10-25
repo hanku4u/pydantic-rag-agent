@@ -18,7 +18,7 @@ packages themselves; which extra each belongs to is recorded in
 | --- | --- | --- |
 | `pydantic` | The project's organising idea: typed, validated boundaries everywhere. | Domain, every layer |
 | `pydantic-settings` | Typed configuration from the environment, failing at startup. | `config.py` |
-| `pydantic-ai-slim[openai,openrouter]` | Agent loop, typed tools, multi-turn history, the `Embedder` abstraction, and both client integrations. `openrouter` supplies the chat provider; `openai` supplies `OpenAIEmbeddingModel`, pointed at OpenRouter's OpenAI-compatible embeddings endpoint. | Adapters (`agent.py`, embedding) |
+| `pydantic-ai-slim[openai]` | Agent loop, typed tools, multi-turn history, the `Embedder` abstraction, and the OpenAI-compatible client. `openai` supplies `OpenAIChatModel`, `OpenAIProvider` and `OpenAIEmbeddingModel`, all pointed at `PRAGENT_*__BASE_URL`. The OpenRouter-specific provider class is no longer used — see the Revision in [ADR 0004](../decisions/0004-model-providers.md). | Adapters (`agent.py`, embedding) |
 | `chromadb` | Embedded vector store. The only place this may be imported is its adapter. | Adapters (`chroma_store.py`) |
 | `pypdfium2` | PDF text extraction, embedded-image extraction, and page rendering. Binds PDFium. | Adapters (`loaders/pdf.py`) |
 | `python-docx` | DOCX paragraphs and tables. | Adapters (`loaders/docx.py`) |
@@ -61,18 +61,38 @@ project's licence.
 
 Publication splits the stack ([ADR 0013](../decisions/0013-packaging-and-release.md)):
 
-| Extra | Packages |
-| --- | --- |
-| *(core)* | `pydantic`, `pydantic-settings`, `pydantic-ai-slim`, `tiktoken` |
-| `[chroma]` | `chromadb` |
-| `[api]` | `fastapi`, `uvicorn`, `python-multipart` |
-| `[ui]` | `streamlit` |
-| `[s3]` | `boto3` |
-| `[all]` | the four above |
+| Extra | Packages | Needed by |
+| --- | --- | --- |
+| *(core)* | `pydantic`, `pydantic-settings`, `pydantic-ai-slim[openai]`, `tiktoken`, `httpx`, `python-dotenv`, `rich`, `typer`, `pillow`, `pypdfium2`, `python-docx`, `python-pptx` | The agent, the loaders, the CLI and the in-memory store |
+| `[chroma]` | `chromadb` | The default persistent store |
+| `[api]` | `fastapi`, `uvicorn[standard]`, `python-multipart` | `serve`, and mounting the router |
+| `[ui]` | `streamlit` | `dev`, and the chat UI |
+| `[s3]` | `boto3` | The S3 document store (SRC-2) |
+| `[all]` | the four above | The one-liner for "just install everything" |
 
 The in-memory store stays in core, so `pip install pydantic-rag-agent` plus three lines
-of Python does something useful without a vector database. A command whose extra is
-missing must fail with a message naming the extra, not an `ImportError` traceback.
+of Python does something useful without a vector database:
+
+```python
+from pydantic_rag_agent import RagAgent, Settings, VectorStoreSettings
+
+agent = RagAgent(Settings(vector_store=VectorStoreSettings(backend="memory")))
+```
+
+**A base install imports no optional package.** `chromadb`, `fastapi`, `streamlit` and
+`boto3` are imported at the point of use, not at module scope, so `import
+pydantic_rag_agent` and `pydantic-rag-agent --help` work with nothing extra installed.
+This is asserted by a test that imports the package in a fresh interpreter and inspects
+`sys.modules`.
+
+**A missing extra names itself.** Every path that needs one goes through
+`extras.require`, which raises `MissingExtraError` carrying the `pip install
+'pydantic-rag-agent[extra]'` line. The CLI prints that message and exits 1; the Streamlit
+UI shows it instead of a traceback.
+
+The development environment is the exception: `[dependency-groups] dev` repeats the four
+optional stacks, because uv 0.13 has no `default-extras` and the suite imports FastAPI,
+Streamlit and Chroma. Users never get them through that group.
 
 ## Rules
 

@@ -64,6 +64,20 @@ act rather than a side effect.
 
 Details and the exact commands live in [Releasing](../development/releasing.md).
 
+## Revision — 2026-10-25, while building PKG-1
+
+Two things the toolchain settled:
+
+- **Core is more than models.** `httpx` (the CLI's HTTP transport), `python-dotenv` (the
+  CLI reads `.env` directly), `rich`/`typer` (the CLI) and the four loader libraries are
+  core, because the CLI and ingestion are core features. The extras are exactly the
+  things a user may not want: a database, a web framework, a UI toolkit, an object store.
+- **uv 0.13 has no `default-extras`.** The development environment therefore repeats the
+  four optional stacks inside `[dependency-groups] dev`; without that, a plain `uv sync`
+  would produce an environment whose own test suite cannot import FastAPI or Chroma.
+  Users are unaffected — extras are still extras — but it is duplication that has to be
+  kept in step with the extras table.
+
 ## Consequences
 
 - **Easier:** a lean install; a release that is one tag; artefacts that can be inspected

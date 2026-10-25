@@ -22,6 +22,7 @@ from pydantic_rag_agent.client import (
     KnowledgeClient,
     RagClient,
 )
+from pydantic_rag_agent.extras import MissingExtraError
 
 # Empty means "run in this process": the agent is built here instead of in a server.
 DEFAULT_API_URL = os.environ.get("PRAGENT_API_URL", "")
@@ -117,7 +118,11 @@ def _in_process_client() -> KnowledgeClient:
         # Late import so HTTP mode never builds a store or reads a credential.
         from pydantic_rag_agent.in_process import InProcessClient
 
-        client = InProcessClient.from_env()
+        try:
+            client = InProcessClient.from_env()
+        except MissingExtraError as exc:
+            st.error(str(exc))
+            st.stop()
         st.session_state["in_process_client"] = client
     return client
 

@@ -23,7 +23,6 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from pydantic_rag_agent.adapters.agent import AgentDeps, build_agent
 from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
-from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
 from pydantic_rag_agent.adapters.conversations import InMemoryConversationStore
 from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
@@ -40,6 +39,7 @@ from pydantic_rag_agent.domain.ports import (
     ImageStore,
     VectorStore,
 )
+from pydantic_rag_agent.extras import require
 
 
 @dataclass(frozen=True)
@@ -98,6 +98,11 @@ def build_runtime(
             embedding_dimensions=settings.embeddings.dimensions,
         )
     else:
+        # Imported here rather than at module scope: `chromadb` is an extra, and a base
+        # install must still be able to import the package and use the memory store.
+        require("chroma", "chromadb")
+        from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
+
         store = ChromaVectorStore(
             settings.vector_store.chroma_path,
             embedding_model=settings.embeddings.model,
