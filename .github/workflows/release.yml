@@ -1,0 +1,104 @@
+name: Release
+
+# Two ways in, one build:
+#   * a tag `vX.Y.Z` publishes to PyPI;
+#   * a manual dispatch publishes the same artefacts to TestPyPI, so a broken README or a
+#     bad classifier is caught before it is immutable.
+#
+# Authentication is OIDC trusted publishing. There is no API token in this file, in the
+# repository, or in anyone's shell history: GitHub proves the workflow's identity to PyPI,
+# and the `release` environment is the one the publisher is registered against.
+
+on:
+  push:
+    tags: ["v*"]
+  # No inputs: a dispatch is a rehearsal, and a rehearsal goes to TestPyPI. An input
+  # that only ever had one legal value would be a knob pretending to be a choice.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A tag and a manual rehearsal for the same ref must not overlap; two publishes for one
+  # version fail on the second with an immutability error.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # the OIDC token trusted publishing exchanges for an upload
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+
+      # The same gate set CI runs. A tag can be pushed from a commit whose CI never
+      # finished, and publishing something that fails its own tests is not a release.
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type-check
+        run: uv run mypy src scripts
+
+      - name: Test
+        run: uv run pytest --cov
+
+      - name: Check documentation links
+        run: uv run python scripts/check_docs_links.py
+
+      # A tag is a promise about what is inside. If `v0.2.0` is on a commit that says
+      # 0.1.0, the artefact and the tag disagree and nobody can tell which is true.
+      - name: Check the tag matches pyproject
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match pyproject version $version" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build
+
+      - name: Check the artefacts
+        run: uv run --with twine twine check dist/*
+
+      # A wheel that installs but cannot import is the classic release bug, and the
+      # cheapest place to catch it is here, before an upload.
+      - name: Install the wheel in a clean environment
+        run: |
+          uv venv "$RUNNER_TEMP/smoke"
+          uv pip install --python "$RUNNER_TEMP/smoke/bin/python" dist/*.whl
+          "$RUNNER_TEMP/smoke/bin/python" -c "import pydantic_rag_agent; print(pydantic_rag_agent.__version__)"
+          "$RUNNER_TEMP/smoke/bin/pydantic-rag-agent" --help >/dev/null
+
+      - name: Upload the artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.ref_name }}
+          path: dist/
+          retention-days: 30
+
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch'
+        run: uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always
+
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags/')
+        run: uv publish --trusted-publishing always

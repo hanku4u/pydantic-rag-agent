@@ -78,6 +78,21 @@ Two things the toolchain settled:
   Users are unaffected — extras are still extras — but it is duplication that has to be
   kept in step with the extras table.
 
+## Revision — 2026-10-25, while building PKG-4
+
+The workflow is `.github/workflows/release.yml`, and three implementation choices are worth
+recording:
+
+- **One environment, `release`, for both indexes.** PyPI and TestPyPI each need their own
+  trusted publisher registration, but both point at the same workflow and environment, so a
+  reviewer requirement configured there protects both uploads.
+- **The tag must match `pyproject.toml`.** A mismatch would ship an artefact whose internal
+  version disagrees with the tag users pin; the workflow fails before building rather than
+  publishing something ambiguous.
+- **A manual dispatch cannot publish to PyPI.** Rehearsal is dispatch to TestPyPI; a real
+  release is a tag. Retrying a failed tag run is GitHub's "Re-run jobs", which keeps one
+  meaning per trigger.
+
 ## Consequences
 
 - **Easier:** a lean install; a release that is one tag; artefacts that can be inspected

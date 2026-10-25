@@ -84,7 +84,8 @@ server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade)
 (originals copied to a local `DocumentStore`, cited by `file://`), **SRC-2** (the same store
 in S3 via the `[s3]` extra, cited by `s3://`), **SRC-3** (locators shown in the API, the
 CLI's sources table and the UI), **PKG-2** (metadata, `py.typed`, single-sourced version)
-and **PKG-3** (the export test).
+**PKG-3** (the export test) and **PKG-4** (the release workflow: tag → PyPI, dispatch →
+TestPyPI, OIDC, tag/version guard).
 
 Read these before touching anything:
 
@@ -97,7 +98,8 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: the release workflow (PKG-4) next, then the runbook rehearsal (PKG-5).
+Only **PKG-5** remains: execute the release runbook once. It needs the PyPI trusted
+publisher registered and a tag, so it is an operational step rather than code.
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 
