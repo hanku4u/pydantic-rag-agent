@@ -28,13 +28,13 @@ from pydantic_rag_agent import RagAgent, ProviderSettings, Settings
 settings = Settings(
     provider=ProviderSettings(api_key="sk-or-…", model="deepseek/deepseek-v4.1-flash"),
 )
-agent = RagAgent(settings)          # or RagAgent.from_env(".env")
+agent = RagAgent(settings)  # or RagAgent.from_env(".env")
 
 await agent.ingest([Path("docs/")])
 turn = await agent.ask("How long are backups retained?")
 print(turn.text)
 for citation in turn.citations:
-    print(citation.label, citation.source_path)   # file:///… or s3://…
+    print(citation.label, citation.source_path)  # file:///… or s3://…
 ```
 
 `from_env` is a convenience over `Settings()`, not a separate configuration path. Every

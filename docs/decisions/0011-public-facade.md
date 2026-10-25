@@ -24,10 +24,11 @@ HTTP, so their behaviour is verified by launching them rather than by unit tests
 operations, in `async` form with thin sync helpers:
 
 ```python
-agent = RagAgent(settings)          # or RagAgent.from_env()
+agent = RagAgent(settings)  # or RagAgent.from_env()
 await agent.ingest([Path("docs/")])
 turn = await agent.ask("What is the rotation policy?")
-async for update in agent.stream("…"): ...
+async for update in agent.stream("…"):
+    ...
 ```
 
 **FastAPI becomes an integration, not the core.** Move the app factory under

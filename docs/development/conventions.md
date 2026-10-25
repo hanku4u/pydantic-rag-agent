@@ -82,6 +82,10 @@ Types in use: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `build`, `ci`.
 - A change that alters documented behaviour updates the documentation **in the same
   commit**. This is the rule most likely to be quietly ignored, and the one that
   degrades the docs fastest.
+- **Python inside Markdown is formatted too.** `ruff format` formats fenced `python`
+  blocks in `.md` files, so a code example that is not formatter-clean fails CI. Run
+  `uv run ruff format .` after editing docs, not just after editing code. This has
+  caught the same mistake three times; consider that a hint about the process.
 - New architectural decisions get a record in [decisions/](../decisions/README.md).
 - New settings are added to [Configuration](../reference/configuration.md) in the
   same pull request that introduces them.
