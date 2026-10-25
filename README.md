@@ -43,14 +43,19 @@ uv add "pydantic-rag-agent[all]"          # everything
 > [ADR 0013](docs/decisions/0013-packaging-and-release.md). Until then, install from the
 > repository as below.
 
-Two lines of Python once it is published:
+As a library, from the repository today (and from PyPI once published):
 
 ```python
 from pydantic_rag_agent import RagAgent
 
 agent = RagAgent.from_env()
-print((await agent.ask("How long are backups retained?")).text)
+agent.ingest_sync("./docs")
+print(agent.ask_sync("How long are backups retained?").text)
 ```
+
+The async methods (`await agent.ask(...)`, `async for update in agent.stream(...)`) are
+what a web app wants; the sync helpers exist so a script does not have to become async to
+ask one question. Answers carry citations back to the source document.
 
 ## Getting started from the repository
 
@@ -113,16 +118,17 @@ than by accident from the working directory, which is what makes
 
 ## Configuration
 
-Configuration is not implemented yet — FND-2 in the
-[feature backlog](docs/features/README.md).
+Settings are a tree of six nodes — provider, embeddings, vector store, storage,
+ingestion, agent — read from `PRAGENT_*` environment variables via `pydantic-settings`.
+Nesting is addressed with a double underscore: `PRAGENT_PROVIDER__MODEL`,
+`PRAGENT_AGENT__TOP_K`. Each node can also be constructed in code, which is how the
+library is used.
 
-When it lands, settings are read from `PRAGENT_*` environment variables via
-`pydantic-settings` and validated at startup. Credentials keep their conventional
-names (`OPENROUTER_API_KEY`) and are never read from a committed file. The intended
-variable set is documented in
-[`docs/reference/configuration.md`](docs/reference/configuration.md).
+Credentials keep their conventional names (`OPENROUTER_API_KEY`) and are never read from
+a committed file. Every variable, its default, and the mapping from the pre-0.1.0 flat
+names are in [`docs/reference/configuration.md`](docs/reference/configuration.md).
 
-The `.gitignore` already ignores `.env` and any `.env.*` file except `.env.example`.
+The `.gitignore` ignores `.env` and any `.env.*` file except `.env.example`.
 
 ## Contributing
 

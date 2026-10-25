@@ -73,10 +73,11 @@ not run it. See [docs/development/evaluation.md](docs/development/evaluation.md)
 ## Where to pick up
 
 State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads the traces).
-**M7 — distribution and embedding — has started: CFG-1 is done.** `config.py` is now a
-tree of six plain models under one `BaseSettings` root, legacy flat names are lifted by a
-settings source, and `runtime.py` builds an `OpenAIChatModel` against a configurable
-`base_url` instead of an `openrouter:` prefix. CFG-2 and CFG-3 are next.
+**M7 — distribution and embedding — is underway.** Done: **CFG-1** (settings tree),
+**CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`), and
+**CORE-1** (`RagAgent` façade in `agent.py`, delegating to the composition root). The
+CLI, UI and router still use the wiring directly; CORE-2…CORE-4 make them call the
+façade, and SRC-1…SRC-3 add stored originals and locators.
 
 Read these before touching anything:
 
@@ -89,9 +90,10 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-Suggested order: **CFG-2** (nodes already accept code-built values; the remaining work is
-the façade accepting them), then **CORE-1**, then **SRC-1** and **PKG-1** in parallel,
-then the integrations. CFG-3 (this page's sibling, the variable reference) is done.
+Suggested order: **CORE-2** (the `KnowledgeClient` protocol and in-process client, which
+retires the CLI's HTTP dependency) and **PKG-1** (extras) next, then **SRC-1** (document
+store) and **CORE-3** (FastAPI integration) in parallel, then **CORE-4** (one
+composition root) and the remaining PKG features.
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 

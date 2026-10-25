@@ -80,6 +80,18 @@ both sides agree, so [ADR 0005](../decisions/0005-embedding-model-qwen3.md) and 
 make the adapter truncate and L2-renormalise when the provider ignores the parameter, and
 fail loudly when the returned length disagrees.
 
+Changing either value is a **rebuild**, not a restart: existing vectors are not comparable,
+so the guard refuses to answer from them. There is no `rebuild` command yet, so from the
+library:
+
+```python
+for document in await agent.documents():
+    await agent.delete_document(document.document_id)
+await agent.ingest("./docs")
+```
+
+From the CLI, `delete` each document id shown by `documents`, then `ingest` again.
+
 ## `vector_store` — where vectors live
 
 | Variable | Required | Default | Purpose |

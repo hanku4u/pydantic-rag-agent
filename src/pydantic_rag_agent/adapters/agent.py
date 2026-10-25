@@ -184,6 +184,9 @@ class AgentTurn:
     citation_audit: CitationAudit
     budget_exhausted: bool = False
     usage: TurnUsage = field(default_factory=TurnUsage)
+    # Set by the façade, not by the turn itself: this layer does not know where
+    # conversations are stored, and should not grow an opinion about it.
+    conversation_id: str | None = None
 
 
 def turn_usage(usage: Any) -> TurnUsage:

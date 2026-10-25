@@ -40,7 +40,7 @@ stay the canonical list.
 | M4 Agent | AGT-1…AGT-7 | — |
 | M5 Interfaces | API-1, API-2, API-3, API-4, API-5, CLI-1, CLI-2, CLI-3, UI-1, UI-2, UI-3, DX-1 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
-| M7 Distribution | CFG-1 | CFG-2 |
+| M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1 | CORE-2 |
 
 M0 is closed: `runtime.build_runtime()` loads `Settings` at startup and the API's lifespan
 runs `ensure_index_compatible`, which is what FND-2 was waiting for. M5 is closed too — the
@@ -163,12 +163,12 @@ package becomes something another project can install, import, and mount. Design
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | CFG-1 | Settings tree | — | Six nodes load independently; the flat names from 0.0.x still work through the migration table. **Done:** `config.py` holds six plain models under one root; nested names load, legacy names are lifted by a settings source, and a missing credential fails at construction naming both variables |
-| CFG-2 | Programmatic construction | CFG-1 | Every node can be built in code; `RagAgent(settings)` needs no environment at all |
-| CFG-3 | Reference and `.env.example` rewritten | CFG-1 | Nested names documented with the mapping table, and `.env.example` matches |
+| CFG-2 | Programmatic construction | CFG-1 | Every node can be built in code; `RagAgent(settings)` needs no environment at all. **Done:** the nodes are plain models by construction, and a test builds a working agent from code with the credential variables deleted |
+| CFG-3 | Reference and `.env.example` rewritten | CFG-1 | Nested names documented with the mapping table, and `.env.example` matches. **Done:** six tables plus the migration table; the mapping is asserted row by row against a literal contract in the tests |
 | SRC-1 | `DocumentStore` protocol and local adapter | CFG-1 | Originals are copied on ingest and a `file://` locator reaches citations |
 | SRC-2 | S3 adapter | SRC-1, PKG-1 | `s3://` locators; the `[s3]` extra installs cleanly; synchronous boto3 calls run off the event loop |
 | SRC-3 | Locators in every surface | SRC-1 | API, CLI and UI show the locator; tests assert both local and S3 forms |
-| CORE-1 | `RagAgent` façade | CFG-1 | The library examples in [Public API](../design/public-api.md) run end to end |
+| CORE-1 | `RagAgent` façade | CFG-1 | The library examples in [Public API](../design/public-api.md) run end to end. **Done:** `agent.py` composes the existing wiring and delegates to the same turn functions as the router; ingest, ask, stream, documents, delete, stats and close are tested offline through the injection seams |
 | CORE-2 | `KnowledgeClient` protocol and in-process client | CORE-1 | The CLI and Streamlit work with no server running |
 | CORE-3 | FastAPI moved to an integration | CORE-1, PKG-1 | A host app mounts `create_router(agent)`; the standalone app still serves the CLI's `--api-url` mode |
 | CORE-4 | Composition root returns the façade | CORE-1 | The API, CLI and UI all build through one function |

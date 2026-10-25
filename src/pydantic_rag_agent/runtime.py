@@ -13,9 +13,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic_ai import Agent, Embedder
 from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
+from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -53,27 +55,41 @@ class Runtime:
     conversations: InMemoryConversationStore
 
 
-def build_runtime(settings: Settings | None = None) -> Runtime:
-    """Construct the object graph from configuration."""
+def build_runtime(
+    settings: Settings | None = None,
+    *,
+    vector_store: VectorStore | None = None,
+    embeddings: EmbeddingService | None = None,
+    model: Model[Any] | None = None,
+) -> Runtime:
+    """Construct the object graph from configuration.
+
+    The keyword arguments are the injection seams: a host application can supply a store
+    it already runs, an embedding service it has already authenticated, or a model that is
+    already instrumented. Anything omitted is built from ``settings``.
+    """
     settings = settings or load_settings()
 
     provider_key = settings.require_provider_api_key()
     embedding_key = settings.require_embedding_api_key()
 
-    embeddings = EmbeddingService(
-        Embedder(
-            OpenAIEmbeddingModel(
-                settings.embeddings.model,
-                provider=OpenAIProvider(
-                    base_url=settings.embeddings.base_url, api_key=embedding_key
-                ),
-            )
-        ),
-        dimensions=settings.embeddings.dimensions,
-    )
+    if embeddings is None:
+        embeddings = EmbeddingService(
+            Embedder(
+                OpenAIEmbeddingModel(
+                    settings.embeddings.model,
+                    provider=OpenAIProvider(
+                        base_url=settings.embeddings.base_url, api_key=embedding_key
+                    ),
+                )
+            ),
+            dimensions=settings.embeddings.dimensions,
+        )
 
-    if settings.vector_store.backend == "memory":
-        store: VectorStore = InMemoryVectorStore(
+    if vector_store is not None:
+        store = vector_store
+    elif settings.vector_store.backend == "memory":
+        store = InMemoryVectorStore(
             embedding_model=settings.embeddings.model,
             embedding_dimensions=settings.embeddings.dimensions,
         )
@@ -103,7 +119,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
         model_name=caption_model,
     )
 
-    agent = build_agent(chat_model(settings.provider.model))
+    agent = build_agent(model if model is not None else chat_model(settings.provider.model))
 
     return Runtime(
         settings=settings,

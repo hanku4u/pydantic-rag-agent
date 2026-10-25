@@ -45,6 +45,8 @@ what makes the in-memory store and `TestEmbeddingModel` drop-in for tests.
 The second rule, added with [ADR 0011](decisions/0011-public-facade.md): **the router and
 the CLI call the façade; neither calls an application service directly.** Two paths to the
 same behaviour is how the CLI and the API start disagreeing about history and citations.
+The façade exists (CORE-1); the CLI, UI and router still reach the wiring directly, and
+CORE-2…CORE-4 are what make this sentence a fact rather than a target.
 
 ## Module map
 
@@ -52,14 +54,15 @@ Current:
 
 ```text
 src/pydantic_rag_agent/
-├── __init__.py           # docstring only
+├── __init__.py           # public surface, re-exported
+├── agent.py              # RagAgent façade — the public door (CORE-1)
 ├── cli.py                # typer app — HTTP client
-├── config.py             # Settings (pydantic-settings)
+├── config.py             # settings tree: six node models + root Settings
 ├── runtime.py            # composition root: builds the object graph
 ├── domain/
 │   ├── models.py         # Document, Chunk, RetrievedChunk, Citation
 │   ├── ports.py          # VectorStore protocol
-│   └── errors.py         # IndexMismatchError
+│   └── errors.py         # IndexMismatchError, UnknownConversationError
 ├── application/
 │   ├── embedding.py      # EmbeddingService + width adaptation
 │   ├── index_guard.py    # refuse a mismatched index
@@ -92,8 +95,8 @@ Planned for M7 ([ADR 0011](decisions/0011-public-facade.md)):
 ```text
 src/pydantic_rag_agent/
 ├── __init__.py           # public surface: RagAgent, settings, models, errors
-├── agent.py              # RagAgent façade — absorbs runtime.py
-├── config.py             # settings tree: six node models + root Settings (CFG-1)
+├── agent.py              # RagAgent façade (CORE-1, done)
+├── config.py             # settings tree: six node models + root Settings (CFG-1, done)
 ├── cli.py                # in-process client by default; --api-url optional
 ├── domain/
 ├── application/
@@ -104,8 +107,10 @@ src/pydantic_rag_agent/
 └── ui/                   # Streamlit, same transport choice as the CLI
 ```
 
-`api/` disappears into `integrations/fastapi/`; `runtime.py` disappears into `agent.py`.
-Both are moves, not rewrites — the same objects, reached through one public door.
+`api/` disappears into `integrations/fastapi/`; `runtime.py` is folded into `agent.py`
+once the CLI, the UI and the router all build through the façade (CORE-4). For now the
+façade delegates to the composition root rather than duplicating it — one wiring function,
+two callers, which is the point. Both changes are moves, not rewrites.
 
 The settings tree stays one module. An earlier sketch split it into a `config/` package
 with a file per node; six models of three to five fields each do not justify six files,
