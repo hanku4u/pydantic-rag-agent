@@ -36,6 +36,7 @@ rather than inventing one and writing it down as fact.
 | Understand retrieval | [Retrieval design](design/retrieval.md) |
 | Understand the agent | [Agent design](design/agent.md) |
 | Use this as a library, or mount it in FastAPI | [Public API](design/public-api.md) |
+| Add the chat panel to your own Streamlit app | [Embedding](development/embedding.md) |
 | Understand the API, CLI, and UI | [Interfaces](design/interfaces.md) |
 | Publish a release | [Releasing](development/releasing.md) |
 | See what changed | [Changelog](../CHANGELOG.md) |

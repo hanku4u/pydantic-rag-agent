@@ -15,6 +15,7 @@ behind it: [ADR 0010](../decisions/0010-configuration-tree.md) (configuration),
 | Shape | Install | Needs a server? |
 | --- | --- | --- |
 | **Library** — import and call | `pydantic-rag-agent[chroma]` | no |
+| **Embedded UI** — chat panel inside your Streamlit app | `pydantic-rag-agent[chroma,ui]` | no |
 | **Standalone** — CLI and Streamlit | `pydantic-rag-agent[chroma,ui]` | no, unless you ask for `--api-url` |
 | **Mounted** — into an existing FastAPI app | `pydantic-rag-agent[chroma,api]` | it *is* your app |
 

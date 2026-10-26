@@ -97,7 +97,7 @@ def ingest_same_file_twice_should_not_duplicate_chunks(store: InMemoryVectorStor
 | **Ingestion** | End to end with `TestEmbeddingModel` and the in-memory store. Idempotency and per-file failure isolation are the important tests. |
 | **Agent** | `TestModel` to drive a tool call; assert the tool ran and that a budget-exhausted run reports it. |
 | **API** | `TestClient` against the real app with fake adapters injected. |
-| **Streamlit** | Not unit-tested. Keep the UI thin enough that this stays true. |
+| **Streamlit** | `streamlit.testing.v1.AppTest` runs a real script in a real script-run context. Assert on widgets and `session_state`, not on pixels. The embeddable panel (`ui/chat.py`) is covered this way; the wrapper's sidebar is thin by design and is what remains manual. |
 
 ## The protocol conformance suite
 
