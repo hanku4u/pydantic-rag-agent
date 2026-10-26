@@ -22,6 +22,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, TypeVar
 
+import httpx2
 from pydantic_ai import Agent, Embedder
 from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
 from pydantic_ai.messages import (
@@ -48,6 +49,7 @@ from pydantic_rag_agent.adapters.agent import (
 )
 from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
 from pydantic_rag_agent.adapters.compaction import compact
+from pydantic_rag_agent.adapters.compat import NullContentTolerantTransport
 from pydantic_rag_agent.adapters.conversations import Conversation, InMemoryConversationStore
 from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
@@ -96,6 +98,20 @@ class _Runtime:
     conversations: InMemoryConversationStore
 
 
+def _http_client() -> httpx2.AsyncClient:
+    """One transport for every provider this graph builds.
+
+    The transport rewrites the one thing strict OpenAI-compatible servers reject — an
+    assistant message whose ``content`` is null because it carries tool calls — and passes
+    everything else through untouched. See `adapters/compat.py` for why this is a transport
+    and what it deliberately does not rewrite.
+
+    An ``httpx2`` client, which is what the pydantic-ai providers use natively: handing them
+    an ``httpx`` client works today but warns, and the warning becomes an error in v3.
+    """
+    return httpx2.AsyncClient(transport=NullContentTolerantTransport())
+
+
 def _build_runtime(
     settings: Settings,
     *,
@@ -115,19 +131,6 @@ def _build_runtime(
     provider_key = settings.require_provider_api_key()
     embedding_key = settings.require_embedding_api_key()
 
-    if embeddings is None:
-        embeddings = EmbeddingService(
-            Embedder(
-                OpenAIEmbeddingModel(
-                    settings.embeddings.model,
-                    provider=OpenAIProvider(
-                        base_url=settings.embeddings.base_url, api_key=embedding_key
-                    ),
-                )
-            ),
-            dimensions=settings.embeddings.dimensions,
-        )
-
     if vector_store is not None:
         store = vector_store
     elif settings.vector_store.backend == "memory":
@@ -146,6 +149,24 @@ def _build_runtime(
             embedding_model=settings.embeddings.model,
             embedding_dimensions=settings.embeddings.dimensions,
             collection_name=settings.vector_store.collection,
+        )
+
+    # Built after the store so a missing store extra is reported before any provider
+    # object exists: the error a user sees for a bad install should name the extra, not
+    # fail later on an unrelated construction step.
+    if embeddings is None:
+        embeddings = EmbeddingService(
+            Embedder(
+                OpenAIEmbeddingModel(
+                    settings.embeddings.model,
+                    provider=OpenAIProvider(
+                        base_url=settings.embeddings.base_url,
+                        api_key=embedding_key,
+                        http_client=_http_client(),
+                    ),
+                )
+            ),
+            dimensions=settings.embeddings.dimensions,
         )
 
     image_dir = Path(settings.storage.images.directory)
@@ -176,7 +197,11 @@ def _build_runtime(
     def chat_model(model_id: str) -> OpenAIChatModel:
         return OpenAIChatModel(
             model_id,
-            provider=OpenAIProvider(base_url=settings.provider.base_url, api_key=provider_key),
+            provider=OpenAIProvider(
+                base_url=settings.provider.base_url,
+                api_key=provider_key,
+                http_client=_http_client(),
+            ),
         )
 
     caption_model = settings.provider.effective_caption_model

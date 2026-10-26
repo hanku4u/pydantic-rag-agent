@@ -54,8 +54,9 @@ real value.
 | [0013](0013-packaging-and-release.md) | Publish as `pydantic-rag-agent`, 0.1.0, with optional extras | Accepted | 2026-10-25 |
 | [0014](0014-openai-compatible-endpoint.md) | An OpenAI-compatible endpoint, stateless first | Accepted | 2026-10-25 |
 | [0015](0015-embeddable-chat.md) | An embeddable chat panel; the standalone app becomes a wrapper | Accepted | 2026-10-26 |
+| [0016](0016-null-content-compat.md) | Rewrite null message content for strict OpenAI-compatible providers | Accepted | 2026-10-26 |
 
-Next number: **0016**.
+Next number: **0017**.
 
 ## Writing one
 

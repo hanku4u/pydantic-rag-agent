@@ -3418,6 +3418,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "httpx2" },
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
@@ -3476,6 +3477,7 @@ requires-dist = [
     { name = "chromadb", marker = "extra == 'chroma'", specifier = ">=1.5.9" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.162.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "httpx2", specifier = ">=2.16.0" },
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = ">=2.61,<3" },
