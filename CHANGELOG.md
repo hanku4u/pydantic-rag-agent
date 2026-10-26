@@ -7,6 +7,40 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-26
+
+### Added
+
+- **An embeddable chat panel.** `pydantic_rag_agent.ui.rag_chat(agent)` renders the chat
+  UI inside a host Streamlit app, so the agent can be embedded in an application that
+  already has its own page. No FastAPI and no server are involved: `[ui]` is sufficient and
+  `[api]` is not required. The host builds and owns the `RagAgent` and closes it.
+  - `rag_chat_client(client)` renders the same panel over any `KnowledgeClient`, so an
+    existing HTTP deployment can be reused.
+  - Session state is namespaced by a `key` argument, so two panels can share a page and a
+    host app's own `st.session_state` keys are never touched.
+  - Importing the module has no side effects: it does not call `st.set_page_config`, and it
+    does not stop or rerun the script.
+- An embedding guide, `docs/development/embedding.md`, and ADR
+  [0015](docs/decisions/0015-embeddable-chat.md).
+
+### Changed
+
+- `ui/streamlit_app.py` is now a thin wrapper over the embeddable panel rather than a
+  second implementation of the chat loop. The standalone app (`pydantic-rag-agent dev`)
+  renders through the same code, so the two cannot drift. Its behaviour is unchanged.
+- `ui/` has tests for the first time, driven by `streamlit.testing.v1.AppTest`. The
+  development docs previously described the UI as "verified by launching it", which is a
+  manual step CI does not perform.
+
+### Migration
+
+Nothing to change. The panel is new and `ui/streamlit_app.py` keeps its module path and
+its behaviour; only its internals moved. A host app that never imported `ui/` is
+unaffected, and the standalone app continues to work as before.
+
+[0.2.0]: https://github.com/hanku4u/pydantic-rag-agent/releases/tag/v0.2.0
+
 ## [0.1.1] — 2026-10-25
 
 ### Added
