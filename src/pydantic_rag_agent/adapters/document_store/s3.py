@@ -1,8 +1,12 @@
-"""Originals in an S3 bucket, addressed by content.
+"""Originals in an S3 bucket, addressed by their readable name.
 
-Same layout as the local adapter, one level down: ``<prefix><aa>/<document_id>/<filename>``.
-That is deliberate — a corpus moved between local disk and a bucket keeps the same shape, so
-a citation's tail still identifies the document even when the scheme changes.
+Same layout as the local adapter: ``<prefix><slug>``. A corpus moved between local disk and
+a bucket keeps the same shape, so a citation's tail still identifies the document even when
+the scheme changes.
+
+Objects written before SRC-4 live at ``<prefix><aa>/<document_id>/<filename>`` and stay
+readable through ``read_legacy``/``exists_legacy``, because an index built before the change
+must keep serving its citations. Nothing writes the old layout any more.
 
 boto3 is synchronous, and so is this adapter: the protocol is sync, and pushing every call
 to a thread inside the adapter would make the local one slower for no benefit. Callers run
@@ -55,30 +59,30 @@ class S3DocumentStore:
             boto3 = require("s3", "boto3")
             self._client = boto3.client("s3", region_name=region)
 
-    def save(self, *, document_id: str, filename: str, data: bytes) -> str:
+    def save(self, *, slug: str, data: bytes) -> str:
         """Put the bytes and return their ``s3://`` locator.
 
         A put is an overwrite at the same key, so re-ingesting the same document writes the
         same object with the same content. There is no conditional write: last writer wins,
-        which for content-addressed data is the same bytes.
+        and the catalogue is what guarantees two documents never share a slug.
         """
-        key = self._key(document_id, filename)
+        key = self._key(slug)
         self._client.put_object(Bucket=self._bucket, Key=key, Body=data)
         return self._uri(key)
 
-    def locate(self, *, document_id: str, filename: str) -> str:
+    def locate(self, *, slug: str) -> str:
         """Where this document would live. Does no I/O."""
-        return self._uri(self._key(document_id, filename))
+        return self._uri(self._key(slug))
 
-    def read(self, *, document_id: str, filename: str) -> bytes:
-        key = self._key(document_id, filename)
+    def read(self, *, slug: str) -> bytes:
+        key = self._key(slug)
         response = self._client.get_object(Bucket=self._bucket, Key=key)
         body = response["Body"]
         content: bytes = body.read()
         return content
 
-    def exists(self, *, document_id: str, filename: str) -> bool:
-        key = self._key(document_id, filename)
+    def exists(self, *, slug: str) -> bool:
+        key = self._key(slug)
         try:
             self._client.head_object(Bucket=self._bucket, Key=key)
         except Exception as exc:
@@ -87,7 +91,7 @@ class S3DocumentStore:
             raise
         return True
 
-    def presigned_url(self, *, document_id: str, filename: str, expires_in: int = 300) -> str:
+    def presigned_url(self, *, slug: str, expires_in: int = 300) -> str:
         """A time-limited URL the caller's browser can fetch directly from the bucket.
 
         Not part of ``DocumentStore``: only an S3-backed store can do this, and a local
@@ -95,7 +99,7 @@ class S3DocumentStore:
         implementation to have a method that means nothing for it. The route asks whether
         the object supports it instead of assuming.
         """
-        key = self._key(document_id, filename)
+        key = self._key(slug)
         url: str = self._client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self._bucket, "Key": key},
@@ -103,9 +107,40 @@ class S3DocumentStore:
         )
         return url
 
-    def _key(self, document_id: str, filename: str) -> str:
+    def _key(self, slug: str) -> str:
+        """``<prefix><slug>``, with the slug reduced to a leaf first.
+
+        The slug arrives from a catalogue row, which a person can edit by hand — a different
+        trust boundary from a name this process derived a moment ago. Traversal is therefore
+        rejected here rather than trusted to the slug rules upstream.
+        """
+        return f"{self._prefix}{require_filename(slug)}"
+
+    def _legacy_key(self, document_id: str, filename: str) -> str:
         safe_id = require_document_id(document_id)
         return f"{self._prefix}{safe_id[:2]}/{safe_id}/{require_filename(filename)}"
+
+    # -- pre-SRC-4 layout, read-only ---------------------------------------------------
+
+    def read_legacy(self, *, document_id: str, filename: str) -> bytes:
+        """Read an object written by the content-addressed layout."""
+        response = self._client.get_object(
+            Bucket=self._bucket, Key=self._legacy_key(document_id, filename)
+        )
+        body = response["Body"]
+        content: bytes = body.read()
+        return content
+
+    def exists_legacy(self, *, document_id: str, filename: str) -> bool:
+        try:
+            self._client.head_object(
+                Bucket=self._bucket, Key=self._legacy_key(document_id, filename)
+            )
+        except Exception as exc:
+            if _is_missing(exc):
+                return False
+            raise
+        return True
 
     def _uri(self, key: str) -> str:
         return f"s3://{self._bucket}/{key}"

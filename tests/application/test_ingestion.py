@@ -16,6 +16,7 @@ from factories import FakeCaptioner, build_embedding_service
 from fixtures.pdf_builder import build_text_pdf
 from PIL import Image
 
+from pydantic_rag_agent.adapters.catalogue import SQLiteCatalogue
 from pydantic_rag_agent.adapters.document_store.local import LocalDocumentStore
 from pydantic_rag_agent.adapters.image_store import FileImageStore
 from pydantic_rag_agent.adapters.loaders import default_loaders
@@ -63,6 +64,7 @@ async def ingest_single(
     image_store: object | None = None,
     captioner: object | None = None,
     document_store: object | None = None,
+    catalogue: object | None = None,
 ) -> IngestReport:
     return await ingest_paths(
         [path],
@@ -72,6 +74,7 @@ async def ingest_single(
         image_store=image_store,  # type: ignore[arg-type]
         captioner=captioner,  # type: ignore[arg-type]
         document_store=document_store,  # type: ignore[arg-type]
+        catalogue=catalogue,  # type: ignore[arg-type]
     )
 
 
@@ -157,16 +160,44 @@ async def ingest_paths_should_copy_the_original_and_stamp_its_locator(
     store = build_store()
     service, _ = build_service()
     documents = LocalDocumentStore(tmp_path / "documents")
+    catalogue = SQLiteCatalogue(f"sqlite:///{tmp_path / 'catalogue.db'}")
 
     # when: it is ingested
-    await ingest_single(path, store=store, service=service, document_store=documents)
+    await ingest_single(
+        path,
+        store=store,
+        service=service,
+        document_store=documents,
+        catalogue=catalogue,
+    )
 
-    # then: the bytes are kept, and the chunk that cites them knows where
+    # then: the original is kept under its readable name, and the citing chunk knows where
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    assert documents.exists(document_id=digest, filename="notes.md")
+    row = await catalogue.get(digest)
+    assert row is not None
+    assert row.slug == "notes.md"
+    assert documents.exists(slug="notes.md")
     hit = await store.search([1.0] + [0.0] * (DIMENSIONS - 1))
     assert hit
-    assert hit[0].chunk.locator == documents.locate(document_id=digest, filename="notes.md")
+    assert hit[0].chunk.locator == documents.locate(slug="notes.md")
+    # The catalogue records the chunk count it could not know at claim time.
+    assert row.chunk_count == len(hit)
+    await catalogue.close()
+
+
+async def a_document_store_without_a_catalogue_should_be_refused(tmp_path: Path) -> None:
+    """The catalogue assigns the name a copy is written under, so a store cannot go alone."""
+    path = write_file(tmp_path, "notes.md", "# Notes\n\nalpha\n")
+    store = build_store()
+    service, _ = build_service()
+
+    with pytest.raises(ValueError, match="needs a catalogue"):
+        await ingest_single(
+            path,
+            store=store,
+            service=service,
+            document_store=LocalDocumentStore(tmp_path / "documents"),
+        )
 
 
 class UnwritableDocumentStore:
@@ -199,11 +230,13 @@ async def ingest_paths_when_the_original_cannot_be_stored_should_keep_the_previo
 
     # when: the edited file is ingested but the copy cannot be written
     path.write_text("# Notes\n\nreplacement\n", encoding="utf-8")
+    catalogue = SQLiteCatalogue(f"sqlite:///{tmp_path / 'catalogue.db'}")
     report = await ingest_single(
         path,
         store=store,
         service=service,
         document_store=UnwritableDocumentStore(),
+        catalogue=catalogue,
     )
 
     # then: the new version failed, and the old one is still searchable — a failed copy
@@ -218,17 +251,17 @@ class ThreadRecordingDocumentStore:
     def __init__(self) -> None:
         self.threads: list[threading.Thread] = []
 
-    def save(self, *, document_id: str, filename: str, data: bytes) -> str:
+    def save(self, *, slug: str, data: bytes) -> str:
         self.threads.append(threading.current_thread())
-        return f"file:///stored/{filename}"
+        return f"file:///stored/{slug}"
 
-    def locate(self, *, document_id: str, filename: str) -> str:
-        return f"file:///stored/{filename}"
+    def locate(self, *, slug: str) -> str:
+        return f"file:///stored/{slug}"
 
-    def read(self, *, document_id: str, filename: str) -> bytes:
+    def read(self, *, slug: str) -> bytes:
         return b""
 
-    def exists(self, *, document_id: str, filename: str) -> bool:
+    def exists(self, *, slug: str) -> bool:
         self.threads.append(threading.current_thread())
         return False
 
@@ -239,9 +272,16 @@ async def ingest_paths_should_copy_off_the_event_loop(tmp_path: Path) -> None:
     store = build_store()
     service, _ = build_service()
     documents = ThreadRecordingDocumentStore()
+    catalogue = SQLiteCatalogue(f"sqlite:///{tmp_path / 'catalogue.db'}")
 
     # when: it is ingested
-    await ingest_single(path, store=store, service=service, document_store=documents)
+    await ingest_single(
+        path,
+        store=store,
+        service=service,
+        document_store=documents,
+        catalogue=catalogue,
+    )
 
     # then: neither the existence check nor the copy ran on the loop's thread — boto3 is
     # synchronous, and even a local write is disk I/O

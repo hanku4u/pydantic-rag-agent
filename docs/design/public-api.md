@@ -82,6 +82,7 @@ RagAgent(
     embeddings: EmbeddingService | None = None,
     model: Model | None = None,                # already-built pydantic-ai model
     document_store: DocumentStore | None = None,   # where originals are kept
+    catalogue: DocumentCatalogue | None = None,   # where their names are recorded
 ) -> RagAgent
 ```
 
@@ -90,7 +91,7 @@ RagAgent(
 | `from_env(env_file=".env")` | Build from `PRAGENT_*` variables; `None` ignores the file |
 | `check_index()` | Fail if the index was built by another embedding configuration |
 | `new_conversation()` | Start one and return its id — optional before a stream |
-| `ingest(sources)` | Index files or directories; copies each original; returns `IngestReport` |
+| `ingest(sources)` | Index files or directories; copies each original under the name the catalogue assigns; returns `IngestReport` carrying each document's `slug` |
 | `ingest_files(files)` | Index `(name, bytes)` uploads, as an API or UI has them |
 | `ask(question, *, conversation_id=None)` | One answered turn, carrying `conversation_id` |
 | `chat(messages)` | One turn over a caller-owned thread; nothing is stored |

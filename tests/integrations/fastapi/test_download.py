@@ -32,6 +32,9 @@ def _settings_env(
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", "4")
     monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH", str(tmp_path / "documents"))
     monkeypatch.setenv("PRAGENT_STORAGE__IMAGES__DIRECTORY", str(tmp_path / "images"))
+    # The catalogue defaults to ./data/catalogue.db, which would otherwise be shared
+    # between tests: a slug claimed by one test would suppress the next one's ingest.
+    monkeypatch.setenv("PRAGENT_CATALOGUE__URL", f"sqlite:///{tmp_path / 'catalogue.db'}")
 
 
 def _filed(agent: Any) -> str:
@@ -178,7 +181,9 @@ def test_s3_presign_redirects_instead_of_proxying(monkeypatch: pytest.MonkeyPatc
     assert response.status_code == 307
     location = response.headers["location"]
     assert location.startswith("https://acme-docs.s3.amazonaws.com/")
-    assert f"documents/{document_id[:2]}/{document_id}/handbook.md" in location
+    # The key is the readable name the catalogue assigned, not the content hash.
+    assert "documents/handbook.md" in location
+    assert document_id not in location
     # 307 rather than 302 so the method is preserved; the URL is short-lived state.
     assert "X-Amz-Expires=300" in location
     agent.close_sync()

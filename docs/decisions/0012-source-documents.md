@@ -23,16 +23,24 @@ Two questions follow: where do originals live, and what does a citation point at
 
 ```python
 class DocumentStore(Protocol):
-    def save(self, *, document_id: str, filename: str, data: bytes) -> str: ...
-    def locate(self, *, document_id: str, filename: str) -> str: ...
-    def read(self, *, document_id: str, filename: str) -> bytes: ...
-    def exists(self, *, document_id: str, filename: str) -> bool: ...
+    def save(self, *, slug: str, data: bytes) -> str: ...
+    def locate(self, *, slug: str) -> str: ...
+    def read(self, *, slug: str) -> bytes: ...
+    def exists(self, *, slug: str) -> bool: ...
 ```
 
 | Adapter | Extra | Location |
 | --- | --- | --- |
-| `LocalDocumentStore` | core | `<local_path>/<aa>/<hash>/<filename>` |
-| `S3DocumentStore` | `[s3]` (`boto3`) | `s3://<bucket>/<prefix><aa>/<hash>/<filename>` |
+| `LocalDocumentStore` | core | `<local_path>/<slug>` |
+| `S3DocumentStore` | `[s3]` (`boto3`) | `s3://<bucket>/<prefix><slug>` |
+
+> **Amended by ADR 0018.** The interface above originally took `document_id` and `filename`
+> and addressed originals by content hash at `<aa>/<hash>/<filename>`. It now takes a `slug`
+> assigned by the catalogue, because a readable tree was worth more than path-level
+> deduplication. ``document_id`` remains ``sha256(payload)`` — it is chunk identity and every
+> locator already stored depends on it — but it is no longer a path component. The old layout
+> stays readable through ``LegacyDocumentStore`` so an index built before the change keeps
+> serving its citations; re-ingesting is what moves a document onto the readable tree.
 
 **Originals are copied on ingest, not referenced.** A store that points at a path the user
 later moves is a store that silently 404s a citation. Copying makes the store authoritative
@@ -90,17 +98,19 @@ Two smaller things, recorded because they are surprising:
 
 ## Revision — 2026-10-25, while building SRC-2
 
-The S3 adapter keeps the local layout one level down — `<prefix><aa>/<document_id>/<name>` —
-so a corpus moved between disk and a bucket keeps the same tail, and a locator's last
-components still identify the document. Three details worth recording:
+The S3 adapter keeps the local layout one level down — `<prefix><slug>`, as amended by ADR
+0018 — so a corpus moved between disk and a bucket keeps the same tail. Three details worth
+recording, the first two of which ADR 0018 revises:
 
 1. **The protocol stayed synchronous.** boto3 is synchronous, and making every adapter async
    to accommodate it would make the local one pay for a thread it does not need. Callers run
    it with `asyncio.to_thread` instead; ingestion does, and a test asserts the copy happens
    off the event loop's thread.
-2. **No conditional writes.** Content addressing makes a put idempotent: the same bytes land
-   at the same key. There is no "does it still match" check, because a race between two
-   identical ingests writes identical content.
+2. **No conditional writes.** A slug is stable, so a put at the same key overwrites: the
+   last writer wins. ADR 0018 moved the uniqueness guarantee out of the key and into the
+   catalogue's `UNIQUE(slug)` constraint, because two different documents must never share
+   a name — under content addressing that could not happen, and under a readable tree it
+   can.
 3. **boto3 is imported only when no client is injected.** A host with its own configured
    client can use the adapter without the `[s3]` extra installed here; constructing the store
    from configuration raises `MissingExtraError` naming the extra instead of an ImportError.

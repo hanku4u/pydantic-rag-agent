@@ -59,6 +59,9 @@ def settings_env(clean_settings_env: None, monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setenv("PRAGENT_EMBEDDING_MODEL", EMBEDDING_MODEL)
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", str(DIMENSIONS))
     monkeypatch.setenv("PRAGENT_STORAGE__IMAGES__DIRECTORY", str(tmp_path / "images"))
+    # The catalogue defaults to ./data/catalogue.db, which would otherwise be shared
+    # between tests: a slug claimed by one test would suppress the next one's ingest.
+    monkeypatch.setenv("PRAGENT_CATALOGUE__URL", f"sqlite:///{tmp_path / 'catalogue.db'}")
     monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH", str(tmp_path / "documents"))
 
 
@@ -613,6 +616,7 @@ def an_s3_backed_agent_should_wire_the_bucket_and_prefix(tmp_path: Path) -> None
     agent = RagAgent(settings, embeddings=service, model=TestModel())
 
     # then: the store is the S3 one, with the bucket and prefix from configuration
-    locator = agent._runtime.documents.locate(document_id="ab" * 32, filename="handbook.md")
-    assert locator == f"s3://acme-docs/imports/ab/{'ab' * 32}/handbook.md"
+    locator = agent._runtime.documents.locate(slug="handbook.md")
+    # The key is the slug, so the configured prefix is the only path component left.
+    assert locator == "s3://acme-docs/imports/handbook.md"
     agent.close_sync()

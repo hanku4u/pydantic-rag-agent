@@ -115,21 +115,47 @@ class DocumentStore(Protocol):
     locator, and finds the file. That is why ``save`` copies rather than referencing — a
     store pointing at a path the user later moves is a store that silently 404s.
 
-    ``document_id`` is the content hash of ``data``: re-ingesting the same bytes is the
-    same object, and the stored path is stable. Implementations must reject an id that is
-    not a sha256 hex digest, because it becomes a path component.
+    **Originals are addressed by slug, not by content hash** (SRC-4, ADR 0018). A caller asks
+    the catalogue for the document's readable name and passes it here, so the tree on disk
+    reads like the user's own filing rather than like a hash dump. This deliberately reverses
+    ADR 0012's content addressing; ``LegacyDocumentStore`` below is what keeps indexes built
+    before the change working.
+
+    ``slug`` is the whole stored name — ``handbook.md`` or ``handbook-2.md`` — already
+    sanitised by the catalogue. Implementations must still reduce it to a leaf and reject
+    anything that could escape the root: it arrives from a row someone may have edited by
+    hand, which is a different trust boundary from a name this process just derived.
 
     ``locator`` is a URI (``file:///…`` or ``s3://…``), never a bare path: it has to mean
     the same thing to a reader who is not the process that wrote it.
     """
 
-    def save(self, *, document_id: str, filename: str, data: bytes) -> str: ...
+    def save(self, *, slug: str, data: bytes) -> str: ...
 
-    def locate(self, *, document_id: str, filename: str) -> str: ...
+    def locate(self, *, slug: str) -> str: ...
 
-    def read(self, *, document_id: str, filename: str) -> bytes: ...
+    def read(self, *, slug: str) -> bytes: ...
 
-    def exists(self, *, document_id: str, filename: str) -> bool: ...
+    def exists(self, *, slug: str) -> bool: ...
+
+
+@runtime_checkable
+class LegacyDocumentStore(Protocol):
+    """A store that can still find originals written before SRC-4.
+
+    Separate from ``DocumentStore`` for the same reason ``PresigningDocumentStore`` is: a
+    store built from scratch has no legacy objects to find, and giving every implementation
+    a method whose only honest answer is "nothing there" would be noise.
+
+    It exists because the alternative is worse. Moving originals to slug paths orphans every
+    file stored by content hash, and a citation that used to work would start returning 404
+    with no explanation. An index built before SRC-4 therefore keeps its downloads working,
+    and re-ingesting is what migrates it onto the readable tree.
+    """
+
+    def read_legacy(self, *, document_id: str, filename: str) -> bytes: ...
+
+    def exists_legacy(self, *, document_id: str, filename: str) -> bool: ...
 
 
 @runtime_checkable
@@ -142,7 +168,7 @@ class PresigningDocumentStore(Protocol):
     and fall back to proxying, which is why the capability is a protocol rather than a flag.
     """
 
-    def presigned_url(self, *, document_id: str, filename: str, expires_in: int = 300) -> str: ...
+    def presigned_url(self, *, slug: str, expires_in: int = 300) -> str: ...
 
 
 @runtime_checkable
@@ -184,7 +210,16 @@ class DocumentCatalogue(Protocol):
 
     async def by_source_path(self, source_path: str) -> CataloguedDocument | None: ...
 
-    async def documents(self) -> list[CataloguedDocument]: ...
+    async def record_chunks(self, document_id: str, *, chunk_count: int) -> None:
+        """Record how many chunks a document produced, once they exist.
+
+        Separate from ``claim`` because the count cannot be known before the document is
+        parsed, while the slug has to be known before anything is stored. A catalogue that
+        claims with zero and never corrects it is wrong about every document it holds.
+        """
+        ...
+
+    async def list_documents(self) -> Sequence[CataloguedDocument]: ...
 
     async def forget(self, document_id: str) -> bool: ...
 

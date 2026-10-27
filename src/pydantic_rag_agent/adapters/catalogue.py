@@ -136,10 +136,10 @@ class SQLiteCatalogue:
         )
         return _row_to_document(row) if row else None
 
-    async def documents(self) -> list[CataloguedDocument]:
-        return await asyncio.to_thread(self._documents)
+    async def list_documents(self) -> list[CataloguedDocument]:
+        return await asyncio.to_thread(self._list_documents)
 
-    def _documents(self) -> list[CataloguedDocument]:
+    def _list_documents(self) -> list[CataloguedDocument]:
         rows = self._connect().execute("SELECT * FROM documents ORDER BY slug").fetchall()
         return [_row_to_document(row) for row in rows]
 
@@ -196,6 +196,29 @@ class SQLiteCatalogue:
                 _insert_values(created),
             )
             return created
+
+    async def record_chunks(self, document_id: str, *, chunk_count: int) -> None:
+        """Set the chunk count once the chunks exist.
+
+        Separate from :meth:`claim` because the count is not knowable when the row is
+        claimed: the name has to be assigned before anything can be stored under it, but how
+        many chunks a document produces is only known after parsing. Claiming with zero and
+        leaving it would make the catalogue wrong about every document it holds.
+
+        Deliberately does not touch ``updated_at``, which records when the *content* last
+        changed — a count arriving a moment later is not a content change. It also does not
+        disturb ``slug``, which is the whole point of claiming first.
+        """
+        async with self._lock:
+            await asyncio.to_thread(self._record_chunks, document_id, chunk_count)
+
+    def _record_chunks(self, document_id: str, chunk_count: int) -> None:
+        connection = self._connect()
+        with connection:
+            connection.execute(
+                "UPDATE documents SET chunk_count = ? WHERE document_id = ?",
+                (chunk_count, document_id),
+            )
 
     def _replace(
         self,

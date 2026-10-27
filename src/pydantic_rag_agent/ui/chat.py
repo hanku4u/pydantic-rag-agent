@@ -33,6 +33,7 @@ Embedding guide: docs/development/embedding.md. Decision: docs/decisions/0015-em
 
 from __future__ import annotations
 
+from pathlib import PurePath
 from typing import Any, cast
 
 try:
@@ -166,16 +167,54 @@ def _render_citations(
                 st.caption(str(document))
             document_id = citation.get("document_id")
             if document_id:
-                _render_download(str(document_id), client=client, key=key, index=index)
+                _render_download(
+                    str(document_id),
+                    filename=_download_name(source_path=str(citation.get("source_path") or "")),
+                    client=client,
+                    key=key,
+                    index=index,
+                )
 
 
-def _render_download(document_id: str, *, client: KnowledgeClient, key: str, index: int) -> None:
+def _download_name(*, source_path: str) -> str:
+    """The filename a citation's original should be saved as.
+
+    Derived from the document's ``source_path`` — the path it was ingested from — because
+    that is the name the user knows it by, extension included. The catalogue's slug would
+    also do, and is the stored name, but ``source_path`` is already on every citation and so
+    needs no extra lookup during render.
+
+    The leaf is taken deliberately. A name is a label, not a path: a malicious or malformed
+    ``source_path`` containing ``../`` must not be able to steer the browser's save dialog
+    outside the download directory. ``PurePath`` handles both separators, since the panel
+    may be reached from a browser on a Windows host.
+
+    Kept as a module function rather than inlined so the naming rule is testable without a
+    Streamlit runtime — the bug this fixes was a name that no test ever looked at.
+    """
+    name = PurePath(source_path.replace("\\", "/")).name
+    return name or "document"
+
+
+def _render_download(
+    document_id: str,
+    *,
+    filename: str,
+    client: KnowledgeClient,
+    key: str,
+    index: int,
+) -> None:
     """One citation's download control, fetching on click only.
 
     The callable returns the bytes, or raises. Streamlit shows the exception to the user, but
     a missing document is a normal outcome for a stale citation, so it is converted into a
     readable message first — "this document is no longer indexed" is information; a
     traceback from three layers down is noise.
+
+    ``filename`` comes from the citation, not from the response. A ``download_button`` writes
+    a local file and never sees a response header, so the name has to be known at render
+    time — the previous ``document-<id[:8]>`` fallback was not a fallback, it was the name
+    every user got, extension and all.
     """
 
     def fetch() -> bytes:
@@ -190,10 +229,7 @@ def _render_download(document_id: str, *, client: KnowledgeClient, key: str, ind
     st.download_button(
         "Download original",
         data=fetch,
-        # The filename is not known until the click, which is the cost of not fetching on
-        # render. `filename` below is a fallback the browser uses until the real one
-        # arrives in the response headers.
-        file_name=f"document-{document_id[:8]}",
+        file_name=filename,
         mime="application/octet-stream",
         key=_k(key, f"download-{index}-{document_id[:12]}"),
     )
