@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** stable — M0–M7 complete, and 0.1.0 is published on PyPI. M8 is planned, not
+**Status:** stable — M0–M7 complete, and 0.2.0 is published on PyPI. M8 is in progress, not
 started. One feature, API-6, landed after M7 started.
 
 The order in which the backlog gets built, and what "done" means for each stage. The
@@ -45,26 +45,28 @@ endpoint, was added afterwards because it needed the integration that M7 built. 
 per-feature record is [the progress table](features/README.md#progress); the authoritative
 accounting of the whole project is [the overview](overview.md#current-state).
 
-## M8 — Storage, metadata and citation ergonomics (planned)
+## M8 — Storage, metadata and citation ergonomics (in progress)
 
-Not started. Two pieces of feedback from actually using 0.1.0:
+**CIT-1 is done.** A citation now downloads the document it names:
+`GET /documents/{id}/download`, a download control in the Streamlit panel, and a
+terminal hyperlink in the CLI with the locator printed as fallback (ADR 0017). What
+remains is the storage and metadata half. Two pieces of feedback from actually using 0.1.0:
 
 - **The originals are unreadable.** Content addressing under
   `documents/<aa>/<sha256>/<name>` is safe and deduplicates, but a person cannot browse it,
   and captions and index metadata live in unrelated corners. A readable tree plus a
   catalogue — SQLite by default, PostgreSQL when configured — would make a document
   legible and give that metadata somewhere to live.
-- **Citations are addresses, not actions.** A `file://` or `s3://` URI in a terminal or the
-  UI is something to copy, not something to click. A download route, Streamlit download
-  controls and terminal hyperlinks would turn a citation into the thing the user actually
-  wants: the document.
+- **Citations were addresses, not actions.** Done in CIT-1: a `file://` or `s3://` URI
+  used to be something to copy rather than click. The route, the Streamlit control and the
+  terminal hyperlink turn a citation into the document itself.
 - **Documents carry no metadata a caller chose.** Title, source and page are ours; a caller
   cannot say "this is Finance, 2026, internal" and then retrieve only that. Per-document
   key-values, denormalised onto chunks, plus a filtered search path, would let a corpus be
   narrowed before semantic ranking — useful for precision, latency, and eventually for
   access boundaries (which still need real authentication).
 
-Both need design work before code — naming and collision policy, whether the catalogue is
+The storage and metadata features need design work before code — naming and collision policy, whether the catalogue is
 authoritative, how migrations run, and how a download endpoint interacts with
 authentication. The open questions are recorded with the features in
 [the backlog](features/README.md#m8--storage-metadata-and-citation-ergonomics).

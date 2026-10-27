@@ -59,7 +59,7 @@ configuration. That is the project's organising idea, and the reason for its nam
 
 ## Current state
 
-Accurate as of 2026-10-25.
+Accurate as of 2026-10-26.
 
 | Area | State |
 | --- | --- |
@@ -96,12 +96,13 @@ Accurate as of 2026-10-25.
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
 | Release: workflow and first PyPI publication | Done — PKG-4, PKG-5; **0.1.0 live on PyPI** |
 | Readable document storage and a metadata catalogue | **Planned** — M8, SRC-4 |
-| Clickable citations that download the original | **Planned** — M8, CIT-1 |
+| Clickable citations that download the original | **Done** — CIT-1 (ADR 0017) |
 | Caller-supplied document metadata and filtered retrieval | **Planned** — M8, SRC-5/RET-5 |
 
-**Milestone 7 is complete** and 0.1.0 is published. **Milestone 8 is planned, not
-started**: readable document storage with a SQLite/PostgreSQL catalogue (SRC-4), and
-citations that open or download the original (CIT-1).
+**Milestone 7 is complete** and 0.2.0 is published. **Milestone 8 is in progress**:
+citations that open or download the original are done (CIT-1, ADR 0017); what remains is
+readable document storage with a SQLite/PostgreSQL catalogue (SRC-4) and caller-supplied
+metadata with filtered retrieval (SRC-5/RET-5).
 
 **Milestone 7, in detail.** Configuration is a tree of six nodes (CFG-1…3); the
 `RagAgent` façade exists and is the only builder (CORE-1…4); originals are kept locally or

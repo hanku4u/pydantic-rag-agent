@@ -78,7 +78,7 @@ State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads th
 **API-6 (post-M7) is done:** `create_openai_router` serves any OpenAI-speaking chat UI
 (`integrations/fastapi/openai.py`; ADR 0014).
 
-**M7 — distribution and embedding — is underway.** Done: **CFG-1** (settings tree),
+**M7 — distribution and embedding — is complete and published as 0.2.0.** Done: **CFG-1** (settings tree),
 **CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
 **CORE-1** (`RagAgent` façade), **CORE-2** (`KnowledgeClient`; the CLI and UI need no
 server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade),
@@ -87,7 +87,7 @@ server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade)
 in S3 via the `[s3]` extra, cited by `s3://`), **SRC-3** (locators shown in the API, the
 CLI's sources table and the UI), **PKG-2** (metadata, `py.typed`, single-sourced version)
 **PKG-3** (the export test) and **PKG-4** (the release workflow: tag → PyPI, dispatch →
-TestPyPI, OIDC, tag/version guard).
+TestPyPI, OIDC, tag/version guard), **UI-4** (embeddable chat panel; ADR 0015).
 
 Read these before touching anything:
 
@@ -96,14 +96,17 @@ Read these before touching anything:
 2. [ADR 0010](docs/decisions/0010-configuration-tree.md) (settings tree),
    [0011](docs/decisions/0011-public-facade.md) (façade, FastAPI optional),
    [0012](docs/decisions/0012-source-documents.md) (originals + locators),
-   [0013](docs/decisions/0013-packaging-and-release.md) (extras, 0.1.0, release).
+   [0013](docs/decisions/0013-packaging-and-release.md) (extras, 0.1.0, release),
+   [0016](docs/decisions/0016-null-content-compat.md) (strict-provider message rewrite),
+   [0017](docs/decisions/0017-citation-download.md) (citation downloads).
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-**M7 is complete and 0.1.0 is published on PyPI.** **M8 is planned, not started**:
-readable document storage with a SQLite/PostgreSQL catalogue (SRC-4), caller-supplied
-document metadata with filtered retrieval (SRC-5, RET-5), and citations that open or
-download the original (CIT-1). Persistent conversations, `pgvector` and
+**M7 is complete; 0.2.0 is published on PyPI.** **M8 is in progress:** **CIT-1 is done** —
+a citation downloads the original (`GET /documents/{id}/download`, a control in the
+Streamlit panel, a terminal hyperlink in the CLI; ADR 0017). Remaining: readable document
+storage with a SQLite/PostgreSQL catalogue (SRC-4), and caller-supplied document metadata
+with filtered retrieval (SRC-5, RET-5). Persistent conversations, `pgvector` and
 authentication remain deferred with their triggers in
 [docs/features/README.md](docs/features/README.md#deferred).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the

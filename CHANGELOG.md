@@ -7,6 +7,23 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A citation now downloads the document it names.** `GET /documents/{id}/download` serves
+  the stored original with its filename and content type, as an attachment. In the
+  Streamlit panel each citation gains a download control, and in the CLI the sources table
+  links the original where the terminal supports hyperlinks, printing the locator either
+  way. The S3 store proxies the bytes by default and can redirect to a presigned URL
+  instead (`PRAGENT_STORAGE__DOCUMENTS__S3_DOWNLOAD_MODE`). See
+  [ADR 0017](docs/decisions/0017-citation-download.md).
+  - The download control fetches on click, not on render: Streamlit re-runs the page on
+    every interaction, so fetching during render would re-read each cited document
+    repeatedly.
+  - **The route is unauthenticated, like every other route on this API.** `serve` binds
+    `127.0.0.1` by default; binding `0.0.0.0` makes it a file server for every ingested
+    original on that network. `document_id` is a content hash, so it identifies a document
+    rather than authorising access to it.
+
 ### Fixed
 
 - **Strict OpenAI-compatible servers no longer reject tool-calling turns.** An assistant

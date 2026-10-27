@@ -9,6 +9,7 @@ See docs/architecture.md for the layer rules this module obeys.
 
 from __future__ import annotations
 
+import mimetypes
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -186,6 +187,40 @@ class DocumentSummary(BaseModel):
     source_path: str
     title: str
     chunk_count: int = Field(ge=0)
+
+
+class DocumentDownload(BaseModel):
+    """The original bytes of one document, with what a browser needs to name it.
+
+    A download is not just bytes: ``Content-Disposition`` needs a filename, and a
+    ``text/markdown`` response rendered inline in a tab is a different thing from the same
+    bytes offered as a file. Both travel with the payload so every interface — the HTTP
+    route, the in-process client, a future one — describes the document the same way
+    instead of each guessing from the path.
+
+    ``filename`` is the leaf of the ingest source, which is exactly what the document store
+    keyed the original by. It is not ``document_id``: a user who downloads a citation should
+    get ``handbook.md``, not a hash.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str = Field(min_length=1)
+    filename: str = Field(min_length=1)
+    media_type: str = Field(min_length=1)
+    data: bytes
+
+
+def media_type_for(filename: str) -> str:
+    """The content type to serve a document as, from its extension.
+
+    ``mimetypes`` answers from the filename, which is enough for the formats the loaders
+    accept. The fallback is ``application/octet-stream`` on purpose: guessing
+    ``text/plain`` for an unknown extension would let a browser render something we know
+    nothing about, and this route serves originals rather than anything we generated.
+    """
+    guessed, _ = mimetypes.guess_type(filename)
+    return guessed or "application/octet-stream"
 
 
 class TurnUsage(BaseModel):

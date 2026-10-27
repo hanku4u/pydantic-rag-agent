@@ -43,7 +43,7 @@ stay the canonical list.
 | DX-2 (post-M7) | DX-2 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 | M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1, PKG-2, PKG-3, PKG-4, PKG-5 | — |
-| M8 Storage, metadata and citation ergonomics | — | SRC-4, SRC-5, RET-5, CIT-1 |
+| M8 Storage, metadata and citation ergonomics | CIT-1 | SRC-4, SRC-5, RET-5 |
 
 M0 is closed: `RagAgent` loads `Settings` at startup and checks the index on first use
 (on startup, for the standalone app), which is what FND-2 was waiting for. M5 is closed too — the
@@ -194,7 +194,7 @@ is an address (`file://…`, `s3://…`) rather than an action: a reader cannot 
 document carries no metadata a caller chose, so a corpus cannot be narrowed by department,
 year or access tier before semantic ranking.
 
-This milestone is **planned, not started**. It changes how data is laid out, so it needs its
+This milestone is **in progress**: CIT-1 is done. It changes how data is laid out, so the rest needs its
 own decision record before code; it revisits the layout in
 [ADR 0012](../decisions/0012-source-documents.md) while keeping its principle — ingest
 copies the original, so a citation cannot 404 when someone moves a file. Vectors stay in

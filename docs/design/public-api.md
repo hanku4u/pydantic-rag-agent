@@ -213,7 +213,7 @@ they are not settings classes — see the revision note in
 | `provider` | `model`, `caption_model`, `base_url`, `api_key` | `PRAGENT_PROVIDER__API_KEY` |
 | `embeddings` | `model`, `dimensions`, `base_url`, `api_key` | `PRAGENT_EMBEDDINGS__MODEL` |
 | `vector_store` | `backend`, `chroma_path`, `collection` | `PRAGENT_VECTOR_STORE__CHROMA_PATH` |
-| `storage.documents` | `backend`, `local_path`, `s3_bucket`, `s3_prefix`, `s3_region` | `PRAGENT_STORAGE__DOCUMENTS__BACKEND` |
+| `storage.documents` | `backend`, `local_path`, `s3_bucket`, `s3_prefix`, `s3_region`, `s3_download_mode` (`proxy`/`presign`), `s3_presign_expiry_seconds` | `PRAGENT_STORAGE__DOCUMENTS__BACKEND` |
 | `storage.images` | `directory` | `PRAGENT_STORAGE__IMAGES__DIRECTORY` |
 | `ingestion` | `chunk_size`, `chunk_overlap` | `PRAGENT_INGESTION__CHUNK_SIZE` |
 | `agent` | `top_k`, `min_score`, `max_tool_calls`, `history_turns`, `max_conversations` | `PRAGENT_AGENT__TOP_K` |

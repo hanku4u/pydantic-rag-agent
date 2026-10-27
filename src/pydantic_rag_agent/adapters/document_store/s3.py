@@ -87,6 +87,22 @@ class S3DocumentStore:
             raise
         return True
 
+    def presigned_url(self, *, document_id: str, filename: str, expires_in: int = 300) -> str:
+        """A time-limited URL the caller's browser can fetch directly from the bucket.
+
+        Not part of ``DocumentStore``: only an S3-backed store can do this, and a local
+        store has no equivalent — so making it part of the port would force every
+        implementation to have a method that means nothing for it. The route asks whether
+        the object supports it instead of assuming.
+        """
+        key = self._key(document_id, filename)
+        url: str = self._client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self._bucket, "Key": key},
+            ExpiresIn=expires_in,
+        )
+        return url
+
     def _key(self, document_id: str, filename: str) -> str:
         safe_id = require_document_id(document_id)
         return f"{self._prefix}{safe_id[:2]}/{safe_id}/{require_filename(filename)}"

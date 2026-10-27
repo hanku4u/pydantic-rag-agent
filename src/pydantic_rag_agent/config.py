@@ -137,6 +137,15 @@ class DocumentStoreSettings(BaseModel):
     s3_bucket: str | None = None
     s3_prefix: str = "documents/"
     s3_region: str | None = None
+    # How `GET /documents/{id}/download` serves an S3 original. `proxy` reads the object
+    # and streams it from this process; `presign` redirects to a signed URL the browser
+    # fetches straight from the bucket. Proxy is the default because a signed URL expires
+    # and needs credentials at request time, which is the non-determinism ADR 0012 rejected
+    # for citations. Presign is an operator choice for large files and egress offload.
+    s3_download_mode: Literal["proxy", "presign"] = "proxy"
+    # Lifetime of a presigned URL, in seconds. Only used when the mode is `presign`. Kept
+    # short by default: the URL is shown to a browser and may be copied out of it.
+    s3_presign_expiry_seconds: int = Field(default=300, ge=1, le=604800)
 
     @model_validator(mode="after")
     def _require_bucket_for_s3(self) -> DocumentStoreSettings:

@@ -19,9 +19,11 @@ model client. A remote client needs a URL, not the server's credentials, and dem
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+from urllib.parse import unquote
 
 import httpx
 
@@ -67,6 +69,19 @@ class KnowledgeClient(Protocol):
     def documents(self) -> list[dict[str, object]]: ...
 
     def delete_document(self, document_id: str) -> dict[str, object]: ...
+
+    def download(self, document_id: str) -> tuple[str, bytes] | None:
+        """The original of one document as ``(filename, bytes)``, or ``None`` if unknown.
+
+        A tuple rather than a modelled object so both clients return the same shape without
+        the in-process one having to import a response schema. ``None`` is the 404: a caller
+        holding a stale citation gets an answer, not an exception.
+
+        Bytes in memory, not a stream. A citation download is a single document a person
+        asked for, and buffering keeps "unknown document" a clean 404 instead of a failure
+        discovered halfway through a body.
+        """
+        ...
 
     def ingest(self, paths: Sequence[Path]) -> dict[str, object]: ...
 
@@ -122,6 +137,15 @@ class RagClient:
         response = self._client.delete(f"/documents/{document_id}")
         self._raise_for_status(response)
         return response.json()
+
+    def download(self, document_id: str) -> tuple[str, bytes] | None:
+        response = self._client.get(f"/documents/{document_id}/download")
+        if response.status_code == 404:
+            return None
+        self._raise_for_status(response)
+        return _filename_from_disposition(
+            response.headers.get("content-disposition", "")
+        ), response.content
 
     def ingest(self, paths: Sequence[Path]) -> dict[str, object]:
         """Upload files from disk and return the ingestion report.
@@ -198,3 +222,23 @@ class RagClient:
         raise ClientError(
             f"{detail} (HTTP {response.status_code})", status_code=response.status_code
         )
+
+
+def _filename_from_disposition(header: str) -> str:
+    """The filename a ``Content-Disposition`` header names, preferring RFC 5987.
+
+    The server sends both ``filename`` and ``filename*``. ``filename*`` is the one that
+    survives a non-ASCII name, so it wins when present; ``filename`` is the fallback for a
+    header from somewhere else that only has the plain parameter.
+
+    The result is only ever used to name a file the user asked for, but it still goes
+    through ``Path(...).name``: a server — any server, not just ours — can put a path
+    traversal in this header, and this is the last place to refuse it.
+    """
+    match = re.search(r"filename\*\s*=\s*UTF-8''([^;]+)", header, re.IGNORECASE)
+    if match:
+        candidate = unquote(match.group(1).strip())
+    else:
+        plain = re.search(r'filename\s*=\s*"([^"]*)"', header, re.IGNORECASE)
+        candidate = plain.group(1) if plain else "document"
+    return Path(candidate).name or "document"
