@@ -22,9 +22,10 @@ import json
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, TypeVar
+from urllib.parse import quote
 
 from fastapi import APIRouter, FastAPI, File, HTTPException, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic_ai.exceptions import ModelAPIError
 
 from pydantic_rag_agent import __version__
@@ -128,6 +129,55 @@ def create_router(agent: RagAgent) -> APIRouter:
         if deleted == 0:
             raise HTTPException(status_code=404, detail=f"no document {document_id!r}")
         return DeleteResponse(deleted=deleted)
+
+    @router.get("/documents/{document_id}/download")
+    async def download_document(document_id: str) -> Response:
+        """The original of one document, as a file the caller can save.
+
+        A citation that names a document is only useful if the reader can open it, and a
+        ``file://`` URI in a browser tab is not that. This serves the stored original under
+        its own name so a citation becomes something to click.
+
+        Two shapes, chosen by the store rather than by the route: an S3 store configured for
+        ``presign`` redirects to a signed URL, and everything else proxies the bytes through
+        this process. Proxying is the default because a signed URL expires and makes the
+        same citation resolve to a different address each time — the non-determinism ADR
+        0012 rejected for citations — while a redirect is worth it for large files.
+
+        ``Content-Disposition: attachment`` rather than ``inline`` on the proxied path:
+        these are user-supplied documents served from an origin that also runs the API, and
+        an HTML or SVG original rendered inline would execute in that origin. Attaching it
+        means the browser saves it instead of trusting it.
+
+        The bytes are read in full before the response starts. A streaming read would be
+        nicer for a large PDF, but the store's ``read`` returns ``bytes`` by protocol, and
+        a failure part-way through a streamed body cannot be turned into a 500 — the status
+        line is already gone. Reading first keeps "no such document" a clean 404.
+        """
+        link = await _mapped(lambda: agent.download_link(document_id))
+        if link:
+            # 307, not 302: the method must not become a GET by accident, and the signed
+            # URL is single-use state that a browser may cache only briefly.
+            return RedirectResponse(
+                url=link,
+                status_code=307,
+                headers={"cache-control": "private, max-age=0, must-revalidate"},
+            )
+
+        download = await _mapped(lambda: agent.download(document_id))
+        if download is None:
+            raise HTTPException(status_code=404, detail=f"no document {document_id!r}")
+
+        return Response(
+            content=download.data,
+            media_type=download.media_type,
+            headers={
+                "content-disposition": _content_disposition(download.filename),
+                # The body is a stable function of the id, so it can be cached hard; but
+                # `private` because this is somebody's document, not a public asset.
+                "cache-control": "private, max-age=0, must-revalidate",
+            },
+        )
 
     @router.post("/conversations", response_model=ConversationResponse, status_code=201)
     async def create_conversation() -> ConversationResponse:
@@ -296,6 +346,35 @@ def _citation_response(citation: Citation) -> CitationResponse:
         position=citation.position,
         heading_path=list(citation.heading_path),
     )
+
+
+def _content_disposition(filename: str) -> str:
+    """An ``attachment`` header that survives a filename we do not control.
+
+    Two problems, both worth solving rather than documenting:
+
+    * A filename is ingest input, so it can contain a quote, a semicolon, or a newline. A
+      newline in a header is response splitting; a quote ends the parameter early and
+      produces a malformed header. ``filename`` gets a quoted-string with the dangerous
+      characters escaped, and the *original* name rides along in ``filename*`` (RFC 5987),
+      which browsers prefer when present.
+    * Anything non-ASCII cannot go in a quoted-string at all under HTTP/1.1. The ``filename``
+      parameter gets an ASCII transliteration so old clients show something sensible,
+      and ``filename*`` carries the real name percent-encoded as UTF-8.
+
+    Both parameters, not one: clients that do not understand ``filename*`` fall back to
+    ``filename``, and a citation download that produces a file called ``document`` is a
+    worse outcome than a mangled but recognisable name.
+    """
+    # Percent-encode per RFC 5987 with the strict character set browsers actually accept.
+    encoded = quote(filename, safe="")
+    # A quoted-string may not contain a bare quote or backslash; CR/LF must never appear.
+    ascii_name = filename.encode("ascii", "replace").decode("ascii")
+    escaped = ascii_name.replace("\\", "\\\\").replace('"', r"\"")
+    escaped = escaped.replace("\r", "").replace("\n", "")
+    if not escaped.strip():
+        escaped = "document"
+    return f"attachment; filename=\"{escaped}\"; filename*=UTF-8''{encoded}"
 
 
 def _to_ingest_response(report: IngestReport) -> IngestReportResponse:

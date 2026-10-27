@@ -128,3 +128,16 @@ class DocumentStore(Protocol):
     def read(self, *, document_id: str, filename: str) -> bytes: ...
 
     def exists(self, *, document_id: str, filename: str) -> bool: ...
+
+
+@runtime_checkable
+class PresigningDocumentStore(Protocol):
+    """A ``DocumentStore`` that can hand out a URL instead of the bytes.
+
+    Separate from ``DocumentStore`` because a local store has no equivalent: adding
+    ``presigned_url`` to the port would give every implementation a method whose only honest
+    answer is "not supported". Callers test with ``isinstance(store, PresigningDocumentStore)``
+    and fall back to proxying, which is why the capability is a protocol rather than a flag.
+    """
+
+    def presigned_url(self, *, document_id: str, filename: str, expires_in: int = 300) -> str: ...

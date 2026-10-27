@@ -194,3 +194,19 @@ class FakeS3:
         if (Bucket, Key) not in self.objects:
             raise FakeClientError("404")
         return {}
+
+    def generate_presigned_url(
+        self, operation: str, *, Params: dict[str, str], ExpiresIn: int
+    ) -> str:
+        """A deterministic stand-in for boto3's signer.
+
+        The real thing produces a signed URL with a credential and a signature; the tests
+        assert on the *shape* — right bucket, right key, expiry carried through — because
+        that is the half of the behaviour our code owns. Signature correctness belongs to
+        boto3.
+        """
+        self.calls.append(("presign", Params["Key"]))
+        return (
+            f"https://{Params['Bucket']}.s3.amazonaws.com/{Params['Key']}"
+            f"?X-Amz-Expires={ExpiresIn}&X-Amz-Signature=fake"
+        )

@@ -112,6 +112,24 @@ class InProcessClient:
             raise ClientError(f"no document {document_id!r}", status_code=404)
         return {"deleted": deleted}
 
+    def download(self, document_id: str) -> tuple[str, bytes] | None:
+        """The original of one document, read straight from the store.
+
+        ``None`` for an unknown id, matching the HTTP 404: the CLI and the Streamlit panel
+        treat both clients identically, so in-process and remote behave the same way.
+
+        Unlike ``delete_document``, a missing document is not an error here. A citation is
+        a link the user kept; following it after the document was deleted should say so,
+        not fail the page.
+        """
+        try:
+            result = self._agent.download_sync(document_id)
+        except Exception as exc:  # noqa: BLE001 - a store failure must not traceback
+            raise _as_client_error(exc) from exc
+        if result is None:
+            return None
+        return result.filename, result.data
+
     def ingest(self, paths: Sequence[Path]) -> dict[str, object]:
         return self._ingest_paths(paths)
 

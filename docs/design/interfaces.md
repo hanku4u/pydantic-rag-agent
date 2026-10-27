@@ -47,6 +47,7 @@ prefix in an app you already have, and `create_app(agent)` is the standalone ser
 | `POST` | `/documents` | Upload and ingest one or more files |
 | `GET` | `/documents` | List ingested documents |
 | `DELETE` | `/documents/{document_id}` | Remove a document and its chunks |
+| `GET` | `/documents/{document_id}/download` | The stored original, as an attachment |
 | `POST` | `/conversations` | Start a conversation, returns `conversation_id` |
 | `POST` | `/conversations/{id}/messages` | Ask a question, return the full answer |
 | `POST` | `/conversations/{id}/messages/stream` | Same, as Server-Sent Events |
@@ -253,7 +254,10 @@ Layout, kept deliberately plain:
 - **Sidebar** — file uploader, ingest button, document list with delete, index stats.
 - **Main** — `st.chat_message` history, `st.chat_input` for questions.
 - **Per answer** — the streamed text, then an expander listing citations with document
-  title, page and the locator of the stored original.
+  title, page, the locator of the stored original, and a control that downloads that
+  original (CIT-1). The control fetches on click rather than on render, because Streamlit
+  re-runs the page on every interaction; the locator stays visible beside it, since that is
+  what a user copies when working in a terminal.
 - **Diagnostics** — expander showing tool calls and token usage from the last turn.
 
 `st.session_state` holds only the `conversation_id` and the rendered transcript. It

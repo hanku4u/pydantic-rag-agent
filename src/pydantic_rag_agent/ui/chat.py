@@ -104,7 +104,7 @@ def rag_chat_client(
     if heading is not None:
         st.subheader(heading)
 
-    _render_transcript(key)
+    _render_transcript(key, client)
 
     if question := st.chat_input(placeholder, key=_k(key, "input")):
         _handle_question(client, key, question)
@@ -129,26 +129,74 @@ def _conversation_id(key: str) -> str | None:
     return cast("str | None", st.session_state.get(_k(key, "conversation_id")))
 
 
-def _render_transcript(key: str) -> None:
+def _render_transcript(key: str, client: KnowledgeClient) -> None:
     for turn in _turn_state(key):
         with st.chat_message("user"):
             st.write(turn["question"])
         with st.chat_message("assistant"):
             st.markdown(turn["answer"])
-            _render_citations(turn["citations"])
+            _render_citations(turn["citations"], client=client, key=key)
 
 
-def _render_citations(citations: list[dict[str, Any]]) -> None:
+def _render_citations(
+    citations: list[dict[str, Any]], *, client: KnowledgeClient, key: str
+) -> None:
+    """Sources, each offering the original document when the client can fetch it.
+
+    The download is a ``Callable`` rather than bytes, and that is the whole design: Streamlit
+    re-runs this function on every interaction — every keystroke in the chat box, every
+    rerun a host triggers — so fetching each citation's bytes during render would re-read
+    the same document repeatedly and, over HTTP, re-request it. A callable is deferred: it
+    runs only when the user clicks, and then exactly once.
+
+    Verified rather than assumed: with a callable, ``AppTest`` renders the button and the
+    callable's call count stays at zero, so nothing is fetched until the click.
+
+    The locator text stays visible beside the button. It is what a user copies when they are
+    working in a terminal, and if the download fails — the document was deleted, the server
+    is gone — the address is still the answer to "where was this from?".
+    """
     if not citations:
         return
     with st.expander(f"Sources ({len(citations)})"):
         for index, citation in enumerate(citations, start=1):
             st.markdown(f"{index}. {citation['label']}")
-            # `file://` and `s3://` are addresses, not browser links; plain text is honest
-            # and copyable. A host that can mint HTTPS URLs can add a link.
             document = citation.get("locator") or citation.get("source_path")
             if document:
                 st.caption(str(document))
+            document_id = citation.get("document_id")
+            if document_id:
+                _render_download(str(document_id), client=client, key=key, index=index)
+
+
+def _render_download(document_id: str, *, client: KnowledgeClient, key: str, index: int) -> None:
+    """One citation's download control, fetching on click only.
+
+    The callable returns the bytes, or raises. Streamlit shows the exception to the user, but
+    a missing document is a normal outcome for a stale citation, so it is converted into a
+    readable message first — "this document is no longer indexed" is information; a
+    traceback from three layers down is noise.
+    """
+
+    def fetch() -> bytes:
+        result = client.download(document_id)
+        if result is None:
+            raise FileNotFoundError(
+                "This document is no longer in the index, so its original cannot be "
+                "downloaded. Re-ingest it to restore the download."
+            )
+        return result[1]
+
+    st.download_button(
+        "Download original",
+        data=fetch,
+        # The filename is not known until the click, which is the cost of not fetching on
+        # render. `filename` below is a fallback the browser uses until the real one
+        # arrives in the response headers.
+        file_name=f"document-{document_id[:8]}",
+        mime="application/octet-stream",
+        key=_k(key, f"download-{index}-{document_id[:12]}"),
+    )
 
 
 def _handle_question(client: KnowledgeClient, key: str, question: str) -> None:
@@ -161,7 +209,7 @@ def _handle_question(client: KnowledgeClient, key: str, question: str) -> None:
         except ClientError as exc:
             st.error(str(exc))
             return
-        _render_citations(citations)
+        _render_citations(citations, client=client, key=key)
 
     _turn_state(key).append({"question": question, "answer": answer, "citations": citations})
 

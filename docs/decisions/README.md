@@ -55,8 +55,9 @@ real value.
 | [0014](0014-openai-compatible-endpoint.md) | An OpenAI-compatible endpoint, stateless first | Accepted | 2026-10-25 |
 | [0015](0015-embeddable-chat.md) | An embeddable chat panel; the standalone app becomes a wrapper | Accepted | 2026-10-26 |
 | [0016](0016-null-content-compat.md) | Rewrite null message content for strict OpenAI-compatible providers | Accepted | 2026-10-26 |
+| [0017](0017-citation-download.md) | A citation downloads the original; S3 proxies by default | Accepted | 2026-10-26 |
 
-Next number: **0017**.
+Next number: **0018**.
 
 ## Writing one
 

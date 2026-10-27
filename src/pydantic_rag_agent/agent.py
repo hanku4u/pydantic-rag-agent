@@ -65,12 +65,19 @@ from pydantic_rag_agent.application.ingestion import (
 from pydantic_rag_agent.application.retrieval import RetrievalService
 from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.errors import InvalidThreadError, UnknownConversationError
-from pydantic_rag_agent.domain.models import ChatMessage, DocumentSummary, StoreStats
+from pydantic_rag_agent.domain.models import (
+    ChatMessage,
+    DocumentDownload,
+    DocumentSummary,
+    StoreStats,
+    media_type_for,
+)
 from pydantic_rag_agent.domain.ports import (
     DocumentLoader,
     DocumentStore,
     ImageCaptioner,
     ImageStore,
+    PresigningDocumentStore,
     VectorStore,
 )
 from pydantic_rag_agent.extras import require
@@ -96,6 +103,39 @@ class _Runtime:
     loaders: Sequence[DocumentLoader]
     agent: Agent[AgentDeps, str]
     conversations: InMemoryConversationStore
+
+
+async def _load_original(
+    *,
+    summaries: Sequence[DocumentSummary],
+    store: DocumentStore,
+    document_id: str,
+) -> DocumentDownload | None:
+    """Read one original document, or return ``None`` when the index has never seen it.
+
+    Shared by the façade and the in-process client so that both answer "is this a document
+    I have?" from the same source. The alternative — reading the store directly and letting
+    a missing file surface as an adapter error — cannot tell a stale citation apart from a
+    broken disk, and those want different responses: 404 and 500.
+
+    The store is synchronous by protocol (``read`` is a plain method: one file read, or one
+    boto3 call), so it is pushed off the event loop rather than awaited.
+    """
+    summary = next((item for item in summaries if item.document_id == document_id), None)
+    if summary is None:
+        return None
+
+    filename = Path(summary.source_path).name
+    if not filename:
+        return None
+
+    data = await asyncio.to_thread(store.read, document_id=document_id, filename=filename)
+    return DocumentDownload(
+        document_id=document_id,
+        filename=filename,
+        media_type=media_type_for(filename),
+        data=data,
+    )
 
 
 def _http_client() -> httpx2.AsyncClient:
@@ -481,6 +521,59 @@ class RagAgent:
         """Chunk count and the embedding identity the index was built with."""
         return await self._runtime.store.stats()
 
+    async def download(self, document_id: str) -> DocumentDownload | None:
+        """The original bytes of one document, or ``None`` if there is no such document.
+
+        Resolving the filename out of the index rather than carrying it on every chunk is
+        what makes this cheap: ``list_documents`` already knows the source path, and the
+        stored filename is its leaf. It also means an unknown id costs one index read and
+        returns ``None`` instead of raising out of the document store with a path error
+        that says nothing about the cause.
+
+        ``None`` rather than an exception because "no such document" is a normal answer to
+        a caller holding a stale citation, and because the API layer needs to tell it apart
+        from a store failure, which stays an exception.
+        """
+        return await _load_original(
+            summaries=await self._runtime.store.list_documents(),
+            store=self._runtime.documents,
+            document_id=document_id,
+        )
+
+    async def download_link(self, document_id: str) -> str | None:
+        """A URL for one document's original, when the store can mint one.
+
+        ``None`` means "no such document", the same as :meth:`download`. An empty string
+        is impossible: a store that cannot presign returns ``None`` from the capability
+        check below instead, and the caller falls back to :meth:`download`.
+
+        Kept on the façade rather than in the route because ADR 0011 makes the façade the
+        only door: a route reading the document store directly would be the second path to
+        the same behaviour, and the two would drift.
+        """
+        store = self._runtime.documents
+        if not isinstance(store, PresigningDocumentStore):
+            return None
+        if self._runtime.settings.storage.documents.s3_download_mode != "presign":
+            return None
+
+        summaries = await self._runtime.store.list_documents()
+        summary = next((item for item in summaries if item.document_id == document_id), None)
+        if summary is None:
+            return None
+
+        filename = Path(summary.source_path).name
+        if not filename:
+            return None
+
+        expiry = self._runtime.settings.storage.documents.s3_presign_expiry_seconds
+        return await asyncio.to_thread(
+            store.presigned_url,
+            document_id=document_id,
+            filename=filename,
+            expires_in=expiry,
+        )
+
     async def aclose(self) -> None:
         """Release store handles, for adapters that hold any.
 
@@ -536,6 +629,10 @@ class RagAgent:
     def delete_document_sync(self, document_id: str) -> int:
         """``delete_document`` for synchronous code."""
         return self._run_sync(self.delete_document(document_id))
+
+    def download_sync(self, document_id: str) -> DocumentDownload | None:
+        """``download`` for synchronous code."""
+        return self._run_sync(self.download(document_id))
 
     def close_sync(self) -> None:
         """Close the store and the loop the sync helpers used.

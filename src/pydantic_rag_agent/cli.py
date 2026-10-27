@@ -671,6 +671,18 @@ def _answer_panel(answer: str, tools: Sequence[str], *, pending: bool) -> Panel:
 
 
 def _render_citations(console: Console, citations: list[dict[str, Any]]) -> None:
+    """Sources, with the document address as a clickable link where the terminal can.
+
+    A terminal hyperlink is an OSC 8 escape sequence: the text is what is printed, and the
+    target is metadata the terminal may or may not use. Every terminal that does not
+    understand it prints the text and ignores the rest, so the *same* line is honest in a
+    pipe, in a 1980s terminal, and in Ghostty. That is why both forms are one `Text`: there
+    is no branch to test on terminal capability, and no case where a user loses the address
+    because their terminal was misdetected.
+
+    `rich` drops the escape sequence when output is not a terminal, so `--json` and piped
+    output stay plain without this function knowing about them.
+    """
     table = Table(title="Sources", title_justify="left")
     table.add_column("#", justify="right")
     table.add_column("Reference", overflow="fold")
@@ -679,9 +691,26 @@ def _render_citations(console: Console, citations: list[dict[str, Any]]) -> None
         # The locator is where the original actually lives: file:// on disk, s3:// in a
         # bucket. Older indexes have only the ingest path, so fall back to it rather than
         # showing an empty cell — the column is the answer to "where do I read this?".
-        document = citation.get("locator") or citation.get("source_path") or ""
-        table.add_row(str(index), str(citation["label"]), Text(str(document), style="dim"))
+        document = str(citation.get("locator") or citation.get("source_path") or "")
+        table.add_row(str(index), str(citation["label"]), _document_cell(document))
     console.print(table)
+
+
+def _document_cell(document: str) -> Text:
+    """The address, as a hyperlink when it is something a terminal can open.
+
+    A `file://` URI is worth linking: on a desktop it opens the document, and on a headless
+    box the terminal ignores it and shows the path. An `s3://` URI is not — there is no
+    handler for it anywhere, so it stays plain rather than becoming a link that goes
+    nowhere. An `https://` download URL is linked.
+
+    The address itself is the link text. Replacing it with "download" would hide the thing
+    a user copies into another shell.
+    """
+    style = "dim"
+    if document.startswith(("file://", "http://", "https://")):
+        style = f"link {document}"
+    return Text(document, style=style)
 
 
 def _render_ingest(console: Console, report: dict[str, object]) -> None:
