@@ -21,6 +21,7 @@ from pydantic_rag_agent.adapters.catalogue import (
     SQLiteCatalogue,
 )
 from pydantic_rag_agent.domain.models import DocumentFacts
+from pydantic_rag_agent.domain.ports import DocumentCatalogue
 
 
 def facts(
@@ -74,7 +75,7 @@ class TestSlugAssignment:
                 facts(source_path=f"dir{index}/handbook.md", content=f"body {index}")
             )
 
-        slugs = [document.slug for document in await catalogue.documents()]
+        slugs = [document.slug for document in await catalogue.list_documents()]
         assert len(slugs) == len(set(slugs)) == 25
 
     async def test_the_unique_constraint_is_in_the_schema(self, catalogue: SQLiteCatalogue) -> None:
@@ -126,7 +127,7 @@ class TestReIngest:
         for _ in range(3):
             await catalogue.claim(facts(source_path="a/handbook.md", content="same"))
 
-        assert [d.slug for d in await catalogue.documents()] == ["handbook.md"]
+        assert [d.slug for d in await catalogue.list_documents()] == ["handbook.md"]
 
     async def test_edited_content_keeps_its_slug(self, catalogue: SQLiteCatalogue) -> None:
         """The name belongs to the document's place in the corpus, not to its bytes."""
@@ -199,7 +200,7 @@ class TestReads:
                 facts(source_name=name, source_path=f"d/{name}", content=f"body of {name}")
             )
 
-        assert [d.slug for d in await catalogue.documents()] == [
+        assert [d.slug for d in await catalogue.list_documents()] == [
             "apple.md",
             "mango.md",
             "zebra.md",
@@ -265,6 +266,24 @@ class TestMigrations:
         """The URL is checked when the adapter is built, not on the first query."""
         with pytest.raises(ValueError, match="sqlite:///"):
             SQLiteCatalogue("postgresql://user:pw@host/db")
+
+
+class TestPortConformance:
+    async def test_every_port_member_should_exist_on_the_adapter(
+        self, catalogue: SQLiteCatalogue
+    ) -> None:
+        """A protocol is structural, so a renamed method only fails where it is called.
+
+        That is exactly how ``documents`` drifted from ``list_documents``: nothing called
+        the rename site, so the mismatch survived a full green suite. This asserts the
+        surface directly instead of waiting for a caller to trip over it.
+        """
+        missing = [
+            name
+            for name in dir(DocumentCatalogue)
+            if not name.startswith("_") and not hasattr(catalogue, name)
+        ]
+        assert missing == []
 
 
 class TestTimestamps:

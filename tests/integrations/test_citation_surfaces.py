@@ -112,11 +112,26 @@ st.session_state.setdefault("client", StubClient())
 st.session_state.setdefault("renders", 0)
 st.session_state["renders"] += 1
 
+# Capture the name the button was given. The rendered proto does not carry ``file_name`` in
+# this Streamlit version, so the call itself is the only place the name is observable.
+_names: list[str] = []
+_real_download_button = st.download_button
+
+
+def _spy(*args: object, **kwargs: object) -> object:
+    _names.append(str(kwargs.get("file_name")))
+    return _real_download_button(*args, **kwargs)
+
+
+st.download_button = _spy
+st.session_state["download_names"] = _names
+
 _render_citations(
     [
         {
             "label": "Handbook > Backups, p. 4",
             "document_id": "26ec2905" + "0" * 56,
+            "source_path": "/home/nick/notes/handbook.md",
             "locator": "file:///data/documents/26/26ec2905/handbook.md",
         }
     ],
@@ -137,6 +152,21 @@ def test_a_citation_offers_a_download_button(app_script: Path) -> None:
 
     assert not at.exception, [str(e.value) for e in at.exception]
     assert len(at.get("download_button")) == 1
+
+
+def test_the_download_button_names_the_file_after_the_document(app_script: Path) -> None:
+    """The reported defect: a downloaded citation arrived as ``document-26ec2905``.
+
+    No extension, no recognisable name, so the operating system had no idea what to open it
+    with. The name is asserted on the rendered widget rather than on the helper, because the
+    helper was correct all along for every other surface — the panel was inventing its own.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(app_script)).run()
+
+    assert len(at.get("download_button")) == 1
+    assert at.session_state["download_names"] == ["handbook.md"]
 
 
 def test_the_download_is_not_fetched_while_rendering(app_script: Path) -> None:

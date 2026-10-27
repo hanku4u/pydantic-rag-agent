@@ -22,8 +22,9 @@ from pydantic import BaseModel, ConfigDict
 from pydantic_rag_agent.application.chunking import chunk_document, image_chunks
 from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.domain.extraction import ExtractedDocument
-from pydantic_rag_agent.domain.models import EmbeddedChunk
+from pydantic_rag_agent.domain.models import DocumentFacts, EmbeddedChunk
 from pydantic_rag_agent.domain.ports import (
+    DocumentCatalogue,
     DocumentLoader,
     DocumentStore,
     ImageCaptioner,
@@ -42,6 +43,9 @@ class IngestResult(BaseModel):
     source_path: str
     status: IngestStatus
     document_id: str | None = None
+    #: The readable name the catalogue assigned, which is where the original now lives.
+    #: ``None`` when no catalogue is configured.
+    slug: str | None = None
     chunks: int = 0
     # How many chunks of a previous version of this file were removed first.
     replaced: int = 0
@@ -79,6 +83,21 @@ class IngestReport(BaseModel):
         return sum(result.chunks for result in self.results)
 
 
+def _require_catalogue(
+    document_store: DocumentStore | None, catalogue: DocumentCatalogue | None
+) -> None:
+    """Refuse a store with no catalogue, once, for both entry points.
+
+    Duplicated inline in two places, this check drifted the moment one of them was edited —
+    and it is the only thing standing between a caller and a silently uncopied original.
+    """
+    if document_store is not None and catalogue is None:
+        raise ValueError(
+            "a document_store needs a catalogue: the catalogue assigns the readable name "
+            "an original is stored under, so a store with no catalogue has nothing to name it"
+        )
+
+
 async def ingest_paths(
     paths: Sequence[Path],
     *,
@@ -90,6 +109,7 @@ async def ingest_paths(
     image_store: ImageStore | None = None,
     captioner: ImageCaptioner | None = None,
     document_store: DocumentStore | None = None,
+    catalogue: DocumentCatalogue | None = None,
 ) -> IngestReport:
     """Ingest files and directories into ``store``.
 
@@ -105,9 +125,16 @@ async def ingest_paths(
     so a citation can outlive the file the user ingested. Without one, nothing is copied
     and citations carry no locator — which is what the evaluation script wants, since its
     corpus is a throwaway.
+
+    ``catalogue`` records what was ingested and decides the readable name the original is
+    stored under. Without one, originals are not copied at all: a slug is the catalogue's to
+    assign, so a store with no catalogue has no name to write under. A caller supplying a
+    store but no catalogue therefore gets locators on its chunks and no copies on disk —
+    which is a contradiction, so it raises rather than guessing a name.
     """
     if (image_store is None) != (captioner is None):
         raise ValueError("image_store and captioner must be provided together")
+    _require_catalogue(document_store, catalogue)
 
     results: list[IngestResult] = []
     for path in _expand(paths, loaders):
@@ -123,6 +150,7 @@ async def ingest_paths(
                 image_store=image_store,
                 captioner=captioner,
                 document_store=document_store,
+                catalogue=catalogue,
             )
         )
     return IngestReport(results=tuple(results))
@@ -139,6 +167,7 @@ async def ingest_uploads(
     image_store: ImageStore | None = None,
     captioner: ImageCaptioner | None = None,
     document_store: DocumentStore | None = None,
+    catalogue: DocumentCatalogue | None = None,
 ) -> IngestReport:
     """Ingest files that arrived as bytes, the way an upload does.
 
@@ -149,7 +178,11 @@ async def ingest_uploads(
 
     A filename that cannot be sanitised raises ``ValueError`` before anything is written:
     an upload with no name is a bad request, not a document that failed to parse.
+
+    ``catalogue`` is required whenever ``document_store`` is, for the reason given on
+    ``ingest_paths``: the catalogue is what assigns the name the copy is written under.
     """
+    _require_catalogue(document_store, catalogue)
     # The leaf names the temporary file and the stored copy; the original string is the
     # source the citation reports. Over HTTP a client may send "docs/a/report.pdf", and
     # flattening that to "report.pdf" would make two files collide on one replacement key.
@@ -185,6 +218,7 @@ async def ingest_uploads(
                     image_store=image_store,
                     captioner=captioner,
                     document_store=document_store,
+                    catalogue=catalogue,
                 )
             )
     return IngestReport(results=tuple(results))
@@ -202,6 +236,42 @@ def _safe_filename(filename: str) -> str:
     return name
 
 
+async def _claim(
+    catalogue: DocumentCatalogue | None,
+    source_label: str,
+    document_id: str,
+    payload: bytes,
+    *,
+    title: str | None,
+    chunk_count: int = 0,
+) -> str | None:
+    """Record the document in the catalogue and return the slug it was given.
+
+    ``None`` when no catalogue is configured — a host that injects only a store and a vector
+    store still works, just without readable names. That is a supported shape rather than a
+    half-built one: SRC-4 changes where originals live, not whether an index can be built.
+
+    Claiming is idempotent by design: the same ``source_path`` with the same content returns
+    the existing row and its existing slug, so calling this from both the skip path and the
+    write path cannot churn the tree.
+    """
+    if catalogue is None:
+        return None
+    stored = await catalogue.claim(
+        DocumentFacts(
+            document_id=document_id,
+            source_name=Path(source_label).name,
+            source_path=source_label,
+            title=title or Path(source_label).stem or Path(source_label).name,
+            content_hash=document_id,
+            media_type=None,
+            size_bytes=len(payload),
+            chunk_count=chunk_count,
+        )
+    )
+    return stored.slug
+
+
 async def _ingest_one(
     path: Path,
     *,
@@ -214,6 +284,7 @@ async def _ingest_one(
     image_store: ImageStore | None,
     captioner: ImageCaptioner | None,
     document_store: DocumentStore | None,
+    catalogue: DocumentCatalogue | None,
 ) -> IngestResult:
     try:
         payload = path.read_bytes()
@@ -236,26 +307,30 @@ async def _ingest_one(
             warnings=(f"unsupported file type {path.suffix or '(none)'}",),
         )
 
+    # Assigned once a row exists. Read on the failure path, where a claim may have succeeded
+    # before whatever failed, so it is initialised here rather than inspected with `locals()`.
+    slug: str | None = None
     try:
         if await store.has_document(document_id):
-            if document_store is not None and not await asyncio.to_thread(
-                document_store.exists,
-                document_id=document_id,
-                filename=Path(source_label).name,
-            ):
-                # Already in the index, but its original is missing — an older index, or
-                # someone emptied the directory. Copying it costs nothing and restores
-                # what a citation promises. Existing chunks still carry no locator until
-                # the document is reindexed; the ADR revision says so.
-                await asyncio.to_thread(
-                    document_store.save,
-                    document_id=document_id,
-                    filename=Path(source_label).name,
-                    data=payload,
-                )
+            # Already in the index. The catalogue may still be behind: an index built before
+            # SRC-4 has chunks but no row, and a row is what a readable path is derived from.
+            # Claiming here is idempotent and gives that document its name on the next run.
+            slug = await _claim(catalogue, source_label, document_id, payload, title=None)
+            # Its original is missing — an older index, or someone emptied the directory.
+            # Copying it costs nothing and restores what a citation promises. Existing chunks
+            # still carry no locator until the document is reingested; the ADR revision says
+            # so.
+            original_missing = (
+                document_store is not None
+                and slug is not None
+                and not await asyncio.to_thread(document_store.exists, slug=slug)
+            )
+            if original_missing and document_store is not None and slug is not None:
+                await asyncio.to_thread(document_store.save, slug=slug, data=payload)
             return IngestResult(
                 source_path=source_label,
                 document_id=document_id,
+                slug=slug,
                 status="skipped",
                 warnings=("already indexed",),
             )
@@ -271,19 +346,28 @@ async def _ingest_one(
                 warnings=("no extractable text",),
             )
 
-        # Copy the original before touching the index. If this fails, nothing has been
-        # deleted yet, so the previous version stays searchable instead of vanishing.
-        # A citation pointing at nothing is worse than a file that did not land.
+        # The catalogue claims first, because it is what decides the stored name: resolving
+        # a collision needs every document at once, so a caller cannot compute a slug without
+        # racing every other ingest.
+        #
+        # Ordering matters and is deliberate. Claiming writes only a row, which is harmless if
+        # the rest fails. Saving the original comes next, and still before anything is
+        # deleted — so a failure at any point leaves the previous version searchable rather
+        # than vanishing, because a citation pointing at nothing is worse than a file that
+        # did not land.
+        slug = await _claim(
+            catalogue,
+            source_label,
+            document_id,
+            payload,
+            title=Path(source_label).stem,
+            chunk_count=0,
+        )
         # Off the loop: boto3 is synchronous, and even a local write is disk I/O. A large
         # document must not stall every other request in the process.
         locator = (
-            await asyncio.to_thread(
-                document_store.save,
-                document_id=document_id,
-                filename=Path(source_label).name,
-                data=payload,
-            )
-            if document_store is not None
+            await asyncio.to_thread(document_store.save, slug=slug, data=payload)
+            if document_store is not None and slug is not None
             else None
         )
 
@@ -320,6 +404,7 @@ async def _ingest_one(
             return IngestResult(
                 source_path=source_label,
                 document_id=document_id,
+                slug=slug,
                 status="skipped",
                 replaced=replaced,
                 warnings=tuple(warnings) or ("no chunks produced",),
@@ -337,9 +422,15 @@ async def _ingest_one(
                 for chunk, vector in zip(chunks, vectors, strict=True)
             ]
         )
+        # The row was claimed before the chunks existed, with a count of zero. Now the count
+        # is known, so it is recorded — otherwise the catalogue would claim every document
+        # has no chunks, and a future reader would have no reason to disbelieve it.
+        if catalogue is not None:
+            await catalogue.record_chunks(document_id, chunk_count=len(chunks))
         return IngestResult(
             source_path=source_label,
             document_id=document_id,
+            slug=slug,
             status="indexed",
             chunks=len(chunks),
             images=len(captions),
@@ -352,6 +443,7 @@ async def _ingest_one(
         return IngestResult(
             source_path=source_label,
             document_id=document_id,
+            slug=slug,
             status="failed",
             error=f"{type(exc).__name__}: {exc}",
         )

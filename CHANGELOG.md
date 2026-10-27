@@ -7,6 +7,18 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Originals now live at readable paths, so an existing store needs a reindex.** The stored
+  tree changed from content-addressed (`<aa>/<hash>/<name>`) to slug-addressed
+  (`<name>`, `<name>-2`). There is no in-place migration: the old tree has no catalogue rows
+  to derive names from, so backfilling *is* re-ingesting. Existing citations keep working —
+  `download` still reads the old layout — but their chunks carry the old locator until the
+  document is re-ingested. To migrate, re-run your ingest over the same sources; unchanged
+  files that already have a catalogue row are skipped rather than duplicated. **Back up
+  `PRAGENT_CATALOGUE__URL` first**: the catalogue is now the authority on where every
+  original lives, and it cannot be rebuilt from the tree.
+
 ### Added
 
 - **A document catalogue, and the rules that give a document a readable name (SRC-4, first
@@ -18,9 +30,12 @@ Notable changes, written by hand from the commit history. The format follows
   let a name choose a directory. Configured by `PRAGENT_CATALOGUE__URL`, one URL with SQLite
   as the default.
 
-  **Ingest does not write to it yet**, and originals are still stored by content hash — this
-  is the foundation the rest of SRC-4 builds on, not the behaviour change. Nothing in this
-  release moves a file or changes a locator.
+  **Ingest now writes to it, and originals land at readable paths (SRC-4, complete).**
+  `documents/handbook.md` instead of `documents/ab/abcd…/handbook.md`, with a numbered
+  suffix (`handbook-2.md`) when a second document claims the same name. An edited file keeps
+  its name; a renamed file is a new document. `document_id` is unchanged — still
+  `sha256(payload)`, still what a citation addresses. **See the migration note below: this
+  release changes where originals live.**
 
   Two contract details worth knowing before building on it: re-ingesting unchanged content
   returns the existing row without burning a numbered slug, and editing a file keeps its
@@ -42,6 +57,15 @@ Notable changes, written by hand from the commit history. The format follows
   database driver, migration and auth. Recorded in
   [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md), which unblocks SRC-4,
   SRC-5 and RET-5. No behaviour changes in this release; the code lands under SRC-4.
+
+### Fixed
+
+- **A downloaded citation keeps its original filename and extension.** The Streamlit panel
+  saved every original as `document-26ec2905` — not a name the user recognised, and no
+  extension at all, so the operating system could not open it. The panel now takes the leaf
+  of the citation's `source_path` as the filename. The other surfaces were already correct:
+  the API sets `Content-Disposition` from the catalogue's slug, the HTTP client parses both
+  the plain and RFC 5987 forms, and the in-process client returns the stored name.
 
 ### Coming in SRC-4 — read before upgrading
 

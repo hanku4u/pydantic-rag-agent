@@ -38,6 +38,9 @@ def settings_env(clean_settings_env: None, monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", str(DIMENSIONS))
     monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH", str(tmp_path / "uploads"))
     monkeypatch.setenv("PRAGENT_STORAGE__IMAGES__DIRECTORY", str(tmp_path / "images"))
+    # The catalogue defaults to ./data/catalogue.db, which would otherwise be shared
+    # between tests: a slug claimed by one test would suppress the next one's ingest.
+    monkeypatch.setenv("PRAGENT_CATALOGUE__URL", f"sqlite:///{tmp_path / 'catalogue.db'}")
     # `from_env` builds a real agent; keep it away from ./data/chroma.
     monkeypatch.setenv("PRAGENT_VECTOR_STORE__BACKEND", "memory")
 

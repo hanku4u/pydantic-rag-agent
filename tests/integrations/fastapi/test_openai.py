@@ -45,6 +45,9 @@ def _settings_env(clean_settings_env: None, monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setenv("PRAGENT_EMBEDDING_DIMENSIONS", "4")
     monkeypatch.setenv("PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH", str(tmp_path / "documents"))
     monkeypatch.setenv("PRAGENT_STORAGE__IMAGES__DIRECTORY", str(tmp_path / "images"))
+    # The catalogue defaults to ./data/catalogue.db, which would otherwise be shared
+    # between tests: a slug claimed by one test would suppress the next one's ingest.
+    monkeypatch.setenv("PRAGENT_CATALOGUE__URL", f"sqlite:///{tmp_path / 'catalogue.db'}")
 
 
 @pytest.fixture

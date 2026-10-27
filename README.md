@@ -3,10 +3,10 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** M0–M7 are complete and published as **0.3.0**; M8 is in progress (citations
-> download their originals). The design for readable storage and a metadata catalogue is
-> settled in [ADR 0018](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0018-readable-tree-and-catalogue.md)
-> but not built — see [What SRC-4 will change](#what-src-4-will-change). Ingestion, retrieval, the agent, the API, the CLI, the
+> **Status:** M0–M7 are complete and published as **0.3.0**; M8 is in progress. Citations
+> download their originals, and originals are stored under readable paths recorded by a
+> SQLite catalogue ([ADR 0018](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0018-readable-tree-and-catalogue.md))
+> — see [Where originals live](#where-originals-live). Ingestion, retrieval, the agent, the API, the CLI, the
 > Streamlit UI and the OpenAI-compatible endpoint all work; the suite runs offline at 92%
 > branch coverage. OPS-1 (instrumentation) is deliberately out of scope. `main` is the state
 > described in
@@ -344,58 +344,57 @@ The terminal answer streams and ends with a table of the sources it cited. The c
 from `dev` is at <http://127.0.0.1:8501>. `--api-url` makes any command talk to a running
 server instead of building the agent locally.
 
-## What SRC-4 will change
+## Where originals live
 
-The next milestone replaces the opaque storage layout with a readable one. Nothing here is
-built yet — it is recorded now because two of the consequences affect how you run this
-today, and finding out after an upgrade is worse than knowing before.
-
-### Originals will land where you can find them
-
-Today an original is stored under its content hash, with a two-byte fan-out directory:
-
-```text
-./data/documents/12/12683a9f…c49693fb/handbook.md
-```
-
-That path is stable and deduplicates identical bytes, but you cannot predict it, read it, or
-browse it. Under SRC-4 the same document lands at a path derived from its own name:
+An original is stored under a name derived from its own:
 
 ```text
 ./data/documents/handbook.md
 ```
 
-`document_id` **will not change** — it stays `sha256(payload)`, because it is the identity
-used by chunk metadata, citation URLs and every locator already in your index. The readable
-slug is a *path*, not an *id*. Two files named `handbook.md` from different folders get a
-numeric suffix rather than overwriting each other.
+A second document whose name collides gets a number rather than overwriting the first:
 
-### The catalogue becomes the thing to back up
+```text
+./data/documents/handbook-2.md
+```
 
-A SQLite catalogue will record each document's id, source, path, hash, chunk count, caption
-ids and timestamps, and that catalogue is **authoritative** — not an index you can rebuild by
-scanning the tree. It cannot be rebuilt, because the tree does not record metadata, chunk
-ownership or caption ids.
+`document_id` is **not** the path. It stays `sha256(payload)` — the identity used by chunk
+metadata, citation URLs and every locator already in your index — while the slug is only a
+path. An edit keeps the document's name; a rename is a new document.
 
-So: **`./data/` stops being disposable.** Today the README tells you an empty index is caught
-by the startup guard and you can just re-ingest. After SRC-4, losing the database loses the
-index, and recovering means re-ingesting your sources. Keep a copy.
+Before this, originals were content-addressed with a two-byte fan-out
+(`./data/documents/12/12683a9f…/handbook.md`): stable and deduplicating, but unreadable and
+unpredictable.
 
-### Upgrading will require a reindex
+### The catalogue is the thing to back up
+
+`PRAGENT_CATALOGUE__URL` points at a SQLite database recording each document's id, slug,
+source, hash, chunk count, caption ids and timestamps. It is **authoritative** — not an index
+you can rebuild by scanning the tree, because the tree records no metadata, chunk ownership or
+caption ids.
+
+**`./data/` stops being disposable.** An empty index is still caught by the startup guard, and
+you can still re-ingest. But losing the database loses the index, and recovering means
+re-ingesting your sources. Keep a copy.
+
+### Upgrading needs a reindex
 
 The old tree is content-addressed and the new one is slug-addressed, so existing indexes
-cannot be read under the new scheme. **Upgrading to the SRC-4 release means re-ingesting your
-sources.** There is no in-place path rewrite, because it would have to invent slugs for
-documents that have no catalogue row yet — exactly the state a pre-SRC-4 index is in.
+cannot be read under the new scheme. **Upgrading means re-ingesting your sources.** There is
+no in-place path rewrite, because it would have to invent slugs for documents that have no
+catalogue row yet — exactly the state a pre-SRC-4 index is in.
 
-The old content-addressed tree is left in place and can be deleted afterwards.
+Re-ingesting is safe to run more than once: a file whose bytes have not changed is skipped.
+Downloads keep working in the meantime — the store still reads the old content-addressed
+layout — so a citation you kept does not break, it just carries the old locator until that
+document is re-ingested. The old tree can be deleted once the reindex is done.
 
 ### Filtering will be chosen by the model
 
-Once documents carry metadata, `ask` will narrow retrieval by letting the model pick the
-filter from your question. A wrong filter excludes correct evidence **silently** — the answer
-simply omits what it could not see — so `ask --meta key=value` stays as the deterministic
-override for when correctness matters more than convenience.
+Once documents carry metadata (SRC-5), `ask` will narrow retrieval by letting the model pick
+the filter from your question. A wrong filter excludes correct evidence **silently** — the
+answer simply omits what it could not see — so `ask --meta key=value` stays as the
+deterministic override for when correctness matters more than convenience.
 
 ## Day-to-day commands
 

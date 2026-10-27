@@ -48,6 +48,7 @@ from pydantic_rag_agent.adapters.agent import (
     stream_turn,
 )
 from pydantic_rag_agent.adapters.captioning import PydanticAICaptioner
+from pydantic_rag_agent.adapters.catalogue import SQLiteCatalogue
 from pydantic_rag_agent.adapters.compaction import compact
 from pydantic_rag_agent.adapters.compat import NullContentTolerantTransport
 from pydantic_rag_agent.adapters.conversations import Conversation, InMemoryConversationStore
@@ -73,10 +74,12 @@ from pydantic_rag_agent.domain.models import (
     media_type_for,
 )
 from pydantic_rag_agent.domain.ports import (
+    DocumentCatalogue,
     DocumentLoader,
     DocumentStore,
     ImageCaptioner,
     ImageStore,
+    LegacyDocumentStore,
     PresigningDocumentStore,
     VectorStore,
 )
@@ -99,6 +102,7 @@ class _Runtime:
     retrieval: RetrievalService
     images: ImageStore
     documents: DocumentStore
+    catalogue: DocumentCatalogue
     captioner: ImageCaptioner
     loaders: Sequence[DocumentLoader]
     agent: Agent[AgentDeps, str]
@@ -109,18 +113,36 @@ async def _load_original(
     *,
     summaries: Sequence[DocumentSummary],
     store: DocumentStore,
+    catalogue: DocumentCatalogue,
     document_id: str,
 ) -> DocumentDownload | None:
-    """Read one original document, or return ``None`` when the index has never seen it.
+    """Read one original document, or return ``None`` when nothing knows about it.
 
     Shared by the façade and the in-process client so that both answer "is this a document
     I have?" from the same source. The alternative — reading the store directly and letting
     a missing file surface as an adapter error — cannot tell a stale citation apart from a
     broken disk, and those want different responses: 404 and 500.
 
+    The catalogue is asked first, because it holds the slug the original was stored under.
+    Without a row there is still one possibility worth trying: an index built before SRC-4
+    has chunks but no catalogue row, and its originals sit at the old content-addressed path.
+    That is why the fallback exists rather than a 404 — and why it tries before giving up,
+    since a citation that used to work returning nothing looks like data loss.
+
     The store is synchronous by protocol (``read`` is a plain method: one file read, or one
     boto3 call), so it is pushed off the event loop rather than awaited.
     """
+    row = await catalogue.get(document_id)
+    if row is not None:
+        data = await asyncio.to_thread(store.read, slug=row.slug)
+        return DocumentDownload(
+            document_id=document_id,
+            filename=row.slug,
+            media_type=media_type_for(row.slug),
+            data=data,
+        )
+
+    # No catalogue row. The document must still be in the index for its id to be cited.
     summary = next((item for item in summaries if item.document_id == document_id), None)
     if summary is None:
         return None
@@ -129,13 +151,22 @@ async def _load_original(
     if not filename:
         return None
 
-    data = await asyncio.to_thread(store.read, document_id=document_id, filename=filename)
-    return DocumentDownload(
-        document_id=document_id,
-        filename=filename,
-        media_type=media_type_for(filename),
-        data=data,
-    )
+    if isinstance(store, LegacyDocumentStore) and await asyncio.to_thread(
+        store.exists_legacy, document_id=document_id, filename=filename
+    ):
+        data = await asyncio.to_thread(
+            store.read_legacy, document_id=document_id, filename=filename
+        )
+        return DocumentDownload(
+            document_id=document_id,
+            filename=filename,
+            media_type=media_type_for(filename),
+            data=data,
+        )
+
+    # In the index, no catalogue row, no legacy file: the original is genuinely gone. Return
+    # None so the caller answers 404 rather than inventing bytes.
+    return None
 
 
 def _http_client() -> httpx2.AsyncClient:
@@ -159,6 +190,7 @@ def _build_runtime(
     embeddings: EmbeddingService | None = None,
     model: Model[Any] | None = None,
     document_store: DocumentStore | None = None,
+    catalogue: DocumentCatalogue | None = None,
 ) -> _Runtime:
     """Construct the object graph. The one place allowed to know every layer.
 
@@ -234,6 +266,15 @@ def _build_runtime(
             region=settings.storage.documents.s3_region,
         )
 
+    if catalogue is not None:
+        catalogue_store = catalogue
+    else:
+        # The catalogue is not optional in practice: it is what decides the name an original
+        # is stored under, so every path that copies an original needs one. It is built
+        # eagerly rather than lazily because its construction also applies migrations, and a
+        # broken schema should fail at startup instead of at the first ingest.
+        catalogue_store = SQLiteCatalogue(settings.catalogue.url)
+
     def chat_model(model_id: str) -> OpenAIChatModel:
         return OpenAIChatModel(
             model_id,
@@ -267,6 +308,7 @@ def _build_runtime(
         ),
         images=images,
         documents=documents,
+        catalogue=catalogue_store,
         captioner=captioner,
         loaders=default_loaders(),
         agent=agent,
@@ -304,6 +346,7 @@ class RagAgent:
         embeddings: EmbeddingService | None = None,
         model: Model[Any] | None = None,
         document_store: DocumentStore | None = None,
+        catalogue: DocumentCatalogue | None = None,
     ) -> None:
         self._runtime: _Runtime = _build_runtime(
             settings,
@@ -311,6 +354,7 @@ class RagAgent:
             embeddings=embeddings,
             model=model,
             document_store=document_store,
+            catalogue=catalogue,
         )
         # Guards the lazy index check without serialising every question behind a lock.
         self._index_checked = False
@@ -482,6 +526,7 @@ class RagAgent:
             image_store=self._runtime.images,
             captioner=self._runtime.captioner,
             document_store=self._runtime.documents,
+            catalogue=self._runtime.catalogue,
         )
 
     async def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> IngestReport:
@@ -501,6 +546,7 @@ class RagAgent:
             image_store=self._runtime.images,
             captioner=self._runtime.captioner,
             document_store=self._runtime.documents,
+            catalogue=self._runtime.catalogue,
         )
 
     async def documents(self) -> list[DocumentSummary]:
@@ -537,6 +583,7 @@ class RagAgent:
         return await _load_original(
             summaries=await self._runtime.store.list_documents(),
             store=self._runtime.documents,
+            catalogue=self._runtime.catalogue,
             document_id=document_id,
         )
 
@@ -557,22 +604,15 @@ class RagAgent:
         if self._runtime.settings.storage.documents.s3_download_mode != "presign":
             return None
 
-        summaries = await self._runtime.store.list_documents()
-        summary = next((item for item in summaries if item.document_id == document_id), None)
-        if summary is None:
-            return None
-
-        filename = Path(summary.source_path).name
-        if not filename:
+        # Presigning needs a slug to sign, and the catalogue is what holds it. An index
+        # built before SRC-4 has no row, so presigning is unavailable for its documents —
+        # the caller falls back to the proxy route, which can read the legacy layout.
+        row = await self._runtime.catalogue.get(document_id)
+        if row is None:
             return None
 
         expiry = self._runtime.settings.storage.documents.s3_presign_expiry_seconds
-        return await asyncio.to_thread(
-            store.presigned_url,
-            document_id=document_id,
-            filename=filename,
-            expires_in=expiry,
-        )
+        return await asyncio.to_thread(store.presigned_url, slug=row.slug, expires_in=expiry)
 
     async def aclose(self) -> None:
         """Release store handles, for adapters that hold any.

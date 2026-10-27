@@ -114,7 +114,7 @@ so a citation can outlive the request that produced it.
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `PRAGENT_STORAGE__DOCUMENTS__BACKEND` | no | `local` | `local` (disk) or `s3` (an `[s3]` install) |
-| `PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH` | no | `./data/documents` | Root for the copies taken at ingest, addressed `<aa>/<sha256>/<name>` |
+| `PRAGENT_STORAGE__DOCUMENTS__LOCAL_PATH` | no | `./data/documents` | Root for the copies taken at ingest, addressed by the catalogue's slug (`<name>`, `<name>-2`) |
 | `PRAGENT_STORAGE__DOCUMENTS__S3_BUCKET` | when `backend=s3` | — | Bucket that holds the originals. Required, and refused at startup when missing |
 | `PRAGENT_STORAGE__DOCUMENTS__S3_PREFIX` | no | `documents/` | Key prefix inside the bucket. Leading and trailing slashes are normalised |
 | `PRAGENT_STORAGE__DOCUMENTS__S3_REGION` | no | SDK default | Region for the S3 client |
@@ -222,7 +222,7 @@ Two behaviour changes come with the move. `PRAGENT_MODEL` used to require the
 `openrouter:` prefix; strip it when migrating, as `.env.example` shows. And
 `PRAGENT_UPLOAD_DIR` still works but now names the **originals** root rather than an upload
 spool: the default moved from `./data/uploads` to `./data/documents`, and files are laid out
-`<aa>/<sha256>/<name>`. An old `.env` that sets it explicitly keeps writing there, so the
+`<name>`. An old `.env` that sets it explicitly keeps writing there, so the
 old spool directory quietly becomes the permanent store — fine, but worth knowing.
 
 ## Shape
