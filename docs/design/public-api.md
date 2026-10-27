@@ -129,6 +129,9 @@ The three keyword arguments are the seams that make the library testable and rep
 
 **`document_store`** lets a host app keep originals where it already keeps them. Whatever
 implements the port must copy rather than reference, and return a URI from `locator`.
+**The port addresses originals by slug** — `save(*, slug, data)`, and `locate`, `read`,
+`exists` take `slug` — because the catalogue, not the store, owns the readable name. An
+adapter written against the pre-0.4 content-addressed signature no longer satisfies it.
 
 `VectorStore`, `EmbeddingService` and `DocumentStore` are exported because they appear in
 this signature: a host implementing a seam needs a public type to annotate against.

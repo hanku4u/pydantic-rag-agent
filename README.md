@@ -3,7 +3,7 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** M0–M7 are complete and published as **0.3.0**; M8 is in progress. Citations
+> **Status:** M0–M7 are complete and published as **0.4.0**; M8 is in progress. Citations
 > download their originals, and originals are stored under readable paths recorded by a
 > SQLite catalogue ([ADR 0018](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0018-readable-tree-and-catalogue.md))
 > — see [Where originals live](#where-originals-live). Ingestion, retrieval, the agent, the API, the CLI, the

@@ -5,9 +5,38 @@ Notable changes, written by hand from the commit history. The format follows
 [Semantic Versioning](https://semver.org/), with the pre-1.0 caveat in
 [docs/development/releasing.md](docs/development/releasing.md).
 
-## [Unreleased]
+## [0.4.0] — 2026-10-27
+
+### Added
+
+- **A document catalogue, and the rules that give a document a readable name (SRC-4).**
+  `SQLiteCatalogue` records one row per document — id, slug, source, title, content hash,
+  size, chunk count, caption ids and timestamps — with `UNIQUE(slug)` and
+  `UNIQUE(source_path)` as schema constraints rather than hopeful checks, and plain-SQL
+  migrations applied on first open with the version kept in `PRAGMA user_version`.
+  `domain/slugs.py` derives the stored name from the document's own filename and refuses to
+  let a name choose a directory. Configured by `PRAGENT_CATALOGUE__URL`, one URL with SQLite
+  as the default.
+
+  **Ingest writes to it, and originals land at readable paths.** `documents/handbook.md`
+  instead of `documents/ab/abcd…/handbook.md`, with a numbered suffix (`handbook-2.md`) when
+  a second document claims the same name. `document_id` is unchanged — still
+  `sha256(payload)`, still what a citation addresses; the slug is a path, not an identity.
+
+  Contract details worth knowing before building on it: the catalogue claims the row before
+  the store writes, because only the catalogue can assign a name; an edited file keeps its
+  name and rewrites its bytes; re-ingesting unchanged content returns the existing row
+  without burning a numbered slug; a renamed file is a new document; and a store configured
+  without a catalogue raises rather than guessing a name.
 
 ### Changed
+
+- **`DocumentStore` now addresses originals by slug, so a custom adapter must be updated.**
+  `save(*, document_id, filename, data)` became `save(*, slug, data)`, and `locate`, `read`
+  and `exists` take `slug`. This is why this release is a minor bump rather than a patch:
+  the protocol is public, and an implementation outside this package no longer satisfies it.
+  The bundled local and S3 adapters have been updated, and `LegacyDocumentStore` covers the
+  old content-addressed layout.
 
 - **Originals now live at readable paths, so an existing store needs a reindex.** The stored
   tree changed from content-addressed (`<aa>/<hash>/<name>`) to slug-addressed
@@ -17,34 +46,9 @@ Notable changes, written by hand from the commit history. The format follows
   document is re-ingested. To migrate, re-run your ingest over the same sources; unchanged
   files that already have a catalogue row are skipped rather than duplicated. **Back up
   `PRAGENT_CATALOGUE__URL` first**: the catalogue is now the authority on where every
-  original lives, and it cannot be rebuilt from the tree.
+  original lives, and it cannot be rebuilt from the tree. `./data/` is no longer disposable.
 
-### Added
-
-- **A document catalogue, and the rules that give a document a readable name (SRC-4, first
-  part).** `SQLiteCatalogue` records one row per document — id, slug, source, title, content
-  hash, size, chunk count, caption ids and timestamps — with `UNIQUE(slug)` and
-  `UNIQUE(source_path)` as schema constraints rather than hopeful checks, and plain-SQL
-  migrations applied on first open with the version kept in `PRAGMA user_version`.
-  `domain/slugs.py` derives the stored name from the document's own filename and refuses to
-  let a name choose a directory. Configured by `PRAGENT_CATALOGUE__URL`, one URL with SQLite
-  as the default.
-
-  **Ingest now writes to it, and originals land at readable paths (SRC-4, complete).**
-  `documents/handbook.md` instead of `documents/ab/abcd…/handbook.md`, with a numbered
-  suffix (`handbook-2.md`) when a second document claims the same name. An edited file keeps
-  its name; a renamed file is a new document. `document_id` is unchanged — still
-  `sha256(payload)`, still what a citation addresses. **See the migration note below: this
-  release changes where originals live.**
-
-  Two contract details worth knowing before building on it: re-ingesting unchanged content
-  returns the existing row without burning a numbered slug, and editing a file keeps its
-  slug because the readable name belongs to the document's place in the corpus rather than
-  to its bytes.
-
-### Changed
-
-- **Authentication is now documented as out of scope, not deferred.** It was listed in the
+- **Authentication is documented as out of scope, not deferred.** It was listed in the
   backlog as a deferred feature with the trigger "deployment beyond localhost", which reads
   as a promise that it is coming. It is not: a RAG library cannot guess a host's auth model
   (reverse-proxy mTLS, an OAuth proxy, an API gateway, a VPN), and a half-answer hosts
@@ -55,8 +59,8 @@ Notable changes, written by hand from the commit history. The format follows
 
 - **The SRC-4 design questions are settled** — naming, catalogue authority, captions, the
   database driver, migration and auth. Recorded in
-  [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md), which unblocks SRC-4,
-  SRC-5 and RET-5. No behaviour changes in this release; the code lands under SRC-4.
+  [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md), which unblocked SRC-4 and
+  governs the code shipped above; SRC-5 and RET-5 build on it next.
 
 ### Fixed
 
@@ -66,23 +70,6 @@ Notable changes, written by hand from the commit history. The format follows
   of the citation's `source_path` as the filename. The other surfaces were already correct:
   the API sets `Content-Disposition` from the catalogue's slug, the HTTP client parses both
   the plain and RFC 5987 forms, and the in-process client returns the stored name.
-
-### Coming in SRC-4 — read before upgrading
-
-Stated now because both consequences affect how you run this today, and learning either of
-them after an upgrade is worse than reading it beforehand.
-
-- **`./data/` stops being disposable.** The catalogue becomes the source of truth, so losing
-  the database loses the index. It cannot be rebuilt by scanning the tree, because the tree
-  does not record metadata, chunk ownership or caption ids. Today this file tells you an
-  empty index is caught by the startup guard and you can re-ingest; after SRC-4, keep a copy.
-
-- **Upgrading will require a reindex.** Originals move from content-addressed paths
-  (`…/12/12683a9f…/handbook.md`) to slug paths derived from the document's name
-  (`…/handbook.md`). Existing indexes cannot be read under the new scheme, and there is no
-  in-place rewrite — it would have to invent slugs for documents that have no catalogue row
-  yet. **Re-ingest your sources when you upgrade.** `document_id` does not change: it stays
-  `sha256(payload)`, so citations and stored locators keep their identity.
 
 ## [0.3.0] — 2026-10-27
 
@@ -144,6 +131,7 @@ Nothing else in the surface changed. The download feature is additive, and the r
 script's new extra checks run at release time only — they do not affect the installed
 package.
 
+[0.4.0]: https://github.com/hanku4u/pydantic-rag-agent/releases/tag/v0.4.0
 [0.3.0]: https://github.com/hanku4u/pydantic-rag-agent/releases/tag/v0.3.0
 
 ## [0.2.0] — 2026-10-26
