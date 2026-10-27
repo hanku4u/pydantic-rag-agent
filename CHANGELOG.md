@@ -7,7 +7,19 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **The storage and metadata design questions are settled.** SRC-4 was blocked on six
+  decisions — naming, catalogue authority, captions, the database driver, migration, and
+  where authentication sits. They are recorded in
+  [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md), which unblocks SRC-4,
+  SRC-5 and RET-5. Two consequences are worth knowing before the code exists: the catalogue
+  becomes the source of truth, so **the database becomes the thing to back up**; and moving
+  from content-addressed paths to slug paths means **upgrading requires a reindex**, which
+  will be in the migration note when SRC-4 ships.
+
+  Authentication moved out of the Deferred table: it is not deferred, it is out of scope
+  for this package, and the docs now say so instead of implying it is coming.
 
 ## [0.3.0] — 2026-10-27
 
