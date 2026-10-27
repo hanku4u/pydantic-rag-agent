@@ -45,6 +45,7 @@ EXPECTED_EXPORTS = {
     # Results
     "ChatMessage",
     "Citation",
+    "DocumentDownload",
     "DocumentSummary",
     "IngestReport",
     "StoreStats",

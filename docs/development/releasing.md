@@ -9,8 +9,9 @@ How a version gets from `main` to PyPI. Decisions behind it:
 ## One command: `scripts/release.py`
 
 The script runs the preflight every mode shares — clean tree, `main`, up to date with
-origin, green CI for `HEAD`, the full gate set, `uv build`, `twine check`, and a smoke
-install of the wheel — and then does one of three things:
+origin, green CI for `HEAD`, the full gate set, `uv build`, `twine check`, a smoke install
+of the wheel, and an install of **every declared extra** with an import of its public entry
+point — and then does one of three things:
 
 | Command | After the preflight | Publishes |
 | --- | --- | --- |
@@ -44,8 +45,9 @@ confirmation prompt.
 | Manual dispatch (`workflow_dispatch`) | **TestPyPI** | Rehearsal: same build, disposable index |
 
 The workflow is [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
-It has two jobs: **build** runs the gates, builds, `twine check`s and smoke-installs the
-wheel; **publish** downloads those artefacts and uploads them. Only the publish job uses
+It has two jobs: **build** runs the gates, builds, `twine check`s, smoke-installs the
+wheel and installs every declared extra to import its public entry point; **publish**
+downloads those artefacts and uploads them. Only the publish job uses
 the `release` environment, so a required reviewer approves *after* the build has succeeded
 — approving before anything exists would be a rubber stamp. Both triggers run the same
 build; only the publish step differs.
@@ -137,6 +139,12 @@ release is actively harmful, and say why in the changelog.
   Generated changelogs are cheap until someone reads one.
 - **The smoke install runs in the same job**, before publish. A separate job would be
   more honest about isolation and slower for no extra safety.
+- **The extras are installed and imported, not just the base wheel.** A base install plus
+  `--help` cannot detect a broken `[ui]` or `[api]`, because neither touches Streamlit or
+  FastAPI. 0.2.0 shipped its entire public addition behind `[ui]` with only the base check
+  in place. The extras list is read from `pyproject.toml` in both the workflow and the
+  script, so adding an extra cannot silently escape the check — and the script fails
+  outright if an extra has no import probe.
 - **Publication requires a tag.** A manual dispatch cannot publish to PyPI; re-running a
   failed release is GitHub's "Re-run jobs" on the tag, not a second trigger.
 

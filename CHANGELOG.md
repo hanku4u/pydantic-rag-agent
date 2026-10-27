@@ -9,6 +9,29 @@ Notable changes, written by hand from the commit history. The format follows
 
 ### Added
 
+- **`DocumentDownload` is exported from the package root.** It is the return type of
+  `RagAgent.download` and `download_sync`, so a caller annotating that return had no public
+  import path — it had to reach into `pydantic_rag_agent.domain.models`, which carries no
+  compatibility promise. `from pydantic_rag_agent import DocumentDownload` now works.
+
+### Changed
+
+- **The README documents all six ways to use the package**, with a runnable example for
+  each, and a section on downloading the document behind a citation — the capability was
+  reachable from every interface but described nowhere. The status header, the published
+  version and the project layout were all stale and are corrected.
+
+- **Releases now verify every extra, not just the base wheel.** The preflight in
+  `scripts/release.py` and the `build` job in the release workflow install
+  `pydantic-rag-agent[chroma,api,ui,s3]` and import each extra's public entry point, then
+  assert that none of `chromadb`, `fastapi`, `streamlit` or `boto3` leaked into the base
+  install. Neither `import pydantic_rag_agent` nor `--help` touches those modules, so a
+  broken `[ui]` or `[api]` previously passed every gate — 0.2.0 shipped its whole public
+  addition behind `[ui]` with only the base check in place. The extras list is read from
+  `pyproject.toml`, and the script refuses to run if a declared extra has no import probe.
+
+### Added
+
 - **A citation now downloads the document it names.** `GET /documents/{id}/download` serves
   the stored original with its filename and content type, as an attachment. In the
   Streamlit panel each citation gains a download control, and in the CLI the sources table

@@ -3,10 +3,11 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** feature-complete for a local, single-user deployment. M0–M5 are done and
-> M6 is closed apart from OPS-1 (instrumentation), which is deliberately out of scope.
-> Ingestion, retrieval, the agent, the API, the CLI and the Streamlit UI all work; the
-> suite runs offline at 92% branch coverage. `main` is the state described in
+> **Status:** M0–M7 are complete and published as **0.2.0**; M8 is in progress (citations
+> download their originals). Ingestion, retrieval, the agent, the API, the CLI, the
+> Streamlit UI and the OpenAI-compatible endpoint all work; the suite runs offline at 92%
+> branch coverage. OPS-1 (instrumentation) is deliberately out of scope. `main` is the state
+> described in
 > [`docs/overview.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/overview.md#current-state); the ordered plan behind it is in
 > [`docs/features/`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/features/README.md) and
 > [`docs/roadmap.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/roadmap.md).
@@ -44,33 +45,78 @@ The core install has no vector database: it runs with the in-memory store, which
 for a script that ingests and asks in one go. Anything the agent does not need at import
 time is an extra, and a missing one tells you which to install.
 
-Published as **0.1.1** — see the [changelog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/CHANGELOG.md)
+Published as **0.2.0** — see the [changelog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/CHANGELOG.md)
 for what is in it. Before 1.0 the public API may change in a minor release, with a
 migration note.
 
-Then let the wizard write your `.env` — provider, models, where documents live, which
-vector store — so the first run is configuration rather than reading a reference table:
+## The ways to use it
 
-```bash
-pydantic-rag-agent configure
-```
+There are **six** ways in, and they differ in where the agent lives rather than in what it
+can do. Pick by asking who owns the process:
 
-As a library, from the repository today (and from PyPI once published):
+| Shape | The agent lives… | Reach for it when |
+| --- | --- | --- |
+| **1. Library** | in your Python process | a script or notebook ingests and asks in one go |
+| **2. Mounted router** | in your own FastAPI app | you already have an API and want the routes, not a second service |
+| **3. Standalone server** | in `serve` | clients in other languages, or a UI, need an HTTP endpoint |
+| **4. Embedded Streamlit panel** | in your Streamlit app | you have a Streamlit app and want a chat panel inside it |
+| **5. OpenAI-compatible endpoint** | in `serve` or your app | an existing chat UI should talk to your documents |
+| **6. Command line** | in each command | you want to index and ask without writing code |
+
+All six share one façade, one configuration tree and one set of citation semantics. Nothing
+below is a different feature set — only a different owner of the event loop.
+
+### 1. Library
+
+The agent runs in your process. No server, no port.
 
 ```python
 from pydantic_rag_agent import RagAgent
 
-agent = RagAgent.from_env()
+agent = RagAgent.from_env()  # reads PRAGENT_* / OPENROUTER_API_KEY
 agent.ingest_sync("./docs")
-print(agent.ask_sync("How long are backups retained?").text)
+turn = agent.ask_sync("How long are backups retained?")
+
+print(turn.text)
+for citation in turn.citations:
+    print(citation.title, citation.position, citation.locator)
+agent.close_sync()
 ```
 
-The async methods (`await agent.ask(...)`, `async for update in agent.stream(...)`) are
-what a web app wants; the sync helpers exist so a script does not have to become async to
-ask one question. Answers carry citations back to the source document, including the
-locator of the stored original (`file://` or `s3://`).
+`from_env()` is the shortest path. To configure in code instead of by environment — which is
+what a test or a library consumer wants — build the settings tree and pass it:
 
-Already have a FastAPI app? Mount the router instead of running a second service:
+```python
+from pydantic_rag_agent import RagAgent, Settings
+
+settings = Settings(
+    provider={"api_key": "…"},
+    vector_store={"backend": "memory"},
+    storage={
+        "documents": {"backend": "local", "local_path": "./data/documents"},
+        "images": {"directory": "./data/images"},
+    },
+)
+agent = RagAgent(settings)
+```
+
+Async is the native interface; the `*_sync` helpers exist so a script need not become async
+to ask one question. Both call the same code:
+
+```python
+async def answer(agent: RagAgent, question: str) -> str:
+    async for update in agent.stream(question):
+        ...  # tokens, tool calls, completion
+    return (await agent.ask(question)).text
+```
+
+The constructor also takes the seams directly — `vector_store=`, `embeddings=`, `model=`,
+`document_store=` — which is how this package's own tests run with no network. See
+[public-api.md](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/design/public-api.md#injection).
+
+### 2. Mounted in FastAPI
+
+The router brings routes; your app keeps its lifespan, its auth and its shutdown.
 
 ```python
 from contextlib import asynccontextmanager
@@ -96,9 +142,57 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(create_router(agent), prefix="/knowledge")
 ```
 
-The router brings the routes; your app keeps its lifespan, its auth and its shutdown.
+### 3. Standalone server and clients
 
-Any OpenAI-speaking chat UI can be pointed at the agent instead of a bespoke frontend:
+```bash
+pydantic-rag-agent serve                  # 127.0.0.1:8000
+pydantic-rag-agent serve --host 0.0.0.0   # reachable from elsewhere — see the warning below
+```
+
+Two clients speak to it. `RagClient` is HTTP; `InProcessClient` runs an `RagAgent` in your
+own process behind the same `KnowledgeClient` protocol, so a Streamlit app or a test can
+swap one for the other without changing the UI code:
+
+```python
+from pydantic_rag_agent.client import RagClient  # HTTP
+from pydantic_rag_agent.in_process import InProcessClient  # in-process
+
+with RagClient("http://127.0.0.1:8000") as client:
+    for document in client.documents():
+        print(document["document_id"], document["source_path"])
+    for event in client.stream(conversation_id, "How long are backups retained?"):
+        ...
+
+with InProcessClient.from_env() as client:  # no server, same interface
+    ...
+```
+
+Both return `None` from `download()` for an unknown document, so a stale citation is a
+normal answer rather than an exception.
+
+### 4. Embedded Streamlit panel
+
+Requires the `ui` extra. The host owns the `RagAgent` and closes it; the panel owns its own
+`session_state`, namespaced by `key`, and makes no module-level Streamlit calls — so
+importing it cannot disturb your page.
+
+```python
+import streamlit as st
+
+from pydantic_rag_agent import RagAgent
+from pydantic_rag_agent.ui import rag_chat
+
+agent = RagAgent.from_env()
+rag_chat(agent, heading="Ask the handbook")
+```
+
+`rag_chat_client(client)` renders the same panel over any `KnowledgeClient` instead of an
+agent — the shape to use when the UI should not hold a provider credential. See the
+[embedding guide](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/development/embedding.md).
+
+### 5. Any OpenAI-speaking chat UI
+
+Point an existing client at the agent instead of building a frontend:
 
 ```python
 from pydantic_rag_agent.integrations.fastapi import create_openai_router
@@ -106,11 +200,73 @@ from pydantic_rag_agent.integrations.fastapi import create_openai_router
 app.include_router(create_openai_router(agent, model_id="acme-knowledge"), prefix="/openai")
 ```
 
-Point the client at `https://your-host/openai/v1`. Requests are stateless (the client
-sends the thread), caller-supplied system messages are ignored, and answers carry a
-`Sources:` footer. `serve` already exposes the same route at `/v1`, so a chat UI can be
-pointed at a running server without writing any code — `--openai-model-id` chooses the name
-the client shows. See [ADR 0014](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0014-openai-compatible-endpoint.md).
+Point the client at `https://your-host/openai/v1`. Requests are stateless (the client sends
+the thread), caller-supplied system messages are ignored, and answers carry a `Sources:`
+footer. `serve` exposes the same route at `/v1`, so a chat UI can be pointed at a running
+server with no code at all — `--openai-model-id` chooses the name the client shows. See
+[ADR 0014](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0014-openai-compatible-endpoint.md).
+
+### 6. Command line
+
+```bash
+pydantic-rag-agent configure                         # writes .env
+pydantic-rag-agent ingest ./docs                     # index, copying each original
+pydantic-rag-agent ask "How long are backups retained?"
+pydantic-rag-agent chat                              # a loop that keeps context
+pydantic-rag-agent documents                         # the index, with document IDs
+pydantic-rag-agent stats                             # chunk count and embedding identity
+pydantic-rag-agent delete <id>                       # asks first; -y skips
+pydantic-rag-agent dev                               # API + Streamlit UI together
+```
+
+The answer streams and ends with a table of sources. `--json` on `ask` prints machine-readable
+output, and `--api-url` (or `PRAGENT_API_URL`) makes any command talk to a running server
+instead of building an agent locally.
+
+### Citations download the original
+
+Every answer carries citations, and each one can fetch the document it names. The same
+capability is reachable from every shape — this is the part that is easy to miss:
+
+```python
+turn = agent.ask_sync("How long are backups retained?")
+for citation in turn.citations:
+    download = agent.download_sync(citation.document_id)
+    if download is not None:  # None means no such document
+        path = f"./out/{download.filename}"
+        open(path, "wb").write(download.data)
+        print(download.media_type)  # e.g. text/markdown
+```
+
+| Where | How you get the bytes |
+| --- | --- |
+| Library | `agent.download_sync(id)` → `DocumentDownload(filename, media_type, data)` |
+| HTTP client | `client.download(id)` → `(filename, bytes)` or `None` |
+| Server | `GET /documents/{id}/download`, streamed with its filename and content type |
+| Streamlit panel | a download control on each citation |
+| CLI | a terminal hyperlink where the terminal supports one, with the locator printed as fallback |
+
+`download()` returns `None` for an unknown id rather than raising, because a stale citation
+is a normal thing to hold. The filename comes from the index, so you get `handbook.md`, not
+a hash.
+
+On S3 the originals are **proxied** by default: the route reads the object and streams it, so
+a citation link is stable and can be re-fetched. Set
+`PRAGENT_STORAGE__DOCUMENTS__S3_DOWNLOAD_MODE=presign` to redirect to a presigned URL
+instead — faster and off your bandwidth, but the link expires. See
+[ADR 0017](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0017-citation-download.md).
+
+> **There is no authentication.** `serve --host 0.0.0.0` exposes every route, including
+> `/documents/{id}/download`, to anyone who can reach the port, and a `document_id` is a
+> content hash rather than a permission. Run it on localhost, or put auth in front of it.
+> Auth is deferred in the backlog with the trigger "deployment beyond localhost".
+
+First run: let the wizard write your `.env` — provider, models, where documents live, which
+vector store — so setup is configuration rather than reading a reference table:
+
+```bash
+pydantic-rag-agent configure
+```
 
 ## Use your own model provider
 
@@ -196,15 +352,26 @@ server instead of building the agent locally.
 
 ```text
 pydantic-rag-agent/
-├── pyproject.toml            # project metadata, dependencies, CLI entry point
+├── pyproject.toml            # project metadata, dependencies, extras, CLI entry point
 ├── uv.lock                   # exact resolved versions — commit this
 ├── .python-version           # interpreter uv should use
 ├── AGENTS.md                 # orientation for coding agents
 ├── docs/                     # design, backlog, decisions — start at docs/README.md
+├── scripts/                  # release, docs link check, retrieval evaluation
 ├── src/
 │   └── pydantic_rag_agent/
-│       ├── __init__.py       # package marker, no import-time side effects
-│       └── cli.py            # command-line entry point (`main`)
+│       ├── __init__.py       # the public surface, re-exported; no import-time side effects
+│       ├── agent.py          # RagAgent — the façade every interface goes through
+│       ├── client.py         # KnowledgeClient protocol + RagClient (HTTP)
+│       ├── in_process.py     # InProcessClient — the same protocol, no server
+│       ├── cli.py            # the command line (`typer` + `rich`)
+│       ├── config.py         # the PRAGENT_* settings tree
+│       ├── extras.py         # MissingExtraError and the extra-availability check
+│       ├── domain/           # models and ports; no I/O
+│       ├── application/      # ingestion, embedding, retrieval
+│       ├── adapters/         # chroma, document stores, loaders, captioning
+│       ├── integrations/     # the FastAPI app and routers (the `api` extra)
+│       └── ui/               # the Streamlit panel and app (the `ui` extra)
 └── README.md
 ```
 

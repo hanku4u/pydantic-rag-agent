@@ -36,6 +36,24 @@ DIST = ROOT / "dist"
 TESTPYPI = "https://test.pypi.org/legacy/"
 PYPI_SIMPLE = "https://pypi.org/simple/"
 TESTPYPI_SIMPLE = "https://test.pypi.org/simple/"
+
+# How a rehearsal installs what it just published. Shared by the install-back step and the
+# extras check so both resolve the same version the same way.
+#
+# `--extra-index-url` because the same name exists on PyPI (an older version) and uv's
+# default strategy considers only the first index that has the package, so it would refuse
+# the TestPyPI-only version without this. Both indexes are equally trusted in a throwaway
+# virtualenv, which is what the flag is for. `--refresh` because a cached index page from a
+# previous rehearsal would hide the version that was just uploaded.
+REHEARSAL_INDEX_ARGS: tuple[str, ...] = (
+    "--index-url",
+    TESTPYPI_SIMPLE,
+    "--extra-index-url",
+    PYPI_SIMPLE,
+    "--index-strategy",
+    "unsafe-best-match",
+    "--refresh",
+)
 VERSION_PATTERN = re.compile(r"\d+\.\d+\.\d+")
 
 
@@ -277,6 +295,119 @@ def _build_and_verify() -> None:
         _run(str(python), "-c", "import pydantic_rag_agent as p; print('  ✓', p.__version__)")
         _run(str(venv / "bin" / "pydantic-rag-agent"), "--help")
 
+    _verify_extras(str(wheel))
+
+
+# A probe per extra: the import that fails when the extra is missing or broken.
+#
+# Keyed by extra name, because the import path is knowledge about each extra that
+# pyproject.toml does not carry. Every probe imports the public entry point a user would
+# reach for, not an internal module, so a rename that breaks the documented import fails
+# here rather than in someone's application.
+EXTRA_PROBES: dict[str, str] = {
+    "chroma": (
+        "from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore; "
+        "assert ChromaVectorStore is not None"
+    ),
+    "api": (
+        "from pydantic_rag_agent.integrations.fastapi import ("
+        "create_app, create_router, create_openai_router); "
+        "assert create_app and create_router and create_openai_router"
+    ),
+    "ui": (
+        "from pydantic_rag_agent.ui import rag_chat, rag_chat_client; "
+        "assert rag_chat and rag_chat_client"
+    ),
+    # `S3DocumentStore` imports boto3 lazily inside `__init__`, so importing the class
+    # proves nothing. `require` is the seam that actually fails, and it carries the
+    # install hint a user needs.
+    "s3": (
+        "from pydantic_rag_agent.adapters.document_store.s3 import S3DocumentStore; "
+        "from pydantic_rag_agent.extras import require; "
+        "require('s3', 'boto3'); assert S3DocumentStore is not None"
+    ),
+}
+
+
+def _declared_extras() -> list[str]:
+    """The extras pyproject.toml declares, excluding meta-extras.
+
+    Read from the file rather than hardcoded so a new extra cannot be added without a
+    probe: it is the same reason the version is read rather than remembered.
+    """
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = pyproject["project"]["optional-dependencies"]
+    # `all` is a meta-extra: it points at the package itself and installs no module of
+    # its own, so it has nothing to probe. Detected by the self-reference rather than by
+    # name, so renaming it would not silently drop it from the check.
+    return [
+        name
+        for name, requirements in extras.items()
+        if not any(req.startswith("pydantic-rag-agent") for req in requirements)
+    ]
+
+
+def _verify_extras(spec: str, *, index_args: Sequence[str] = ()) -> None:
+    """Install every declared extra from ``spec`` and import its entry point.
+
+    The base-wheel check cannot catch a broken extra: `import pydantic_rag_agent` and
+    `--help` touch neither Streamlit nor FastAPI, so `[ui]` or `[api]` could ship broken
+    and the dry run would still report success. That is not hypothetical — 0.2.0 shipped
+    its entire public addition behind `[ui]`, and the gap had to be covered by hand.
+
+    ``spec`` is either a wheel path or a name-and-version requirement, so the same check
+    runs against a local build and against what TestPyPI actually served back.
+    """
+    extras = _declared_extras()
+    missing = [name for name in extras if name not in EXTRA_PROBES]
+    if missing:
+        raise ReleaseError(
+            f"no import probe for {', '.join(missing)}. pyproject.toml declares "
+            f"{'these extras' if len(missing) > 1 else 'this extra'}, but EXTRA_PROBES in "
+            "scripts/release.py has no entry, so a broken release would not be caught. "
+            "Add one."
+        )
+
+    _step(f"Install the extras ({', '.join(extras)})")
+    with tempfile.TemporaryDirectory(prefix="pragent-extras-") as temporary:
+        venv = Path(temporary) / "venv"
+        _run("uv", "venv", str(venv))
+        python = _venv_python(venv)
+        # Installed together rather than one virtualenv each: the extras must be
+        # co-installable, and a dependency conflict between two of them is exactly the
+        # kind of breakage that shows up for `pydantic-rag-agent[all]` users.
+        _run(
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            *index_args,
+            f"{spec}[{','.join(extras)}]",
+        )
+        for name in extras:
+            _run(str(python), "-c", EXTRA_PROBES[name])
+            print(f"  ✓ [{name}]", flush=True)
+
+    _step("Check the base install stays lean")
+    with tempfile.TemporaryDirectory(prefix="pragent-lean-") as temporary:
+        venv = Path(temporary) / "venv"
+        _run("uv", "venv", str(venv))
+        python = _venv_python(venv)
+        _run("uv", "pip", "install", "--python", str(python), *index_args, spec)
+        # The extras must not leak into the core install. This is what keeps `pip install
+        # pydantic-rag-agent` small, and it regresses silently if an import moves to
+        # module scope.
+        _run(
+            str(python),
+            "-c",
+            "import importlib.util as u, sys; "
+            "leaked = [m for m in ('chromadb', 'fastapi', 'streamlit', 'boto3') "
+            "if u.find_spec(m)]; "
+            "sys.exit(f'extras leaked into the base install: {leaked}' if leaked else 0)",
+        )
+        print("  ✓ none of chromadb, fastapi, streamlit, boto3 is installed", flush=True)
+
 
 # --- modes -------------------------------------------------------------------
 
@@ -332,20 +463,12 @@ def _rehearse(version: str, *, assume_yes: bool) -> None:
             "install",
             "--python",
             str(python),
-            "--index-url",
-            TESTPYPI_SIMPLE,
-            "--extra-index-url",
-            PYPI_SIMPLE,
-            # The same name exists on PyPI (an older version). uv's default strategy
-            # considers only the first index that has the package, so it would refuse the
-            # TestPyPI-only version without this. Both indexes are equally trusted in a
-            # throwaway virtualenv, which is what the flag is for.
-            "--index-strategy",
-            "unsafe-best-match",
-            "--refresh",
+            *REHEARSAL_INDEX_ARGS,
             f"pydantic-rag-agent=={version}",
         )
         _run(str(python), "-c", "import pydantic_rag_agent as p; print('  ✓', p.__version__)")
+
+    _verify_extras(f"pydantic-rag-agent=={version}", index_args=REHEARSAL_INDEX_ARGS)
 
     print()
     print(f"Rehearsed {version} on TestPyPI. To publish for real:")

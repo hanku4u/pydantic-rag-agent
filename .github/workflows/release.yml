@@ -91,6 +91,58 @@ jobs:
           "$RUNNER_TEMP/smoke/bin/python" -c "import pydantic_rag_agent; print(pydantic_rag_agent.__version__)"
           "$RUNNER_TEMP/smoke/bin/pydantic-rag-agent" --help >/dev/null
 
+      # The base install above proves nothing about the extras: neither `import
+      # pydantic_rag_agent` nor `--help` touches Streamlit, FastAPI, chromadb or boto3.
+      # 0.2.0 shipped its whole public addition behind `[ui]` and this step would have
+      # reported success even if that extra were broken. Run the same probes the local
+      # release script uses, so the two gates cannot disagree about what "works" means.
+      #
+      # The extras list is read from pyproject.toml rather than written here: a hardcoded
+      # list drifts the moment someone adds an extra, and then the gate silently stops
+      # covering it — which is the same class of bug this step exists to prevent.
+      - name: Install every extra and import its entry point
+        run: |
+          wheel=$(ls dist/*.whl | head -1)
+          extras=$(
+            "$RUNNER_TEMP/smoke/bin/python" -c "
+          import tomllib
+          deps = tomllib.load(open('pyproject.toml','rb'))['project']['optional-dependencies']
+          print(','.join(n for n, r in deps.items() if not any(x.startswith('pydantic-rag-agent') for x in r)))
+          "
+          )
+          echo "extras: $extras (from $wheel)"
+          uv venv "$RUNNER_TEMP/extras"
+          uv pip install --python "$RUNNER_TEMP/extras/bin/python" "$wheel[$extras]"
+          "$RUNNER_TEMP/extras/bin/python" - <<'PROBES'
+          from pydantic_rag_agent.adapters.chroma_store import ChromaVectorStore
+          from pydantic_rag_agent.adapters.document_store.s3 import S3DocumentStore
+          from pydantic_rag_agent.extras import require
+          from pydantic_rag_agent.integrations.fastapi import (
+              create_app,
+              create_openai_router,
+              create_router,
+          )
+          from pydantic_rag_agent.ui import rag_chat, rag_chat_client
+
+          require("s3", "boto3")
+          print("  ok:", ChromaVectorStore.__name__, S3DocumentStore.__name__)
+          print("  ok:", create_app.__name__, create_router.__name__, create_openai_router.__name__)
+          print("  ok:", rag_chat.__name__, rag_chat_client.__name__)
+          PROBES
+
+      # And the extras must not leak back into the core install: `pip install
+      # pydantic-rag-agent` has to stay small, and an import moved to module scope would
+      # silently undo that.
+      - name: Check the base install stays lean
+        run: |
+          "$RUNNER_TEMP/smoke/bin/python" - <<'LEAN'
+          import importlib.util as util
+          import sys
+
+          leaked = [name for name in ("chromadb", "fastapi", "streamlit", "boto3") if util.find_spec(name)]
+          sys.exit(f"extras leaked into the base install: {leaked}" if leaked else 0)
+          LEAN
+
       # Handed to the publish job, which is the one a reviewer gates.
       - name: Upload the artefacts
         uses: actions/upload-artifact@v4

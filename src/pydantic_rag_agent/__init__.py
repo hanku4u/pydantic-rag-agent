@@ -48,6 +48,7 @@ from pydantic_rag_agent.domain.errors import (
 from pydantic_rag_agent.domain.models import (
     ChatMessage,
     Citation,
+    DocumentDownload,
     DocumentSummary,
     StoreStats,
     TurnUsage,
@@ -87,6 +88,7 @@ __all__ = [
     # Results
     "ChatMessage",
     "Citation",
+    "DocumentDownload",
     "DocumentSummary",
     "IngestReport",
     "StoreStats",
