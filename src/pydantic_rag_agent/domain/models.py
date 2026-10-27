@@ -189,6 +189,63 @@ class DocumentSummary(BaseModel):
     chunk_count: int = Field(ge=0)
 
 
+class DocumentFacts(BaseModel):
+    """What a caller knows about a document before the catalogue has seen it.
+
+    Deliberately without ``slug``, ``created_at`` or ``updated_at``: those are the
+    catalogue's to assign, and a field a caller cannot compute is a field that invites a
+    wrong guess. Splitting the input from the stored row is what makes "the catalogue
+    decides the name" true by construction rather than by convention.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str = Field(min_length=1)
+    source_name: str = Field(min_length=1)
+    source_path: str
+    title: str
+    content_hash: str = Field(min_length=1)
+    media_type: str | None = None
+    size_bytes: int = Field(ge=0)
+    chunk_count: int = Field(ge=0)
+    caption_ids: tuple[str, ...] = ()
+
+
+class CataloguedDocument(BaseModel):
+    """One document as the catalogue remembers it.
+
+    The catalogue is authoritative for SRC-4, which is why this carries the stored *path*
+    rather than only the content hash: given a row, a reader can find the bytes without
+    consulting the vector store. ``slug`` is the readable component derived from the
+    document's own name; ``document_id`` stays the content hash, because it is what every
+    chunk, citation and existing locator already agrees on.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str = Field(min_length=1)
+    slug: str = Field(min_length=1)
+    #: The name the document was ingested under, as the user knew it. Kept because the slug
+    #: is a sanitised derivative and no longer necessarily says what the file was called.
+    source_name: str = Field(min_length=1)
+    #: The label the caller gave this source (a path, or an upload's filename), used to
+    #: recognise a re-ingest of the same source as a replacement rather than a new document.
+    source_path: str
+    title: str
+    #: ``sha256`` of the original bytes. Equal to ``document_id`` by construction today;
+    #: stored separately so that a future change to identity does not silently lose the
+    #: content hash the vector store and citations rely on.
+    content_hash: str = Field(min_length=1)
+    media_type: str | None = None
+    size_bytes: int = Field(ge=0)
+    chunk_count: int = Field(ge=0)
+    #: Caption rows this document owns, in the order their images appeared. Empty for a
+    #: document with no images, which is the common case.
+    caption_ids: tuple[str, ...] = ()
+    created_at: datetime
+    updated_at: datetime
+
+
 class DocumentDownload(BaseModel):
     """The original bytes of one document, with what a browser needs to name it.
 

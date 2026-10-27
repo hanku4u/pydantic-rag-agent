@@ -128,6 +128,24 @@ so a citation can outlive the request that produced it.
 The caption cache lives under this directory and is keyed by model name, so switching
 `CAPTION_MODEL` re-captions rather than silently serving the previous model's text.
 
+## `catalogue` — what the index knows about each document
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `PRAGENT_CATALOGUE__URL` | no | `sqlite:///./data/catalogue.db` | Where the document catalogue lives |
+
+One URL, not a backend switch plus per-backend options ([ADR 0018](../decisions/0018-readable-tree-and-catalogue.md)):
+the backend is a property of the value, so moving to PostgreSQL is a different URL rather
+than a different code path. SQLite is the default so `pip install` and `ingest` still works
+with no database server anywhere.
+
+The catalogue is **authoritative**, not a cache. Losing it loses the index — it cannot be
+rebuilt by scanning the document tree, because the tree records neither metadata nor chunk
+ownership nor captions. Whatever path the URL names is something to back up.
+
+A `postgresql://` URL is accepted by the setting and rejected by the SQLite adapter with an
+error naming what is missing, rather than being mistaken for a filename.
+
 ## `ingestion` — how documents are split
 
 | Variable | Required | Default | Purpose |

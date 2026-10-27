@@ -175,6 +175,23 @@ class StorageSettings(BaseModel):
     images: ImageStoreSettings = Field(default_factory=ImageStoreSettings)
 
 
+class CatalogueSettings(BaseModel):
+    """Where the document catalogue lives.
+
+    A single URL rather than a backend switch plus per-backend options (ADR 0018): the
+    backend is a property of the value, so adding Postgres is a different URL rather than a
+    different code path. SQLite is the default so the zero-configuration story survives —
+    `pip install` and `ingest` still works with no database server anywhere.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    #: `sqlite:///./data/catalogue.db` by default. A `postgresql://…` URL is accepted here
+    #: and named as needing its driver at the point the adapter is built, not silently
+    #: treated as a filename.
+    url: str = "sqlite:///./data/catalogue.db"
+
+
 class IngestionSettings(BaseModel):
     """How documents are split before they are indexed."""
 
@@ -225,6 +242,7 @@ class Settings(BaseSettings):
     embeddings: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    catalogue: CatalogueSettings = Field(default_factory=CatalogueSettings)
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
 
