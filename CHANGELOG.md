@@ -7,6 +7,17 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Releases now verify every extra, not just the base wheel.** The preflight in
+  `scripts/release.py` and the `build` job in the release workflow install
+  `pydantic-rag-agent[chroma,api,ui,s3]` and import each extra's public entry point, then
+  assert that none of `chromadb`, `fastapi`, `streamlit` or `boto3` leaked into the base
+  install. Neither `import pydantic_rag_agent` nor `--help` touches those modules, so a
+  broken `[ui]` or `[api]` previously passed every gate — 0.2.0 shipped its whole public
+  addition behind `[ui]` with only the base check in place. The extras list is read from
+  `pyproject.toml`, and the script refuses to run if a declared extra has no import probe.
+
 ### Added
 
 - **A citation now downloads the document it names.** `GET /documents/{id}/download` serves
