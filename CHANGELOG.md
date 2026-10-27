@@ -9,17 +9,36 @@ Notable changes, written by hand from the commit history. The format follows
 
 ### Changed
 
-- **The storage and metadata design questions are settled.** SRC-4 was blocked on six
-  decisions — naming, catalogue authority, captions, the database driver, migration, and
-  where authentication sits. They are recorded in
-  [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md), which unblocks SRC-4,
-  SRC-5 and RET-5. Two consequences are worth knowing before the code exists: the catalogue
-  becomes the source of truth, so **the database becomes the thing to back up**; and moving
-  from content-addressed paths to slug paths means **upgrading requires a reindex**, which
-  will be in the migration note when SRC-4 ships.
+- **Authentication is now documented as out of scope, not deferred.** It was listed in the
+  backlog as a deferred feature with the trigger "deployment beyond localhost", which reads
+  as a promise that it is coming. It is not: a RAG library cannot guess a host's auth model
+  (reverse-proxy mTLS, an OAuth proxy, an API gateway, a VPN), and a half-answer hosts
+  disable is worse than a stated boundary. The Deferred row is removed and a scope statement
+  put in its place. Nothing changes at runtime — `serve` was already unauthenticated — but
+  the documentation no longer implies otherwise. See
+  [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md).
 
-  Authentication moved out of the Deferred table: it is not deferred, it is out of scope
-  for this package, and the docs now say so instead of implying it is coming.
+- **The SRC-4 design questions are settled** — naming, catalogue authority, captions, the
+  database driver, migration and auth. Recorded in
+  [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md), which unblocks SRC-4,
+  SRC-5 and RET-5. No behaviour changes in this release; the code lands under SRC-4.
+
+### Coming in SRC-4 — read before upgrading
+
+Stated now because both consequences affect how you run this today, and learning either of
+them after an upgrade is worse than reading it beforehand.
+
+- **`./data/` stops being disposable.** The catalogue becomes the source of truth, so losing
+  the database loses the index. It cannot be rebuilt by scanning the tree, because the tree
+  does not record metadata, chunk ownership or caption ids. Today this file tells you an
+  empty index is caught by the startup guard and you can re-ingest; after SRC-4, keep a copy.
+
+- **Upgrading will require a reindex.** Originals move from content-addressed paths
+  (`…/12/12683a9f…/handbook.md`) to slug paths derived from the document's name
+  (`…/handbook.md`). Existing indexes cannot be read under the new scheme, and there is no
+  in-place rewrite — it would have to invent slugs for documents that have no catalogue row
+  yet. **Re-ingest your sources when you upgrade.** `document_id` does not change: it stays
+  `sha256(payload)`, so citations and stored locators keep their identity.
 
 ## [0.3.0] — 2026-10-27
 
