@@ -78,7 +78,7 @@ State: **M0–M6 complete** (OPS-1 deliberately out of scope — nobody reads th
 **API-6 (post-M7) is done:** `create_openai_router` serves any OpenAI-speaking chat UI
 (`integrations/fastapi/openai.py`; ADR 0014).
 
-**M7 — distribution and embedding — is complete and published as 0.2.0.** Done: **CFG-1** (settings tree),
+**M7 — distribution and embedding — is complete and published as 0.3.0.** Done: **CFG-1** (settings tree),
 **CFG-2** (programmatic construction), **CFG-3** (reference and `.env.example`),
 **CORE-1** (`RagAgent` façade), **CORE-2** (`KnowledgeClient`; the CLI and UI need no
 server), **CORE-3** (FastAPI in `integrations/fastapi`, routes over the façade),
@@ -102,7 +102,7 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-**M7 is complete; 0.2.0 is published on PyPI.** **M8 is in progress:** **CIT-1 is done** —
+**M7 is complete; 0.3.0 is published on PyPI.** **M8 is in progress:** **CIT-1 is done** —
 a citation downloads the original (`GET /documents/{id}/download`, a control in the
 Streamlit panel, a terminal hyperlink in the CLI; ADR 0017). Remaining: readable document
 storage with a SQLite/PostgreSQL catalogue (SRC-4), and caller-supplied document metadata

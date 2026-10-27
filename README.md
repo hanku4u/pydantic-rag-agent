@@ -3,7 +3,7 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** M0–M7 are complete and published as **0.2.0**; M8 is in progress (citations
+> **Status:** M0–M7 are complete and published as **0.3.0**; M8 is in progress (citations
 > download their originals). Ingestion, retrieval, the agent, the API, the CLI, the
 > Streamlit UI and the OpenAI-compatible endpoint all work; the suite runs offline at 92%
 > branch coverage. OPS-1 (instrumentation) is deliberately out of scope. `main` is the state
@@ -45,7 +45,7 @@ The core install has no vector database: it runs with the in-memory store, which
 for a script that ingests and asks in one go. Anything the agent does not need at import
 time is an extra, and a missing one tells you which to install.
 
-Published as **0.2.0** — see the [changelog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/CHANGELOG.md)
+Published as **0.3.0** — see the [changelog](https://github.com/hanku4u/pydantic-rag-agent/blob/main/CHANGELOG.md)
 for what is in it. Before 1.0 the public API may change in a minor release, with a
 migration note.
 

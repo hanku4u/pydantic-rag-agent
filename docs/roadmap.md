@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** stable — M0–M7 complete, and 0.2.0 is published on PyPI. M8 is in progress, not
+**Status:** stable — M0–M7 complete, and 0.3.0 is published on PyPI. M8 is in progress, not
 started. One feature, API-6, landed after M7 started.
 
 The order in which the backlog gets built, and what "done" means for each stage. The

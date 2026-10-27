@@ -7,12 +7,30 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.0] — 2026-10-27
+
 ### Added
 
 - **`DocumentDownload` is exported from the package root.** It is the return type of
   `RagAgent.download` and `download_sync`, so a caller annotating that return had no public
   import path — it had to reach into `pydantic_rag_agent.domain.models`, which carries no
   compatibility promise. `from pydantic_rag_agent import DocumentDownload` now works.
+- **A citation now downloads the document it names.** `GET /documents/{id}/download` serves
+  the stored original with its filename and content type, as an attachment. In the
+  Streamlit panel each citation gains a download control, and in the CLI the sources table
+  links the original where the terminal supports hyperlinks, printing the locator either
+  way. The S3 store proxies the bytes by default and can redirect to a presigned URL
+  instead (`PRAGENT_STORAGE__DOCUMENTS__S3_DOWNLOAD_MODE`). See
+  [ADR 0017](docs/decisions/0017-citation-download.md).
+  - The download control fetches on click, not on render: Streamlit re-runs the page on
+    every interaction, so fetching during render would re-read each cited document
+    repeatedly.
+  - **The route is unauthenticated, like every other route on this API.** `serve` binds
+    `127.0.0.1` by default; binding `0.0.0.0` makes it a file server for every ingested
+    original on that network. `document_id` is a content hash, so it identifies a document
+    rather than authorising access to it.
 
 ### Changed
 
@@ -30,23 +48,6 @@ Notable changes, written by hand from the commit history. The format follows
   addition behind `[ui]` with only the base check in place. The extras list is read from
   `pyproject.toml`, and the script refuses to run if a declared extra has no import probe.
 
-### Added
-
-- **A citation now downloads the document it names.** `GET /documents/{id}/download` serves
-  the stored original with its filename and content type, as an attachment. In the
-  Streamlit panel each citation gains a download control, and in the CLI the sources table
-  links the original where the terminal supports hyperlinks, printing the locator either
-  way. The S3 store proxies the bytes by default and can redirect to a presigned URL
-  instead (`PRAGENT_STORAGE__DOCUMENTS__S3_DOWNLOAD_MODE`). See
-  [ADR 0017](docs/decisions/0017-citation-download.md).
-  - The download control fetches on click, not on render: Streamlit re-runs the page on
-    every interaction, so fetching during render would re-read each cited document
-    repeatedly.
-  - **The route is unauthenticated, like every other route on this API.** `serve` binds
-    `127.0.0.1` by default; binding `0.0.0.0` makes it a file server for every ingested
-    original on that network. `document_id` is a content hash, so it identifies a document
-    rather than authorising access to it.
-
 ### Fixed
 
 - **Strict OpenAI-compatible servers no longer reject tool-calling turns.** An assistant
@@ -56,6 +57,19 @@ Notable changes, written by hand from the commit history. The format follows
   empty string, which those servers accept and which reads identically to any OpenAI
   client. No configuration is needed and nothing else in the request is changed. See
   [ADR 0016](docs/decisions/0016-null-content-compat.md).
+
+### Migration
+
+Nothing has to change. `DocumentDownload` is new to the package root, so an existing import
+of `pydantic_rag_agent.domain.models.DocumentDownload` keeps working — that module still
+defines it. Move to `from pydantic_rag_agent import DocumentDownload` when convenient; the
+root name is the one that carries a compatibility promise.
+
+Nothing else in the surface changed. The download feature is additive, and the release
+script's new extra checks run at release time only — they do not affect the installed
+package.
+
+[0.3.0]: https://github.com/hanku4u/pydantic-rag-agent/releases/tag/v0.3.0
 
 ## [0.2.0] — 2026-10-26
 
