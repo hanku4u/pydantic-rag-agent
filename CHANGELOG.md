@@ -7,7 +7,19 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`DocumentDownload` is exported from the package root.** It is the return type of
+  `RagAgent.download` and `download_sync`, so a caller annotating that return had no public
+  import path — it had to reach into `pydantic_rag_agent.domain.models`, which carries no
+  compatibility promise. `from pydantic_rag_agent import DocumentDownload` now works.
+
 ### Changed
+
+- **The README documents all six ways to use the package**, with a runnable example for
+  each, and a section on downloading the document behind a citation — the capability was
+  reachable from every interface but described nowhere. The status header, the published
+  version and the project layout were all stale and are corrected.
 
 - **Releases now verify every extra, not just the base wheel.** The preflight in
   `scripts/release.py` and the `build` job in the release workflow install

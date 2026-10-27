@@ -99,11 +99,21 @@ RagAgent(
 | `documents()` | Indexed documents with IDs |
 | `delete_document(document_id)` | Remove chunks and return how many; zero means no such document |
 | `stats()` | Chunk count and embedding identity |
+| `download(document_id)` | The original bytes as a `DocumentDownload`, or `None` if there is no such document |
+| `download_link(document_id)` | A URL for the original when the store can mint one, else `None` |
 | `aclose()` | Release store handles (async callers) |
 | `close_sync()` | The same for synchronous callers, then close the shared loop |
 
 `ingest` accepts one path or many, because a bare string is iterable and would otherwise
 be ingested one character at a time.
+
+`download` returns `None` rather than raising for an unknown id: a caller holding a stale
+citation is a normal case, and the API layer needs to tell "no such document" apart from a
+store failure, which stays an exception. `DocumentDownload` carries `filename` and
+`media_type` alongside the bytes, so every interface describes the document the same way
+instead of each guessing from a path — `filename` is the leaf of the ingest source, never
+the content hash. `download_link` exists for stores that can presign; it returns `None`
+when the configured mode is proxy, and the caller falls back to `download`.
 
 ### Injection
 
