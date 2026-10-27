@@ -12,6 +12,8 @@ from typing import Protocol, runtime_checkable
 
 from pydantic_rag_agent.domain.extraction import ExtractedDocument, ExtractedImage
 from pydantic_rag_agent.domain.models import (
+    CataloguedDocument,
+    DocumentFacts,
     DocumentSummary,
     EmbeddedChunk,
     RetrievedChunk,
@@ -141,3 +143,51 @@ class PresigningDocumentStore(Protocol):
     """
 
     def presigned_url(self, *, document_id: str, filename: str, expires_in: int = 300) -> str: ...
+
+
+@runtime_checkable
+class DocumentCatalogue(Protocol):
+    """What the index knows about each document, and where its original lives.
+
+    Authoritative rather than derived (ADR 0018): given a lost catalogue there is no way to
+    recover the index by scanning the tree, because the tree records neither metadata nor
+    chunk ownership nor captions. That is the price of cheap queries, and it is why the
+    catalogue's own storage is something an operator must back up.
+
+    The catalogue is also the only component that can assign a readable name, because
+    resolving a collision needs every document at once. ``claim`` therefore does two things
+    that must not be separated: it decides the slug *and* records the row. A caller that
+    computed a slug itself and then stored it would be racing every other ingest.
+
+    Contract every implementation must honour:
+
+    * ``claim`` is atomic per ``source_path``. Claiming the same source twice with the same
+      content returns the existing row with its existing slug, so re-ingesting an unchanged
+      file does not churn the tree. Claiming the same source with *different* content
+      replaces the row and keeps the source's slug, because the readable name belongs to
+      the document's place in the corpus, not to its bytes.
+    * A different ``source_path`` with a colliding name gets a numbered slug. Two documents
+      must never share one slug, and a violation is data loss rather than an error.
+    * ``forget`` removes the row and frees its slug, so a deleted document's name can be
+      reused rather than leaking a suffix forever.
+    """
+
+    async def claim(self, facts: DocumentFacts) -> CataloguedDocument:
+        """Record (or replace) a document and return the row as stored, slug included.
+
+        Takes ``DocumentFacts`` rather than the stored model because the slug, and the
+        timestamps, are this method's to assign — a caller has nothing to pass for them.
+        """
+        ...
+
+    async def get(self, document_id: str) -> CataloguedDocument | None: ...
+
+    async def by_source_path(self, source_path: str) -> CataloguedDocument | None: ...
+
+    async def documents(self) -> list[CataloguedDocument]: ...
+
+    async def forget(self, document_id: str) -> bool: ...
+
+    async def count(self) -> int: ...
+
+    async def close(self) -> None: ...

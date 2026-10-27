@@ -43,7 +43,7 @@ stay the canonical list.
 | DX-2 (post-M7) | DX-2 | — |
 | M6 Hardening | EVAL-1, SEC-1, OPS-2, TST-1 | OPS-1 |
 | M7 Distribution | CFG-1, CFG-2, CFG-3, CORE-1, CORE-2, CORE-3, CORE-4, SRC-1, SRC-2, SRC-3, PKG-1, PKG-2, PKG-3, PKG-4, PKG-5 | — |
-| M8 Storage, metadata and citation ergonomics | CIT-1 | SRC-4, SRC-5, RET-5 |
+| M8 Storage, metadata and citation ergonomics | CIT-1 | SRC-4 (in progress — catalogue foundation landed), SRC-5, RET-5 |
 
 M0 is closed: `RagAgent` loads `Settings` at startup and checks the index on first use
 (on startup, for the standalone app), which is what FND-2 was waiting for. M5 is closed too — the
@@ -203,7 +203,7 @@ second index.
 
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
-| SRC-4 | Readable document tree and a metadata catalogue | SRC-1…SRC-3, CFG-1 | A stored original lands at a path a person can predict from its name; SQLite (the default) or PostgreSQL (when configured) records document id, source, stored path, hash, chunk count, caption ids and timestamps; re-ingesting an edited file replaces rather than duplicates; a documented migration moves an existing content-addressed store |
+| SRC-4 | Readable document tree and a metadata catalogue | SRC-1…SRC-3, CFG-1 | **Partially built** — the catalogue and slug rules exist (`domain/slugs.py`, `adapters/catalogue.py`, `PRAGENT_CATALOGUE__URL`); ingest does not yet write to them. Remaining: A stored original lands at a path a person can predict from its name; SQLite (the default) or PostgreSQL (when configured) records document id, source, stored path, hash, chunk count, caption ids and timestamps; re-ingesting an edited file replaces rather than duplicates; a documented migration moves an existing content-addressed store |
 | SRC-5 | Caller-supplied document metadata | SRC-1…SRC-3 | A caller attaches key-value metadata per document at ingest — CLI, API upload, UI editor and library argument all reach the same path; keys and value types are validated; the metadata is denormalised onto every chunk, persisted by both stores, returned by `documents()`, and survives re-ingest and replacement. Coordinate with SRC-4 so the catalogue records it rather than deriving it |
 | RET-5 | Filtered retrieval | SRC-5, RET-1 | `search_knowledge_base` can be narrowed by metadata; `VectorStore.search` takes a typed filter instead of raw store syntax; Chroma, the in-memory store and (later) pgvector implement the same subset; CLI `ask` and the API accept a filter; a test proves a semantically matching document is excluded when the filter says so |
 | CIT-1 | Citations that open or download the original | SRC-1…SRC-3, CORE-2, CORE-3 | In Streamlit, a citation downloads the original through the API; in the CLI it is a terminal hyperlink where the terminal supports one, with the locator printed as fallback; `GET /documents/{id}/download` streams the file with its name and content type; an S3 store proxies or presigns according to configuration; tests cover local and S3 forms plus an unknown document |

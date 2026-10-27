@@ -7,6 +7,26 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A document catalogue, and the rules that give a document a readable name (SRC-4, first
+  part).** `SQLiteCatalogue` records one row per document — id, slug, source, title, content
+  hash, size, chunk count, caption ids and timestamps — with `UNIQUE(slug)` and
+  `UNIQUE(source_path)` as schema constraints rather than hopeful checks, and plain-SQL
+  migrations applied on first open with the version kept in `PRAGMA user_version`.
+  `domain/slugs.py` derives the stored name from the document's own filename and refuses to
+  let a name choose a directory. Configured by `PRAGENT_CATALOGUE__URL`, one URL with SQLite
+  as the default.
+
+  **Ingest does not write to it yet**, and originals are still stored by content hash — this
+  is the foundation the rest of SRC-4 builds on, not the behaviour change. Nothing in this
+  release moves a file or changes a locator.
+
+  Two contract details worth knowing before building on it: re-ingesting unchanged content
+  returns the existing row without burning a numbered slug, and editing a file keeps its
+  slug because the readable name belongs to the document's place in the corpus rather than
+  to its bytes.
+
 ### Changed
 
 - **Authentication is now documented as out of scope, not deferred.** It was listed in the
