@@ -66,10 +66,11 @@ remains is the storage and metadata half. Two pieces of feedback from actually u
   narrowed before semantic ranking — useful for precision, latency, and eventually for
   access boundaries (which still need real authentication).
 
-The storage and metadata features need design work before code — naming and collision policy, whether the catalogue is
-authoritative, how migrations run, and how a download endpoint interacts with
-authentication. The open questions are recorded with the features in
-[the backlog](features/README.md#m8--storage-metadata-and-citation-ergonomics).
+The storage and metadata features were blocked on design work; that is now settled in
+[ADR 0018](decisions/0018-readable-tree-and-catalogue.md) — slug-derived paths with
+content-hash identity, the catalogue as authority (so it must be backed up), a single
+`DATABASE_URL`, plain-SQL forward-only migrations, and a mandatory reindex on upgrade.
+Authentication is not part of it: this package does not implement auth, and says so.
 
 ## The two milestones that matter
 

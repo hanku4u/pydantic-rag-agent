@@ -106,9 +106,9 @@ Read these before touching anything:
 a citation downloads the original (`GET /documents/{id}/download`, a control in the
 Streamlit panel, a terminal hyperlink in the CLI; ADR 0017). Remaining: readable document
 storage with a SQLite/PostgreSQL catalogue (SRC-4), and caller-supplied document metadata
-with filtered retrieval (SRC-5, RET-5). Persistent conversations, `pgvector` and
-authentication remain deferred with their triggers in
-[docs/features/README.md](docs/features/README.md#deferred).
+with filtered retrieval (SRC-5, RET-5). Persistent conversations and `pgvector` remain
+deferred with their triggers in [docs/features/README.md](docs/features/README.md#deferred);
+**authentication is not deferred — it is out of scope for this package** (ADR 0018).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the
 config tree and façade exist.
 
@@ -116,8 +116,10 @@ Practical notes:
 
 - **Tests need no API key.** Live checks do: `OPENROUTER_API_KEY` in `.env`, which is
   gitignored and present on the development machine only.
-- `./data/` may hold a local index from a smoke run. It is gitignored and safe to delete;
-  an empty or mismatched index is caught by the startup guard rather than silently used.
+- `./data/` may hold a local index from a smoke run. It is gitignored and safe to delete
+  **today**; an empty or mismatched index is caught by the startup guard rather than
+  silently used. **SRC-4 changes this**: once the catalogue exists it is authoritative and
+  `./data/` stops being disposable — see [ADR 0018](docs/decisions/0018-readable-tree-and-catalogue.md).
 - Run the gates under "Commands" before committing. `ruff format --check` also formats
   Python blocks inside Markdown, which has caught a long doc example before.
 - **M7 changes the public surface.** Keep the migration table in ADR 0010 current, and

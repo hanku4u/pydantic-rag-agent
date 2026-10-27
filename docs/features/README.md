@@ -208,25 +208,32 @@ second index.
 | RET-5 | Filtered retrieval | SRC-5, RET-1 | `search_knowledge_base` can be narrowed by metadata; `VectorStore.search` takes a typed filter instead of raw store syntax; Chroma, the in-memory store and (later) pgvector implement the same subset; CLI `ask` and the API accept a filter; a test proves a semantically matching document is excluded when the filter says so |
 | CIT-1 | Citations that open or download the original | SRC-1…SRC-3, CORE-2, CORE-3 | In Streamlit, a citation downloads the original through the API; in the CLI it is a terminal hyperlink where the terminal supports one, with the locator printed as fallback; `GET /documents/{id}/download` streams the file with its name and content type; an S3 store proxies or presigns according to configuration; tests cover local and S3 forms plus an unknown document |
 
-### Open questions to settle before implementing
+### Settled before implementing — see [ADR 0018](../decisions/0018-readable-tree-and-catalogue.md)
 
-- **Naming and collisions.** Preserve the ingested relative path under a collection root, or
-  derive a slug from the title? Two `handbook.md` files from different folders must not
-  overwrite each other.
-- **Authority.** Is the catalogue the source of truth, or a derived index rebuildable from
-  the tree? The second survives a lost database; the first makes queries cheap.
-- **What captions become.** Today they are files under `storage.images`. The catalogue
-  could own caption text and metadata while bytes stay content-addressed — or image bytes
-  move into the readable tree too, at the cost of losing deduplication.
-- **PostgreSQL.** A new settings node plus an extra (`psycopg` or `asyncpg`), or a single
-  `DATABASE_URL`? One driver, not two, and migrations need a story (plain SQL vs Alembic).
-- **Migration.** Existing locators live in chunk metadata. A reindex is acceptable, but the
-  feature has to say so rather than surprise anyone mid-upgrade.
-- **Downloads and auth.** The API has no authentication today, and a download route hands
-  out documents. It must inherit whatever the host adds; S3 presigning moves the question
-  into the bucket policy. Proxy versus presign is a security decision, not a convenience.
-- **Who chooses a filter?** A caller per query (`ask --meta department=finance`) is
-  deterministic; a model choosing from the question will sometimes choose wrong. Recommend
+- **Naming and collisions.** A **slug derived from the name**, not the ingested relative
+  path. `document_id` stays `sha256(payload)`; the slug is a path component, the id is the
+  identity. Collisions take a numeric suffix assigned by the catalogue, which is the only
+  component that sees all documents at once.
+- **Authority.** The **catalogue is the source of truth**, not a derived index. Losing the
+  database loses the index, so a documented backup is part of SRC-4 rather than an
+  afterthought, and the recovery path is re-ingest.
+- **What captions become.** The **catalogue owns caption text and metadata**; image bytes
+  stay content-addressed so deduplication survives. The row stays keyed on
+  `(image_hash, caption_model)`, so IMG-5 still holds.
+- **PostgreSQL.** A **single `PRAGENT_CATALOGUE__URL`**, one driver, SQLite by default and a
+  Postgres driver behind an extra. Migrations are versioned plain SQL applied on first open;
+  Alembic was considered and rejected as ceremony for a handful of tables.
+- **Migration.** **A reindex is required and must be stated before upgrade.** No in-place
+  path rewrite; the backfill *is* re-ingest, so it needs no separate code path.
+- **Downloads and auth.** **This package does not implement authentication.** That is a
+  boundary, not a deferral — see the Deferred table. The README warning extends to the
+  catalogue and tree routes.
+- **Who chooses a filter?** **The model chooses, from the question**, with
+  `ask --meta key=value` kept as a deterministic override. A wrong filter excludes correct
+  evidence silently, so RET-5's exclusion test is what makes that failure visible. Revisit
+  if evaluation shows the model choosing badly.
+
+The remaining notes from the original discussion, kept because they still apply:
   caller-supplied filters passed through the tool, with an optional configured default —
   never the model inventing one.
 - **Filter vocabulary.** Equality and `in` cover most of it and map cleanly onto Chroma's
@@ -262,10 +269,16 @@ without one, "deferred" quietly becomes "forgotten".
 | Query rewriting / expansion | Recall is good but queries are consistently vague |
 | OCR for scanned PDFs | Users actually supply scanned documents |
 | Persistent conversations | Multi-worker deployment, or users complaining about lost history |
-| Authentication | Deployment beyond localhost |
 | HTML loader | Users supply web pages |
 | MMR / diversity | Summarisation becomes a goal |
 | Web UI beyond Streamlit | Streamlit becomes a real limitation |
+
+**Authentication is not on this list.** It is not deferred — it is out of scope for the
+package. A RAG library cannot guess a host's auth model (reverse-proxy mTLS, an OAuth
+proxy, an API gateway, a VPN), and a half-answer hosts disable is worse than a stated
+boundary. Anything reachable with `serve --host 0.0.0.0` is reachable by anyone who can
+reach the port; put auth in front of it. See
+[ADR 0018](../decisions/0018-readable-tree-and-catalogue.md).
 
 ## Related
 
