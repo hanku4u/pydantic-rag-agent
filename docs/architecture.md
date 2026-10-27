@@ -76,6 +76,7 @@ src/pydantic_rag_agent/
 │   ├── chroma_store.py   # VectorStore implementation
 │   ├── memory_store.py   # test double / small corpora
 │   ├── conversations.py  # in-memory conversation history
+│   ├── compat.py         # rewrites null message content for strict providers
 │   ├── document_store/
 │   │   └── local.py      # originals on disk, file:// locators (SRC-1)
 │   ├── image_store.py    # content-addressed image bytes

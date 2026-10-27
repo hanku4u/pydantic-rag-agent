@@ -7,6 +7,16 @@ Notable changes, written by hand from the commit history. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Strict OpenAI-compatible servers no longer reject tool-calling turns.** An assistant
+  message that carries `tool_calls` was sent with `"content": null`, which the OpenAI
+  specification allows but a server validating `content` as a required string refuses —
+  returning 400 for every request after the first tool call. The null is now sent as an
+  empty string, which those servers accept and which reads identically to any OpenAI
+  client. No configuration is needed and nothing else in the request is changed. See
+  [ADR 0016](docs/decisions/0016-null-content-compat.md).
+
 ## [0.2.0] — 2026-10-26
 
 ### Added

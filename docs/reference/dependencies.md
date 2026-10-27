@@ -31,6 +31,7 @@ packages themselves; which extra each belongs to is recorded in
 | `rich` | Terminal rendering: Markdown answers, citation tables, progress, spinners. | Interfaces (`cli.py`) |
 | `streamlit` | Chat and ingestion UI. | Interfaces (`ui/`) |
 | `httpx` | HTTP client used by the CLI and Streamlit to reach the API. Declared explicitly even though `openai` pulls it in. | Interfaces (CLI, UI) |
+| `httpx2` | HTTP client the pydantic-ai providers are driven with. `adapters/compat.py` wraps its transport, so it is a direct dependency rather than something inherited from `pydantic-ai`. | Core (provider transport) |
 | `python-multipart` | Parses multipart form uploads. FastAPI needs it for `POST /documents`; it is imported by the framework rather than by us, and still declared because our behaviour depends on it. | Integrations (`integrations/fastapi/`) |
 
 ## Licence constraints
@@ -63,7 +64,7 @@ Publication splits the stack ([ADR 0013](../decisions/0013-packaging-and-release
 
 | Extra | Packages | Needed by |
 | --- | --- | --- |
-| *(core)* | `pydantic`, `pydantic-settings`, `pydantic-ai-slim[openai]`, `tiktoken`, `httpx`, `python-dotenv`, `rich`, `typer`, `pillow`, `pypdfium2`, `python-docx`, `python-pptx` | The agent, the loaders, the CLI and the in-memory store |
+| *(core)* | `pydantic`, `pydantic-settings`, `pydantic-ai-slim[openai]`, `tiktoken`, `httpx`, `httpx2`, `python-dotenv`, `rich`, `typer`, `pillow`, `pypdfium2`, `python-docx`, `python-pptx` | The agent, the loaders, the CLI and the in-memory store |
 | `[chroma]` | `chromadb` | The default persistent store |
 | `[api]` | `fastapi`, `uvicorn[standard]`, `python-multipart` | `serve`, and mounting the router |
 | `[ui]` | `streamlit` | `dev`, and the chat UI |
@@ -97,7 +98,8 @@ Streamlit and Chroma. Users never get them through that group.
 ## Rules
 
 1. **Declare what you import, even if it is transitive.** `rich`, `pydantic`,
-   `tiktoken`, and `httpx` all arrive through other packages today. If our code
+   `tiktoken`, and `httpx` all arrive through other packages today. `httpx2` is the
+exception: `adapters/compat.py` imports it directly, so it is declared. If our code
    imports it, it belongs in `pyproject.toml` — otherwise a routine upstream change
    silently breaks us.
 2. **Constraints are ranges in `pyproject.toml`; the lockfile pins exactly.**
