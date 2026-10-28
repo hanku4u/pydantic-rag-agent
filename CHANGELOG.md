@@ -5,6 +5,48 @@ Notable changes, written by hand from the commit history. The format follows
 [Semantic Versioning](https://semver.org/), with the pre-1.0 caveat in
 [docs/development/releasing.md](docs/development/releasing.md).
 
+## [Unreleased]
+
+### Added
+
+- **Caller-supplied document tags (SRC-5).** A caller attaches `key=value` metadata at
+  ingest — `--meta` on the CLI, a `metadata` form field on the upload route, a tag field in
+  the Streamlit uploader, or the `metadata=` argument on `RagAgent.ingest` and
+  `ingest_files`. Tags are validated, denormalised onto every chunk, recorded in the
+  catalogue so a reindex does not lose them, and returned by `documents()`.
+
+  Keys are stored under a reserved `meta.` prefix that the library applies, so `--meta
+  team=legal` is filtered as `team=legal` and a caller can never overwrite `title`,
+  `source_path` or `document_id`. The prefix is a storage detail: every surface shows the
+  caller the key it supplied. See
+  [ADR 0019](docs/decisions/0019-caller-supplied-metadata.md).
+
+  Ingest without tags is unchanged and remains the default. Values are strings, capped at 32
+  keys and 128 characters; over-long input is rejected rather than truncated, because a
+  silently shortened tag is a tag that later fails to match.
+
+  Over HTTP the upload route validates the wire format before anything is read: the
+  `metadata` field must be a JSON object whose values are all strings. `{"year": 2026}` is a
+  `400` naming the offending key and its type, not a tag coerced to `"2026"`.
+
+  Re-ingesting an unchanged file with different tags now re-tags it in place — the chunks
+  are rebuilt so a filtered search sees the new tags, while the slug, identity and chunk
+  count stay put.
+
+### Changed
+
+- **The catalogue gains a migration (schema version 2).** A `metadata` column with
+  `DEFAULT '{}'`, so a database written before this release reads back with no tags and
+  needs no reindex. Opening an existing catalogue upgrades it in place.
+
+- **The retrieval filter is caller-supplied only, and that reverses an earlier decision.**
+  `search_knowledge_base` keeps its `(ctx, query)` signature and is offered no filter
+  parameter, so the model cannot narrow a search. A wrong filter excludes correct evidence
+  silently, and a model choosing one makes that failure invisible. The filter comes from the
+  CLI, the API or the library. **An absent filter means no constraint and is not an error**;
+  a filter matching nothing is reported as "the filter excluded everything" rather than as a
+  gap in the corpus. Recorded now, implemented in RET-5.
+
 ## [0.4.0] — 2026-10-27
 
 ### Added

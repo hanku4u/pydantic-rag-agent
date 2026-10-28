@@ -38,6 +38,12 @@ from pydantic_rag_agent.client import (
     KnowledgeClient,
     RagClient,
 )
+from pydantic_rag_agent.domain.metadata import (
+    MetadataError,
+    as_str_map,
+    parse_pairs,
+    user_metadata,
+)
 from pydantic_rag_agent.extras import MissingExtraError, require
 
 if TYPE_CHECKING:
@@ -134,6 +140,18 @@ def ingest(
     paths: Annotated[list[Path], typer.Argument(help="Files or directories to index.")],
     api_url: ApiUrl = None,
     as_json: AsJson = False,
+    meta: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--meta",
+            metavar="KEY=VALUE",
+            help=(
+                "Tag every document indexed by this command. Repeat for several tags. "
+                "Keys are namespaced for you, so --meta team=legal is filtered as "
+                "team=legal. Omit for untagged."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Upload documents and index them."""
     console = Console()
@@ -143,8 +161,14 @@ def ingest(
         raise typer.Exit(code=1)
 
     try:
+        tags = parse_pairs(meta or [])
+    except MetadataError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    try:
         with _client(api_url) as client, console.status(f"indexing {len(files)} file(s)…"):
-            report = client.ingest(files)
+            report = client.ingest(files, metadata=tags or None)
     except ClientError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -289,12 +313,18 @@ def documents(api_url: ApiUrl = None, as_json: AsJson = False) -> None:
     table.add_column("Title", overflow="fold")
     table.add_column("Chunks", justify="right")
     table.add_column("File", overflow="fold")
+    table.add_column("Tags", overflow="fold")
     for row in rows:
+        # Stripped of the storage namespace: the caller supplied `team`, and showing
+        # `meta.team` would both leak an implementation detail and suggest they should type
+        # a prefix the library applies for them. `--json` keeps the stored form.
+        tags = user_metadata(as_str_map(row.get("metadata")))
         table.add_row(
             str(row["document_id"]),
             str(row["title"]),
             str(row["chunk_count"]),
             Path(str(row["source_path"])).name,
+            ", ".join(f"{key}={value}" for key, value in tags.items()) or "[dim]—[/dim]",
         )
     console.print(table if rows else "[dim]No documents indexed yet.[/dim]")
 

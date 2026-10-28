@@ -14,6 +14,7 @@ exercised by someone opening a browser.
 from __future__ import annotations
 
 import os
+import re
 
 import streamlit as st
 
@@ -22,6 +23,12 @@ from pydantic_rag_agent.client import (
     ClientError,
     KnowledgeClient,
     RagClient,
+)
+from pydantic_rag_agent.domain.metadata import (
+    MetadataError,
+    as_str_map,
+    parse_pairs,
+    user_metadata,
 )
 from pydantic_rag_agent.extras import MissingExtraError
 from pydantic_rag_agent.ui.chat import DEFAULT_KEY, rag_chat_client
@@ -145,11 +152,24 @@ def _render_uploader(client: KnowledgeClient) -> None:
         accept_multiple_files=True,
         type=_ACCEPTED_TYPES,
     )
+    # Free text rather than a key/value grid: Streamlit has no stable multi-row editor, and
+    # the same `key=value, key=value` shape the CLI uses means one thing to learn rather
+    # than two. Parsed on submit so a typo is reported next to the button that caused it.
+    tags_text = st.text_input(
+        "Tags for these documents (optional)",
+        placeholder="team=legal, year=2026",
+        help="Comma-separated key=value pairs. Leave empty to index without tags.",
+    )
     if st.button("Index", disabled=not uploads, type="primary"):
+        try:
+            tags = _parse_tag_text(tags_text)
+        except MetadataError as exc:
+            st.error(str(exc))
+            return
         files = [(upload.name, upload.getvalue()) for upload in uploads]
         try:
             with st.spinner("indexing…"):
-                report = client.ingest_files(files)
+                report = client.ingest_files(files, metadata=tags or None)
         except ClientError as exc:
             st.error(str(exc))
             return
@@ -157,6 +177,18 @@ def _render_uploader(client: KnowledgeClient) -> None:
             f"{report['indexed']} indexed, {report['skipped']} skipped, {report['chunks']} chunks"
         )
         st.rerun()
+
+
+def _parse_tag_text(text: str) -> dict[str, str]:
+    """Comma- or newline-separated ``key=value`` pairs from the uploader's text field.
+
+    Splits on commas *and* newlines so a pasted list works, and strips each piece so
+    ``team=legal, year=2026`` does not produce a key with a leading space.
+    """
+    pieces = [piece.strip() for piece in re.split(r"[,\n]", text) if piece.strip()]
+    if not pieces:
+        return {}
+    return parse_pairs(pieces)
 
 
 def _render_documents(client: KnowledgeClient) -> None:
@@ -173,7 +205,14 @@ def _render_documents(client: KnowledgeClient) -> None:
 
     for document in documents:
         title, remove = st.columns([5, 1])
-        title.write(f"**{document['title']}**  \n{document['chunk_count']} chunks")
+        # Tags are shown stripped of their storage namespace: the caller supplied `team`,
+        # so showing `meta.team` would expose an implementation detail and invite them to
+        # type a prefix they must not type.
+        tags = user_metadata(as_str_map(document.get("metadata")))
+        tag_line = (
+            "  \n" + ", ".join(f"{key}={value}" for key, value in tags.items()) if tags else ""
+        )
+        title.write(f"**{document['title']}**  \n{document['chunk_count']} chunks{tag_line}")
         if remove.button("✕", key=f"del-{document['document_id']}", help="Delete"):
             try:
                 client.delete_document(str(document["document_id"]))

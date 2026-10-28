@@ -44,8 +44,8 @@ prefix in an app you already have, and `create_app(agent)` is the standalone ser
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness, plus index reachability |
-| `POST` | `/documents` | Upload and ingest one or more files |
-| `GET` | `/documents` | List ingested documents |
+| `POST` | `/documents` | Upload and ingest one or more files; optional `metadata` form field |
+| `GET` | `/documents` | List ingested documents, with their tags |
 | `DELETE` | `/documents/{document_id}` | Remove a document and its chunks |
 | `GET` | `/documents/{document_id}/download` | The stored original, as an attachment |
 | `POST` | `/conversations` | Start a conversation, returns `conversation_id` |
@@ -127,6 +127,15 @@ property of streaming, not a difference in what was retrieved.
 ### Errors
 
 - Validation failure → `422` with Pydantic's error structure, unmodified.
+- The upload route's `metadata` field takes a JSON object of **string** tags. Absent or empty
+  means no tags. Malformed JSON, a non-object, or a non-string value is a `400` whose detail
+  names the offending keys and their types — the field is a wire format, so it is checked at
+  the boundary rather than deferred to tag validation.
+- An unusable tag — bad key charset, over-long key or value, too many keys — is also a `400`
+  with the reason. `MetadataError` is a `ValueError`, so the route's handler covers both the
+  wire format and the tag rules; a caller sees one status and reads the detail to learn which
+  rule they broke. Key charset, length, count and the `meta.` namespace are still
+  `domain.metadata`'s to decide, not the route's.
 - Unknown `conversation_id` / `document_id` → `404`.
 - Provider failure (rate limit, auth) → `502` whose detail names the exception class,
   never a raw traceback. `pydantic-ai` raises typed `ModelAPIError` subclasses, and the

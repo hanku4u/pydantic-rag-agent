@@ -104,6 +104,11 @@ class Chunk(BaseModel):
     slide: int | None = Field(default=None, ge=1)
     heading_path: tuple[str, ...] = ()
     image_id: str | None = None
+    #: The caller's tags, already namespaced (``meta.team``) — see ``domain/metadata.py``.
+    #: Denormalised like ``title`` and ``source_path``, and for the same reason: a filtered
+    #: search must not need a second lookup per hit. A plain dict rather than a tuple
+    #: because both stores persist it as a key/value map, and ``Chunk`` is never hashed.
+    metadata: dict[str, str] = Field(default_factory=dict)
 
     @property
     def position(self) -> str | None:
@@ -187,6 +192,9 @@ class DocumentSummary(BaseModel):
     source_path: str
     title: str
     chunk_count: int = Field(ge=0)
+    #: Caller tags in stored (namespaced) form, read back off a chunk. Empty when the
+    #: document was ingested without tags, which stays the default.
+    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class DocumentFacts(BaseModel):
@@ -209,6 +217,10 @@ class DocumentFacts(BaseModel):
     size_bytes: int = Field(ge=0)
     chunk_count: int = Field(ge=0)
     caption_ids: tuple[str, ...] = ()
+    #: Caller tags in stored (namespaced) form. Recorded here because the catalogue is
+    #: authoritative: metadata living only on chunks would be lost by a reindex, which
+    #: rebuilds chunks from source files that know nothing about tags.
+    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class CataloguedDocument(BaseModel):
@@ -242,6 +254,9 @@ class CataloguedDocument(BaseModel):
     #: Caption rows this document owns, in the order their images appeared. Empty for a
     #: document with no images, which is the common case.
     caption_ids: tuple[str, ...] = ()
+    #: Caller tags in stored (namespaced) form. Presentation goes through
+    #: ``domain.metadata.user_metadata`` so a reader sees the keys it actually supplied.
+    metadata: dict[str, str] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 

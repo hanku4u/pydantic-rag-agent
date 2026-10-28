@@ -30,6 +30,9 @@ class DocumentResponse(BaseModel):
     source_path: str
     title: str
     chunk_count: int
+    #: Caller tags in their stored (namespaced) form. Defaulted so a client built against
+    #: an earlier version of this schema keeps working.
+    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class DeleteResponse(BaseModel):

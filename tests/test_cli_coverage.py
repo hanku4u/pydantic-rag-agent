@@ -46,7 +46,7 @@ class ExplodingClient:
 class RecordingClient:
     """Records what the CLI asked it to do, and returns a canned reply."""
 
-    calls: list[tuple[str, object]] = []
+    calls: list[tuple[str, object, dict[str, str] | None]] = []
     ingest_report: dict[str, Any] = {}
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
@@ -58,20 +58,20 @@ class RecordingClient:
     def __exit__(self, *_: object) -> None:
         return None
 
-    def ingest(self, paths: object) -> dict[str, Any]:
-        type(self).calls.append(("ingest", paths))
+    def ingest(self, paths: object, *, metadata: dict[str, str] | None = None) -> dict[str, Any]:
+        type(self).calls.append(("ingest", (paths, metadata), None))
         return self.ingest_report
 
     def delete(self, document_id: str) -> dict[str, Any]:
-        type(self).calls.append(("delete", document_id))
+        type(self).calls.append(("delete", document_id, None))
         return {"deleted": document_id, "chunks_removed": 3}
 
     def stats(self) -> dict[str, Any]:
-        type(self).calls.append(("stats", None))
+        type(self).calls.append(("stats", None, None))
         return {"documents": 0, "chunks": 0}
 
     def documents(self) -> list[dict[str, Any]]:
-        type(self).calls.append(("documents", None))
+        type(self).calls.append(("documents", None, None))
         return []
 
 
@@ -157,7 +157,7 @@ def test_ingest_expands_a_directory_to_the_supported_suffixes(
     result = runner.invoke(cli.app, ["ingest", str(tmp_path)])
 
     assert result.exit_code == 0
-    _, uploaded = recording.calls[0]
+    uploaded, _tags = recording.calls[0][1]
     names = sorted(Path(p).name for p in uploaded)  # type: ignore[union-attr]
     assert names == ["a.md", "b.txt"]
 

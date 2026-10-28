@@ -17,7 +17,14 @@ docs/design/public-api.md, and the examples there are what CFG/CORE work is meas
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Coroutine, Iterable, Iterator, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    Coroutine,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, TypeVar
@@ -509,11 +516,20 @@ class RagAgent:
         ):
             yield update
 
-    async def ingest(self, sources: Path | str | Iterable[Path | str]) -> IngestReport:
+    async def ingest(
+        self,
+        sources: Path | str | Iterable[Path | str],
+        *,
+        metadata: Mapping[str, str] | None = None,
+    ) -> IngestReport:
         """Index files or directories, returning a report rather than raising per file.
 
         A single path may be passed directly. Partial failure is a normal outcome: one
         unreadable PDF should not cost the caller the other forty documents.
+
+        ``metadata`` tags every document in this call — ``{"team": "legal"}`` becomes
+        ``meta.team`` on every chunk and in the catalogue. Omitted means untagged, which is
+        the default.
         """
         await self.check_index()
         return await ingest_paths(
@@ -527,13 +543,21 @@ class RagAgent:
             captioner=self._runtime.captioner,
             document_store=self._runtime.documents,
             catalogue=self._runtime.catalogue,
+            metadata=metadata,
         )
 
-    async def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> IngestReport:
+    async def ingest_files(
+        self,
+        files: Sequence[tuple[str, bytes]],
+        *,
+        metadata: Mapping[str, str] | None = None,
+    ) -> IngestReport:
         """Index files that arrived as bytes, the way an upload does.
 
         The bytes are copied into the document store and the user's filename becomes the
         source on every chunk, so a citation does not expose a temporary path.
+
+        ``metadata`` applies to every file in the batch, as on ``ingest``.
         """
         await self.check_index()
         return await ingest_uploads(
@@ -547,6 +571,7 @@ class RagAgent:
             captioner=self._runtime.captioner,
             document_store=self._runtime.documents,
             catalogue=self._runtime.catalogue,
+            metadata=metadata,
         )
 
     async def documents(self) -> list[DocumentSummary]:
@@ -631,13 +656,23 @@ class RagAgent:
         """
         return self._run_sync(self.ask(question, conversation_id=conversation_id))
 
-    def ingest_sync(self, sources: Path | str | Iterable[Path | str]) -> IngestReport:
+    def ingest_sync(
+        self,
+        sources: Path | str | Iterable[Path | str],
+        *,
+        metadata: Mapping[str, str] | None = None,
+    ) -> IngestReport:
         """``ingest`` for synchronous code. Refuses inside a running loop."""
-        return self._run_sync(self.ingest(sources))
+        return self._run_sync(self.ingest(sources, metadata=metadata))
 
-    def ingest_files_sync(self, files: Sequence[tuple[str, bytes]]) -> IngestReport:
+    def ingest_files_sync(
+        self,
+        files: Sequence[tuple[str, bytes]],
+        *,
+        metadata: Mapping[str, str] | None = None,
+    ) -> IngestReport:
         """``ingest_files`` for synchronous code. Refuses inside a running loop."""
-        return self._run_sync(self.ingest_files(files))
+        return self._run_sync(self.ingest_files(files, metadata=metadata))
 
     def stream_sync(
         self, question: str, *, conversation_id: str | None = None

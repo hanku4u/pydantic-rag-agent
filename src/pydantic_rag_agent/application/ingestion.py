@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic_rag_agent.application.chunking import chunk_document, image_chunks
 from pydantic_rag_agent.application.embedding import EmbeddingService
 from pydantic_rag_agent.domain.extraction import ExtractedDocument
+from pydantic_rag_agent.domain.metadata import normalise
 from pydantic_rag_agent.domain.models import DocumentFacts, EmbeddedChunk
 from pydantic_rag_agent.domain.ports import (
     DocumentCatalogue,
@@ -110,6 +111,7 @@ async def ingest_paths(
     captioner: ImageCaptioner | None = None,
     document_store: DocumentStore | None = None,
     catalogue: DocumentCatalogue | None = None,
+    metadata: Mapping[str, str] | None = None,
 ) -> IngestReport:
     """Ingest files and directories into ``store``.
 
@@ -131,10 +133,15 @@ async def ingest_paths(
     assign, so a store with no catalogue has no name to write under. A caller supplying a
     store but no catalogue therefore gets locators on its chunks and no copies on disk —
     which is a contradiction, so it raises rather than guessing a name.
+
+    ``metadata`` tags every document in the batch, in whatever form the caller supplied it;
+    keys are namespaced and validated here. Omitted or empty means no tags, which is the
+    default rather than a special case.
     """
     if (image_store is None) != (captioner is None):
         raise ValueError("image_store and captioner must be provided together")
     _require_catalogue(document_store, catalogue)
+    tags = normalise(metadata)
 
     results: list[IngestResult] = []
     for path in _expand(paths, loaders):
@@ -151,6 +158,7 @@ async def ingest_paths(
                 captioner=captioner,
                 document_store=document_store,
                 catalogue=catalogue,
+                metadata=tags,
             )
         )
     return IngestReport(results=tuple(results))
@@ -168,6 +176,7 @@ async def ingest_uploads(
     captioner: ImageCaptioner | None = None,
     document_store: DocumentStore | None = None,
     catalogue: DocumentCatalogue | None = None,
+    metadata: Mapping[str, str] | None = None,
 ) -> IngestReport:
     """Ingest files that arrived as bytes, the way an upload does.
 
@@ -181,8 +190,13 @@ async def ingest_uploads(
 
     ``catalogue`` is required whenever ``document_store`` is, for the reason given on
     ``ingest_paths``: the catalogue is what assigns the name the copy is written under.
+
+    ``metadata`` applies to every upload in the batch, as on ``ingest_paths``. A per-file
+    map is deliberately not accepted: one map per request is what the CLI and an HTML form
+    can actually express, and a per-file variant would need a manifest format to carry it.
     """
     _require_catalogue(document_store, catalogue)
+    tags = normalise(metadata)
     # The leaf names the temporary file and the stored copy; the original string is the
     # source the citation reports. Over HTTP a client may send "docs/a/report.pdf", and
     # flattening that to "report.pdf" would make two files collide on one replacement key.
@@ -219,6 +233,7 @@ async def ingest_uploads(
                     captioner=captioner,
                     document_store=document_store,
                     catalogue=catalogue,
+                    metadata=tags,
                 )
             )
     return IngestReport(results=tuple(results))
@@ -244,6 +259,7 @@ async def _claim(
     *,
     title: str | None,
     chunk_count: int = 0,
+    metadata: Mapping[str, str] | None = None,
 ) -> str | None:
     """Record the document in the catalogue and return the slug it was given.
 
@@ -253,7 +269,8 @@ async def _claim(
 
     Claiming is idempotent by design: the same ``source_path`` with the same content returns
     the existing row and its existing slug, so calling this from both the skip path and the
-    write path cannot churn the tree.
+    write path cannot churn the tree. Tags are the exception the adapter handles: the same
+    content with *different* tags updates the row's tags in place.
     """
     if catalogue is None:
         return None
@@ -267,6 +284,7 @@ async def _claim(
             media_type=None,
             size_bytes=len(payload),
             chunk_count=chunk_count,
+            metadata=dict(metadata or {}),
         )
     )
     return stored.slug
@@ -285,6 +303,7 @@ async def _ingest_one(
     captioner: ImageCaptioner | None,
     document_store: DocumentStore | None,
     catalogue: DocumentCatalogue | None,
+    metadata: Mapping[str, str],
 ) -> IngestResult:
     try:
         payload = path.read_bytes()
@@ -310,12 +329,23 @@ async def _ingest_one(
     # Assigned once a row exists. Read on the failure path, where a claim may have succeeded
     # before whatever failed, so it is initialised here rather than inspected with `locals()`.
     slug: str | None = None
+    # Tags live on every chunk as well as in the catalogue, and a search filters the chunks.
+    # Re-tagging an unchanged file therefore cannot be a catalogue-only update: the old
+    # chunks would keep the old tags and a filtered search would quietly miss a document the
+    # catalogue says matches. So a tag change forces the document through the full path,
+    # where `delete_by_source_path` clears the stale chunks and the new ones carry the new
+    # tags. Content identity is unchanged, so this is the only reason to re-index here.
+    existing = await catalogue.by_source_path(source_label) if catalogue is not None else None
+    tags_changed = existing is not None and existing.metadata != metadata
+
     try:
-        if await store.has_document(document_id):
+        if await store.has_document(document_id) and not tags_changed:
             # Already in the index. The catalogue may still be behind: an index built before
             # SRC-4 has chunks but no row, and a row is what a readable path is derived from.
             # Claiming here is idempotent and gives that document its name on the next run.
-            slug = await _claim(catalogue, source_label, document_id, payload, title=None)
+            slug = await _claim(
+                catalogue, source_label, document_id, payload, title=None, metadata=metadata
+            )
             # Its original is missing — an older index, or someone emptied the directory.
             # Copying it costs nothing and restores what a citation promises. Existing chunks
             # still carry no locator until the document is reingested; the ADR revision says
@@ -362,6 +392,7 @@ async def _ingest_one(
             payload,
             title=Path(source_label).stem,
             chunk_count=0,
+            metadata=metadata,
         )
         # Off the loop: boto3 is synchronous, and even a local write is disk I/O. A large
         # document must not stall every other request in the process.
@@ -394,9 +425,15 @@ async def _ingest_one(
         ]
         # Loaders fill `source_path` from the path they were handed, which for an upload
         # is a temporary file. The label is what the user called it; the locator is where
-        # the copy lives.
+        # the copy lives. Tags go on every chunk because that is what a search filters.
         chunks = [
-            chunk.model_copy(update={"source_path": source_label, "locator": locator})
+            chunk.model_copy(
+                update={
+                    "source_path": source_label,
+                    "locator": locator,
+                    "metadata": dict(metadata),
+                }
+            )
             for chunk in chunks
         ]
 

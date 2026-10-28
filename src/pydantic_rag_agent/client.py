@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 from urllib.parse import unquote
@@ -83,9 +83,13 @@ class KnowledgeClient(Protocol):
         """
         ...
 
-    def ingest(self, paths: Sequence[Path]) -> dict[str, object]: ...
+    def ingest(
+        self, paths: Sequence[Path], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]: ...
 
-    def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]: ...
+    def ingest_files(
+        self, files: Sequence[tuple[str, bytes]], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]: ...
 
     def create_conversation(self) -> str: ...
 
@@ -147,23 +151,36 @@ class RagClient:
             response.headers.get("content-disposition", "")
         ), response.content
 
-    def ingest(self, paths: Sequence[Path]) -> dict[str, object]:
+    def ingest(
+        self, paths: Sequence[Path], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
         """Upload files from disk and return the ingestion report.
 
         The name sent is the path the user gave, not its leaf: the server records it as
         the source, and two files called ``report.pdf`` in different directories would
         otherwise collide on one replacement key and one of them would be dropped.
         """
-        return self.ingest_files([(str(path), path.read_bytes()) for path in paths])
+        return self.ingest_files(
+            [(str(path), path.read_bytes()) for path in paths], metadata=metadata
+        )
 
-    def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]:
+    def ingest_files(
+        self, files: Sequence[tuple[str, bytes]], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
         """Upload in-memory files.
 
         The Streamlit UI has uploads, not paths, so the bytes-shaped entry point is the
         primitive and the path-shaped one delegates to it.
+
+        Tags travel as a JSON form field rather than repeated ``meta`` pairs, because the
+        route already accepts repeated ``files`` parts and one more repeated field would make
+        the two indistinguishable to any client that does not parse multipart itself.
         """
         payload = [("files", (name, data, "application/octet-stream")) for name, data in files]
-        response = self._client.post("/documents", files=payload)
+        form: dict[str, str] = {}
+        if metadata:
+            form["metadata"] = json.dumps(dict(metadata))
+        response = self._client.post("/documents", files=payload, data=form or None)
         self._raise_for_status(response)
         return response.json()
 

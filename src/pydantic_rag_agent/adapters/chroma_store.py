@@ -18,6 +18,7 @@ import chromadb
 from chromadb.api.collection_configuration import CreateCollectionConfiguration
 from chromadb.config import Settings as ChromaSettings
 
+from pydantic_rag_agent.domain.metadata import METADATA_PREFIX
 from pydantic_rag_agent.domain.models import (
     Chunk,
     DocumentSummary,
@@ -54,6 +55,10 @@ def _to_metadata(record: EmbeddedChunk) -> dict[str, Any]:
         metadata["image_id"] = chunk.image_id
     if chunk.locator is not None:
         metadata["locator"] = chunk.locator
+    # Caller tags last, so a namespaced key can never shadow a reserved one. The namespace
+    # is what makes that ordering a belt-and-braces measure rather than the only defence:
+    # `metadata.normalise` refuses to produce a key that is not prefixed.
+    metadata.update(chunk.metadata)
     return metadata
 
 
@@ -87,6 +92,13 @@ def _to_retrieved(
         slide=int(slide) if slide is not None else None,
         heading_path=tuple(part for part in heading.split(_HEADING_SEPARATOR) if part),
         image_id=str(image_id) if image_id is not None else None,
+        # Only namespaced keys: everything else in the row is a field reconstructed above,
+        # so passing the raw map through would duplicate reserved fields into the tag map.
+        metadata={
+            key: str(value)
+            for key, value in metadata.items()
+            if key.startswith(METADATA_PREFIX) and value is not None
+        },
     )
     return RetrievedChunk(chunk=chunk, score=1.0 - distance)
 
@@ -258,6 +270,11 @@ class ChromaVectorStore:
                 source_path=str(sample[document_id]["source_path"]),
                 title=str(sample[document_id]["title"]),
                 chunk_count=count,
+                metadata={
+                    key: str(value)
+                    for key, value in sample[document_id].items()
+                    if key.startswith(METADATA_PREFIX) and value is not None
+                },
             )
             for document_id, count in counts.items()
         ]
