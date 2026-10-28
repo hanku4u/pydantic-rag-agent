@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pydantic_rag_agent.domain.extraction import ExtractedDocument, ExtractedImage
+from pydantic_rag_agent.domain.metadata import MetadataFilter
 from pydantic_rag_agent.domain.models import (
     CataloguedDocument,
     DocumentFacts,
@@ -90,6 +91,7 @@ class VectorStore(Protocol):
         *,
         top_k: int = 5,
         min_score: float | None = None,
+        metadata_filter: MetadataFilter | None = None,
     ) -> list[RetrievedChunk]: ...
 
     async def delete_by_document(self, document_id: str) -> int: ...

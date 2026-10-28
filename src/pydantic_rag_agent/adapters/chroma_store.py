@@ -18,7 +18,7 @@ import chromadb
 from chromadb.api.collection_configuration import CreateCollectionConfiguration
 from chromadb.config import Settings as ChromaSettings
 
-from pydantic_rag_agent.domain.metadata import METADATA_PREFIX
+from pydantic_rag_agent.domain.metadata import METADATA_PREFIX, MetadataFilter
 from pydantic_rag_agent.domain.models import (
     Chunk,
     DocumentSummary,
@@ -29,6 +29,28 @@ from pydantic_rag_agent.domain.models import (
 
 DEFAULT_COLLECTION_NAME = "chunks"
 _HEADING_SEPARATOR = " > "
+
+
+def _where_clause(metadata_filter: MetadataFilter | None) -> dict[str, Any] | None:
+    """Translate a filter into Chroma's ``where`` syntax, or ``None`` for no constraint.
+
+    ``None`` rather than ``{}``: Chroma raises ``Expected where to have exactly one operator``
+    for an empty dict, so "no filter" has to be the absence of the argument rather than an
+    empty clause. Verified against the installed version, not assumed.
+
+    Two shapes, because Chroma distinguishes them. One condition is a bare equality; two or
+    more must be wrapped in ``$and`` — a dict holding several keys is rejected with the same
+    "exactly one operator" error rather than being implicitly ANDed.
+    """
+    if metadata_filter is None:
+        return None
+
+    conditions: list[dict[str, Any]] = [
+        {key: {"$eq": value}} for key, value in metadata_filter.matches_all
+    ]
+    if len(conditions) == 1:
+        return conditions[0]
+    return {"$and": conditions}
 
 
 def _to_metadata(record: EmbeddedChunk) -> dict[str, Any]:
@@ -154,10 +176,13 @@ class ChromaVectorStore:
         *,
         top_k: int = 5,
         min_score: float | None = None,
+        metadata_filter: MetadataFilter | None = None,
     ) -> list[RetrievedChunk]:
         if top_k <= 0:
             raise ValueError("top_k must be positive")
-        return await asyncio.to_thread(self._search_sync, list(embedding), top_k, min_score)
+        return await asyncio.to_thread(
+            self._search_sync, list(embedding), top_k, min_score, metadata_filter
+        )
 
     async def delete_by_document(self, document_id: str) -> int:
         return await asyncio.to_thread(self._delete_sync, document_id)
@@ -212,15 +237,22 @@ class ChromaVectorStore:
         embedding: list[float],
         top_k: int,
         min_score: float | None,
+        metadata_filter: MetadataFilter | None = None,
     ) -> list[RetrievedChunk]:
         total = self._collection.count()
         if total == 0:
             return []
 
         query_embeddings: list[Any] = [embedding]
+        # Chroma applies `where` before `n_results`, so capping at `total` is still correct
+        # with a filter: the clause selects a candidate set no larger than the collection and
+        # `n_results` then takes the best of it. Asking for `total` rather than `top_k`
+        # matters because a filter that excludes the nearest neighbours must still be able to
+        # fill `top_k` from further down, which `n_results=top_k` would silently truncate.
         result = self._collection.query(
             query_embeddings=query_embeddings,
-            n_results=min(top_k, total),
+            n_results=total if metadata_filter is not None else min(top_k, total),
+            where=_where_clause(metadata_filter),
             include=["documents", "metadatas", "distances"],
         )
 
@@ -242,7 +274,10 @@ class ChromaVectorStore:
         ]
         if min_score is not None:
             hits = [hit for hit in hits if hit.score >= min_score]
-        return hits
+        # The floor and the filter both shrink the list after Chroma has ranked it, and a
+        # filtered query asked for `total` rather than `top_k`. Trim back to what was asked
+        # for, or a filtered search would return the whole collection.
+        return hits[:top_k]
 
     def _delete_sync(self, document_id: str) -> int:
         result = self._collection.delete(where={"document_id": document_id})

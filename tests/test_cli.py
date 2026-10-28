@@ -21,6 +21,13 @@ runner = CliRunner()
 class FakeClient:
     """Stands in for ``RagClient``, returning canned payloads."""
 
+    #: Every filter the commands handed over, so a test can assert the wiring rather than
+    #: the formatting. Without this the CLI could drop ``--meta`` and nothing would notice.
+    seen_filters: list[object] = []
+
+    #: The same, for the streamed path — a second call site with its own mistakes.
+    seen_stream_filters: list[object] = []
+
     stats_payload: dict[str, Any] = {
         "chunks": 3,
         "embedding_model": "test/model",
@@ -51,8 +58,31 @@ class FakeClient:
     def create_conversation(self) -> str:
         return "conv-1"
 
-    def ask(self, conversation_id: str, question: str) -> dict[str, Any]:
+    def ask(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: object = None,
+    ) -> dict[str, Any]:
+        type(self).seen_filters.append(metadata_filter)
         return {"answer": "yes", "citations": [], "citations_valid": True}
+
+    def stream(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: object = None,
+    ) -> Any:
+        """The streamed path, which the default ``ask`` command takes.
+
+        Recorded separately: it is a second call site, and the commands reach it through
+        different code, so one test cannot cover both.
+        """
+        type(self).seen_stream_filters.append(metadata_filter)
+        yield "token", {"text": "an answer"}
+        yield "done", {"answer": "an answer", "citations_valid": True}
 
 
 @pytest.fixture(autouse=True)
@@ -61,6 +91,8 @@ def _fake_client(monkeypatch: pytest.MonkeyPatch) -> None:
     # otherwise the in-process agent, which these tests are not exercising.
     monkeypatch.setenv("PRAGENT_API_URL", "http://testserver")
     monkeypatch.setattr(cli, "RagClient", FakeClient)
+    FakeClient.seen_filters.clear()
+    FakeClient.seen_stream_filters.clear()
 
 
 def help_should_list_every_command() -> None:
@@ -223,7 +255,13 @@ class NarratingFakeClient:
     def create_conversation(self) -> str:
         return "conv-1"
 
-    def stream(self, conversation_id: str, question: str) -> Any:
+    def stream(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: object = None,
+    ) -> Any:
         yield "token", {"text": "I'll search the knowledge base. "}
         yield "tool_call", {"name": "search_knowledge_base"}
         yield "token", {"text": "Archives are kept for 7 years [1]."}
@@ -252,7 +290,13 @@ def stream_answer_should_render_the_final_answer_not_the_narration() -> None:
 class StreamingFakeClient:
     """Yields a scripted event sequence, so rendering can be asserted directly."""
 
-    def stream(self, conversation_id: str, question: str) -> Any:
+    def stream(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: object = None,
+    ) -> Any:
         yield "tool_call", {"name": "search_knowledge_base"}
         yield "token", {"text": "answer text"}
         yield "citations", {"citations": [{"label": "Handbook — p. 2"}]}
@@ -444,3 +488,119 @@ def citation_table_should_show_the_stored_document_for_both_schemes() -> None:
     assert "file:///data/documents" in rendered
     assert "s3://acme-docs/documents" in rendered
     assert "/tmp/old.md" in rendered
+
+
+# --- RET-5: --meta must reach the client -----------------------------------------------
+#
+# These exist because a mutation that deleted the filter between parsing it and passing it on
+# left the whole suite green. Everything else about `--meta` was already tested as far as the
+# domain object, which is exactly the kind of coverage that proves the parser works and says
+# nothing about whether the answer was narrowed.
+
+
+def ask_with_meta_should_pass_the_filter_to_the_client() -> None:
+    # given / when: a filtered, non-streaming question
+    result = runner.invoke(cli.app, ["ask", "why?", "--meta", "team=legal", "--json"])
+
+    # then: the filter reaches the client, still in the caller's own key names
+    assert result.exit_code == 0
+    assert len(FakeClient.seen_filters) == 1
+    applied = FakeClient.seen_filters[0]
+    assert applied is not None
+    assert applied.conditions == {"meta.team": "legal"}
+
+
+def ask_with_repeated_meta_should_pass_one_conjunction() -> None:
+    # given / when: two conditions on one command
+    result = runner.invoke(
+        cli.app, ["ask", "why?", "--meta", "team=legal", "--meta", "year=2026", "--json"]
+    )
+
+    # then: one filter carrying both, not two filters and not the last one only
+    assert result.exit_code == 0
+    applied = FakeClient.seen_filters[0]
+    assert applied is not None
+    assert applied.conditions == {"meta.team": "legal", "meta.year": "2026"}
+
+
+def ask_without_meta_should_pass_no_filter() -> None:
+    # given / when: the unfiltered path, which is the common one
+    result = runner.invoke(cli.app, ["ask", "why?", "--json"])
+
+    # then: no constraint at all — not an empty filter object
+    assert result.exit_code == 0
+    assert FakeClient.seen_filters == [None]
+
+
+def ask_with_a_reserved_meta_key_should_fail_before_calling_out() -> None:
+    # given / when: a key that names a library-owned field
+    result = runner.invoke(cli.app, ["ask", "why?", "--meta", "title=Q3"])
+
+    # then: refused locally, with no request made
+    assert result.exit_code == 1
+    assert "reserved" in result.output
+    assert FakeClient.seen_filters == []
+
+
+def streamed_ask_with_meta_should_pass_the_filter_to_the_client() -> None:
+    """The stream path has its own call site, and a mutation could drop it alone."""
+    # given: a stream that records the filter it was given
+    from io import StringIO
+
+    from rich.console import Console
+
+    seen: list[object] = []
+
+    class RecordingStream:
+        def stream(
+            self,
+            conversation_id: str,
+            question: str,
+            *,
+            metadata_filter: object = None,
+        ) -> Any:
+            seen.append(metadata_filter)
+            yield "done", {"answer": "ok", "citations_valid": True}
+
+    console = Console(file=StringIO(), force_terminal=False, width=100)
+
+    # when: a filtered turn is rendered
+    cli._stream_answer(
+        console,
+        RecordingStream(),  # type: ignore[arg-type]
+        "conv-1",
+        "why?",
+        metadata_filter=cli.MetadataFilter.of({"team": "legal"}),
+    )
+
+    # then: the same conjunction, on the streaming path
+    assert len(seen) == 1
+    applied = seen[0]
+    assert applied is not None
+    assert applied.conditions == {"meta.team": "legal"}
+
+
+def streamed_ask_command_should_pass_the_filter_to_the_client() -> None:
+    """The default (non-``--json``) ``ask`` is a separate call site from the JSON one.
+
+    A mutation that nulled only this one left every other test green, because the filtered
+    assertions all went through ``--json``. Both paths are exercised for that reason.
+    """
+    # given / when: the default streamed form, with a filter
+    result = runner.invoke(cli.app, ["ask", "why?", "--meta", "team=legal"])
+
+    # then: the filter reaches the streaming client
+    assert result.exit_code == 0
+    assert len(FakeClient.seen_stream_filters) == 1
+    applied = FakeClient.seen_stream_filters[0]
+    assert applied is not None
+    assert applied.conditions == {"meta.team": "legal"}
+
+
+def streamed_ask_command_without_meta_should_pass_no_filter() -> None:
+    # given / when: the same command with nothing to narrow
+    result = runner.invoke(cli.app, ["ask", "why?"])
+
+    # then: no constraint
+    assert result.exit_code == 0
+    assert FakeClient.seen_stream_filters == [None]

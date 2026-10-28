@@ -73,6 +73,7 @@ from pydantic_rag_agent.application.ingestion import (
 from pydantic_rag_agent.application.retrieval import RetrievalService
 from pydantic_rag_agent.config import Settings
 from pydantic_rag_agent.domain.errors import InvalidThreadError, UnknownConversationError
+from pydantic_rag_agent.domain.metadata import MetadataFilter
 from pydantic_rag_agent.domain.models import (
     ChatMessage,
     DocumentDownload,
@@ -416,18 +417,30 @@ class RagAgent:
         """
         return self._runtime.conversations.create().conversation_id
 
-    async def ask(self, question: str, *, conversation_id: str | None = None) -> AgentTurn:
+    async def ask(
+        self,
+        question: str,
+        *,
+        conversation_id: str | None = None,
+        metadata_filter: MetadataFilter | None = None,
+    ) -> AgentTurn:
         """Answer one question, continuing a conversation when an id is given.
 
         The returned turn carries ``conversation_id``, so a caller that passed none can
         keep the thread without a second lookup.
+
+        ``metadata_filter`` narrows this answer's retrieval to tagged documents. It applies to
+        this turn alone: the deps object it rides on is built here and discarded, so a
+        follow-up question without a filter searches the whole corpus again. There is no
+        configured default — a default would narrow every search invisibly, which is the
+        failure the explicit-filter rule exists to prevent.
         """
         await self.check_index()
         existing = self._existing_conversation(conversation_id)
 
         turn = await ask(
             self._runtime.agent,
-            self._deps(),
+            self._deps(metadata_filter),
             question,
             history=existing.history if existing is not None else None,
             request_limit=self._runtime.settings.agent.max_tool_calls,
@@ -439,7 +452,11 @@ class RagAgent:
         return replace(turn, conversation_id=conversation.conversation_id)
 
     async def stream(
-        self, question: str, *, conversation_id: str | None = None
+        self,
+        question: str,
+        *,
+        conversation_id: str | None = None,
+        metadata_filter: MetadataFilter | None = None,
     ) -> AsyncGenerator[AgentStreamUpdate, None]:
         """Answer one question, yielding tokens and tool calls as they happen.
 
@@ -447,13 +464,15 @@ class RagAgent:
         so a streaming caller gets identical citations, audit and usage. History is
         recorded when that update is produced: consume the stream to the end, or the turn
         is not remembered.
+
+        ``metadata_filter`` behaves exactly as in :meth:`ask` — one turn, no carry-over.
         """
         await self.check_index()
         existing = self._existing_conversation(conversation_id)
 
         async for update in stream_turn(
             self._runtime.agent,
-            self._deps(),
+            self._deps(metadata_filter),
             question,
             history=existing.history if existing is not None else None,
             request_limit=self._runtime.settings.agent.max_tool_calls,
@@ -647,14 +666,22 @@ class RagAgent:
         """
         await self._runtime.store.close()
 
-    def ask_sync(self, question: str, *, conversation_id: str | None = None) -> AgentTurn:
+    def ask_sync(
+        self,
+        question: str,
+        *,
+        conversation_id: str | None = None,
+        metadata_filter: MetadataFilter | None = None,
+    ) -> AgentTurn:
         """``ask`` for synchronous code: a script or a one-off task.
 
         Refuses inside a running loop (FastAPI, Jupyter) — use ``await ask`` there. The
         sync helpers share one event loop for the agent's lifetime, so mixing them with
         the async methods on the same agent is not supported.
         """
-        return self._run_sync(self.ask(question, conversation_id=conversation_id))
+        return self._run_sync(
+            self.ask(question, conversation_id=conversation_id, metadata_filter=metadata_filter)
+        )
 
     def ingest_sync(
         self,
@@ -675,7 +702,11 @@ class RagAgent:
         return self._run_sync(self.ingest_files(files, metadata=metadata))
 
     def stream_sync(
-        self, question: str, *, conversation_id: str | None = None
+        self,
+        question: str,
+        *,
+        conversation_id: str | None = None,
+        metadata_filter: MetadataFilter | None = None,
     ) -> Iterator[AgentStreamUpdate]:
         """``stream`` for synchronous code.
 
@@ -683,7 +714,9 @@ class RagAgent:
         the caller as they arrive rather than in one burst at the end. Refuses inside a
         running loop, like the other sync helpers.
         """
-        yield from self._iter_sync(self.stream(question, conversation_id=conversation_id))
+        yield from self._iter_sync(
+            self.stream(question, conversation_id=conversation_id, metadata_filter=metadata_filter)
+        )
 
     def chat_sync(self, messages: Sequence[ChatMessage]) -> AgentTurn:
         """``chat`` for synchronous code. Refuses inside a running loop."""
@@ -731,9 +764,14 @@ class RagAgent:
             embedding_dimensions=self._runtime.settings.embeddings.dimensions,
         )
 
-    def _deps(self) -> AgentDeps:
-        # Fresh per turn: citations belong to the turn, not the conversation.
-        return AgentDeps(retrieval=self._runtime.retrieval, images=self._runtime.images)
+    def _deps(self, metadata_filter: MetadataFilter | None = None) -> AgentDeps:
+        # Fresh per turn: citations belong to the turn, not the conversation — and so does
+        # the tag filter, which is why it is passed in here rather than read off the runtime.
+        return AgentDeps(
+            retrieval=self._runtime.retrieval,
+            images=self._runtime.images,
+            metadata_filter=metadata_filter,
+        )
 
     def _existing_conversation(self, conversation_id: str | None) -> Conversation | None:
         """The named conversation, or ``None`` when the caller did not name one."""

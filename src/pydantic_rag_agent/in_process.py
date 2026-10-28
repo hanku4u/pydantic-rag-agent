@@ -35,6 +35,7 @@ from pydantic_rag_agent.agent import RagAgent
 from pydantic_rag_agent.application.ingestion import IngestReport
 from pydantic_rag_agent.client import ClientError
 from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
+from pydantic_rag_agent.domain.metadata import MetadataFilter
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
 
 # The API's own words for a failed turn; kept identical so a user sees the same message
@@ -151,17 +152,31 @@ class InProcessClient:
     def create_conversation(self) -> str:
         return self._agent.new_conversation()
 
-    def ask(self, conversation_id: str, question: str) -> dict[str, object]:
+    def ask(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: MetadataFilter | None = None,
+    ) -> dict[str, object]:
         try:
-            turn = self._agent.ask_sync(question, conversation_id=conversation_id)
+            turn = self._agent.ask_sync(
+                question, conversation_id=conversation_id, metadata_filter=metadata_filter
+            )
         except Exception as exc:  # noqa: BLE001 - mapped, because HTTP maps it too
             raise _as_client_error(exc) from exc
         return _answer_payload(turn)
 
     def stream(
-        self, conversation_id: str, question: str
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: MetadataFilter | None = None,
     ) -> Iterator[tuple[str, dict[str, object]]]:
-        updates = self._agent.stream_sync(question, conversation_id=conversation_id)
+        updates = self._agent.stream_sync(
+            question, conversation_id=conversation_id, metadata_filter=metadata_filter
+        )
         try:
             # The first step is where the façade checks the index and looks up the
             # conversation. Over HTTP both happen before the response opens, so they raise

@@ -11,6 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from pydantic_rag_agent.domain.metadata import MetadataFilter
+
 
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
@@ -63,6 +65,18 @@ class ConversationResponse(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)
+    #: Optional narrowing by caller tags, in the caller's own key names (``team``, not
+    #: ``meta.team``). Absent means no constraint and must never be an error.
+    metadata_filter: dict[str, str] | None = None
+
+    @property
+    def filter(self) -> MetadataFilter | None:
+        """The typed filter, or ``None`` when the request carried none.
+
+        Building it here rather than at the route keeps validation with the model, and makes
+        a malformed filter a 422 from the schema rather than a 400 from a handler.
+        """
+        return MetadataFilter.of(self.metadata_filter)
 
 
 class CitationResponse(BaseModel):

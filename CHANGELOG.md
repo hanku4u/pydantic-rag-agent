@@ -25,6 +25,10 @@ Notable changes, written by hand from the commit history. The format follows
   keys and 128 characters; over-long input is rejected rather than truncated, because a
   silently shortened tag is a tag that later fails to match.
 
+  A key naming a field the library owns — `title`, `source_path`, `document_id` — is now
+  refused at ingest rather than silently namespaced. Storing it as `meta.title` and then
+  refusing to filter by it would create a tag a caller could write and never use.
+
   Over HTTP the upload route validates the wire format before anything is read: the
   `metadata` field must be a JSON object whose values are all strings. `{"year": 2026}` is a
   `400` naming the offending key and its type, not a tag coerced to `"2026"`.
@@ -32,6 +36,29 @@ Notable changes, written by hand from the commit history. The format follows
   Re-ingesting an unchanged file with different tags now re-tags it in place — the chunks
   are rebuilt so a filtered search sees the new tags, while the slug, identity and chunk
   count stay put.
+
+- **Filtered retrieval (RET-5).** A search can be narrowed by those tags: `ask --meta
+  team=legal --meta year=2026` on the CLI, `ask(metadata_filter=…)` on the library, the
+  in-process client, or `metadata_filter` on a message body over HTTP. Multiple conditions
+  are conjunctive — a document must match all of them.
+
+  The filter is the caller's alone: `search_knowledge_base(ctx, query)` keeps its signature,
+  so the model cannot narrow a search. Omitting the filter means no constraint and is
+  unchanged from before. A filter that excludes everything returns no results **and says the
+  filter excluded everything**, so a mistyped tag does not read as a gap in the corpus. An
+  unusable filter — a reserved key, a non-string value — is a `400`, not a `500`.
+
+  `VectorStore.search` gains an optional `metadata_filter` keyword. Both stores agree on the
+  semantics, enforced by a shared parity suite. See
+  [ADR 0020](docs/decisions/0020-filtered-retrieval.md).
+
+### Fixed
+
+- **A filtered search returned the whole collection.** The Chroma adapter never truncated
+  after applying its similarity floor, so the pre-RET-5 result limit held only because
+  `n_results` happened to cap it. A `where` clause applied before `n_results` would have
+  under-filled the request instead, so filtering now fetches the collection total and slices
+  to `top_k`.
 
 ### Changed
 

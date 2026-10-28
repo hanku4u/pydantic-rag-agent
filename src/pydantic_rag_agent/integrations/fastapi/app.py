@@ -38,6 +38,7 @@ from pydantic_rag_agent.adapters.agent import (
 from pydantic_rag_agent.agent import RagAgent
 from pydantic_rag_agent.application.ingestion import IngestReport
 from pydantic_rag_agent.domain.errors import IndexMismatchError, UnknownConversationError
+from pydantic_rag_agent.domain.metadata import MetadataFilter
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
 from pydantic_rag_agent.integrations.fastapi.openai import (
     DEFAULT_MODEL_ID,
@@ -191,12 +192,22 @@ def create_router(agent: RagAgent) -> APIRouter:
 
     @router.post("/conversations/{conversation_id}/messages", response_model=AnswerResponse)
     async def post_message(conversation_id: str, request: AskRequest) -> AnswerResponse:
-        turn = await _mapped(lambda: agent.ask(request.question, conversation_id=conversation_id))
+        turn = await _mapped(
+            lambda: agent.ask(
+                request.question,
+                conversation_id=conversation_id,
+                metadata_filter=_request_filter(request),
+            )
+        )
         return _to_answer_response(turn)
 
     @router.post("/conversations/{conversation_id}/messages/stream")
     async def stream_message(conversation_id: str, request: AskRequest) -> StreamingResponse:
-        events = agent.stream(request.question, conversation_id=conversation_id)
+        events = agent.stream(
+            request.question,
+            conversation_id=conversation_id,
+            metadata_filter=_request_filter(request),
+        )
 
         try:
             # Pull the first update before opening the response: the façade checks the
@@ -249,6 +260,23 @@ def create_app(agent: RagAgent, *, openai_model_id: str = DEFAULT_MODEL_ID) -> F
     app.include_router(create_router(agent))
     app.include_router(create_openai_router(agent, model_id=openai_model_id))
     return app
+
+
+def _request_filter(request: AskRequest) -> MetadataFilter | None:
+    """The request's tag filter, with an unusable one turned into a 400.
+
+    ``AskRequest.filter`` raises ``MetadataError`` for a reserved key, and that has to be
+    caught here rather than left to escape: raised inside the request handler it would be an
+    unhandled exception, so a caller who typed ``title`` would get a 500 and read it as a
+    server fault. It is their mistake, and the message says which key and why.
+
+    ``MetadataError`` subclasses ``ValueError``, which is what the upload route already relies
+    on for the same reason.
+    """
+    try:
+        return request.filter
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 async def _mapped(operation: Callable[[], Awaitable[_T]]) -> _T:

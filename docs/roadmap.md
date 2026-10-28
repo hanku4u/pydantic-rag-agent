@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status:** stable — M0–M7 complete, and 0.4.0 is published on PyPI. M8 is in progress, not
-started. One feature, API-6, landed after M7 started.
+**Status:** stable — **M0–M8 complete**, and 0.4.0 is published on PyPI. One feature, API-6,
+landed after M7 started. What remains is deferred, each item waiting on a named trigger.
 
 The order in which the backlog gets built, and what "done" means for each stage. The
 granular work is in [Features](features/README.md); this page is the narrative.
@@ -27,7 +27,7 @@ it is a bet.
 | — | API-6 (post-M7) | Any OpenAI-speaking chat UI can use the agent | API-6 |
 | 8 | Storage, metadata and citation ergonomics | Documents a person can find, filter, and click through to | SRC-4, SRC-5, RET-5, CIT-1 |
 
-Milestones 0–6 are complete. **OPS-1** (instrumentation) is the one feature deliberately
+Milestones 0–8 are complete. **OPS-1** (instrumentation) is the one feature deliberately
 not built: this is a personal, single-user tool and nobody reads the traces. It is listed in
 the milestone above so the omission is recorded rather than forgotten, and the framework's
 core `Instrumentation` capability would serve it without any new dependency.
@@ -45,32 +45,32 @@ endpoint, was added afterwards because it needed the integration that M7 built. 
 per-feature record is [the progress table](features/README.md#progress); the authoritative
 accounting of the whole project is [the overview](overview.md#current-state).
 
-## M8 — Storage, metadata and citation ergonomics (in progress)
+## M8 — Storage, metadata and citation ergonomics (complete)
 
-**CIT-1 is done.** A citation now downloads the document it names:
-`GET /documents/{id}/download`, a download control in the Streamlit panel, and a
-terminal hyperlink in the CLI with the locator printed as fallback (ADR 0017). What
-remains is the storage and metadata half. Two pieces of feedback from actually using 0.1.0:
+All four features have landed. **CIT-1**: a citation downloads the document it names —
+`GET /documents/{id}/download`, a download control in the Streamlit panel, and a terminal
+hyperlink in the CLI with the locator printed as fallback (ADR 0017).
 
-- **The originals are unreadable.** Content addressing under
-  `documents/<aa>/<sha256>/<name>` is safe and deduplicates, but a person cannot browse it,
-  and captions and index metadata live in unrelated corners. A readable tree plus a
-  catalogue — SQLite by default, PostgreSQL when configured — would make a document
-  legible and give that metadata somewhere to live.
-- **Citations were addresses, not actions.** Done in CIT-1: a `file://` or `s3://` URI
-  used to be something to copy rather than click. The route, the Streamlit control and the
-  terminal hyperlink turn a citation into the document itself.
-- **Documents carry no metadata a caller chose.** Title, source and page are ours; a caller
-  cannot say "this is Finance, 2026, internal" and then retrieve only that. Per-document
-  key-values, denormalised onto chunks, plus a filtered search path, would let a corpus be
-  narrowed before semantic ranking — useful for precision, latency, and eventually for
-  access boundaries (which still need real authentication).
+**SRC-4**: originals live at a path a person can predict from the name, recorded in a
+catalogue that is authoritative for where each one lives (ADR 0018). **SRC-5**: a caller
+attaches key-value tags at ingest through the CLI, the upload route, the UI or the library;
+they are stored under a `meta.` namespace and denormalised onto every chunk (ADR 0019).
+**RET-5**: a search can be narrowed by those tags, conjunctively, with the filter supplied by
+the caller and never by the model; a filter that excludes everything says so (ADR 0020).
 
-The storage and metadata features were blocked on design work; that is now settled in
-[ADR 0018](decisions/0018-readable-tree-and-catalogue.md) — slug-derived paths with
-content-hash identity, the catalogue as authority (so it must be backed up), a single
-`DATABASE_URL`, plain-SQL forward-only migrations, and a mandatory reindex on upgrade.
-Authentication is not part of it: this package does not implement auth, and says so.
+Three pieces of feedback from actually using 0.1.0 drove this milestone:
+
+- **The originals were unreadable.** Content addressing was safe and deduplicated, but a
+  person could not browse it, and captions and index metadata lived in unrelated corners.
+- **Citations were addresses, not actions.** A `file://` or `s3://` URI used to be something
+  to copy rather than click.
+- **Documents carried no metadata a caller chose.** A caller could not say "this is Finance,
+  2026, internal" and then retrieve only that.
+
+What M8 deliberately did **not** deliver: authentication. That is out of scope for this
+package rather than deferred (ADR 0018), and a filtered search is not an access boundary —
+it narrows a result set, it does not authorise one.
+
 
 ## The two milestones that matter
 

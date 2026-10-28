@@ -64,6 +64,31 @@ baseline to measure against.
 `chunk_id` and `score` are for us. The rest is citation material, and the agent is
 instructed to cite from it.
 
+## Filtering
+
+A search may be narrowed by caller-supplied tags (RET-5, [ADR 0020](../decisions/0020-filtered-retrieval.md)).
+The filter is a `MetadataFilter` — a plain mapping of `meta.`-prefixed key to exact string
+value — passed as an argument to `VectorStore.search`, **never held on the service**. The
+service is built once per runtime and shared across conversations, so a filter stored on it
+would leak from one caller's turn into the next.
+
+Three consequences worth knowing before touching this code:
+
+- **Narrowing happens before ranking.** Both stores reduce the candidate set first, then
+  score and sort, so `top_k` counts documents that match rather than documents considered.
+  In Chroma this means `where` is applied by the store, and the adapter asks for the
+  collection total rather than `top_k` results — `where` runs *before* `n_results`, so a
+  filtered query asking for `top_k` can come back short.
+- **An absent filter is not an empty filter.** "No constraint" is expressed by omitting the
+  `where` clause; Chroma rejects an empty `where={}` outright.
+- **The two adapters implement one rule twice.** The in-memory store does it as a Python
+  predicate and Chroma as a query clause. `tests/adapters/test_filter_parity.py` runs both
+  against one corpus and asserts on the returned documents, because a test of the generated
+  clause would pass while the clause meant something else.
+
+The filter is not reachable from the model: `search_knowledge_base(ctx, query)` takes no
+filter parameter. It arrives through `AgentDeps`, which is built per turn.
+
 ## Cost and latency
 
 Retrieval costs one embedding call per query — a few milliseconds and a fraction of

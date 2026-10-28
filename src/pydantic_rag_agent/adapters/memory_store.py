@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+from pydantic_rag_agent.domain.metadata import MetadataFilter
 from pydantic_rag_agent.domain.models import (
     DocumentSummary,
     EmbeddedChunk,
@@ -62,6 +63,7 @@ class InMemoryVectorStore:
         *,
         top_k: int = 5,
         min_score: float | None = None,
+        metadata_filter: MetadataFilter | None = None,
     ) -> list[RetrievedChunk]:
         if top_k <= 0:
             raise ValueError("top_k must be positive")
@@ -77,6 +79,11 @@ class InMemoryVectorStore:
                 score=cosine_similarity(embedding, record.embedding),
             )
             for record in self._records.values()
+            # Narrowing before scoring mirrors what Chroma does with a `where` clause: the
+            # constraint selects the candidate set, and similarity ranks within it. Applying
+            # it after ranking would let a non-matching chunk occupy a ``top_k`` slot and
+            # then be discarded, returning fewer hits than were available.
+            if metadata_filter is None or metadata_filter.matches(record.chunk.metadata)
         ]
         if min_score is not None:
             scored = [hit for hit in scored if hit.score >= min_score]
