@@ -204,8 +204,8 @@ second index.
 | ID | Feature | Depends on | Done when |
 | --- | --- | --- | --- |
 | SRC-4 | Readable document tree and a metadata catalogue | SRC-1…SRC-3, CFG-1 | **Done.** A stored original lands at a path a person can predict from its name (`documents/handbook.md`, or `handbook-2.md` on a name collision); SQLite records document id, slug, source, title, content hash, size, chunk count, caption ids and timestamps, with `UNIQUE(slug)` and `UNIQUE(source_path)` as schema constraints; re-ingesting an edited file keeps its name and replaces its chunks rather than duplicating them; an unchanged re-ingest is a no-op. Migration is a reindex, documented in the CHANGELOG, and `download` still reads pre-SRC-4 originals from the old content-addressed layout so existing citations keep working |
-| SRC-5 | Caller-supplied document metadata | SRC-1…SRC-3 | A caller attaches key-value metadata per document at ingest — CLI, API upload, UI editor and library argument all reach the same path; keys and value types are validated; the metadata is denormalised onto every chunk, persisted by both stores, returned by `documents()`, and survives re-ingest and replacement. Coordinate with SRC-4 so the catalogue records it rather than deriving it |
-| RET-5 | Filtered retrieval | SRC-5, RET-1 | `search_knowledge_base` can be narrowed by metadata; `VectorStore.search` takes a typed filter instead of raw store syntax; Chroma, the in-memory store and (later) pgvector implement the same subset; CLI `ask` and the API accept a filter; a test proves a semantically matching document is excluded when the filter says so |
+| SRC-5 | Caller-supplied document metadata | SRC-4 | A caller attaches key-value metadata per document at ingest — CLI, API upload, UI editor and library argument all reach the same path; keys and value types are validated; the metadata is denormalised onto every chunk, persisted by both stores, returned by `documents()`, and survives re-ingest and replacement. The catalogue records it rather than deriving it, so a reindex does not lose it. Keys are stored under a reserved `meta.` prefix applied by the library — a caller never types it — so a caller cannot overwrite `title`, `source_path` or `document_id`. Values are strings; key count and value length are capped and over-long input is rejected, not truncated. Ingest **without** metadata stays valid and is the default |
+| RET-5 | Filtered retrieval | SRC-5, RET-1 | `VectorStore.search` takes a typed filter instead of raw store syntax; Chroma, the in-memory store and (later) pgvector implement the same subset; CLI `ask --meta k=v` and the API accept a filter. **The filter is caller-supplied only** — the retrieval tool is offered no filter parameter, so the model cannot narrow a search. **An absent filter means no constraint and must not error.** A filter matching nothing returns an empty result *and says the filter excluded everything*, so a mistyped tag does not read as a gap in the corpus. Filters address the namespaced keys (`--meta team=legal` matches stored `meta.team=legal`). Tests prove a semantically matching document is excluded when the filter says so, that omitting the filter still returns it, and that a filter on a reserved name such as `title` cannot reach the system field |
 | CIT-1 | Citations that open or download the original | SRC-1…SRC-3, CORE-2, CORE-3 | In Streamlit, a citation downloads the original through the API; in the CLI it is a terminal hyperlink where the terminal supports one, with the locator printed as fallback; `GET /documents/{id}/download` streams the file with its name and content type; an S3 store proxies or presigns according to configuration; tests cover local and S3 forms plus an unknown document |
 
 ### Settled before implementing — see [ADR 0018](../decisions/0018-readable-tree-and-catalogue.md)
@@ -228,20 +228,48 @@ second index.
 - **Downloads and auth.** **This package does not implement authentication.** That is a
   boundary, not a deferral — see the Deferred table. The README warning extends to the
   catalogue and tree routes.
-- **Who chooses a filter?** **The model chooses, from the question**, with
-  `ask --meta key=value` kept as a deterministic override. A wrong filter excludes correct
-  evidence silently, so RET-5's exclusion test is what makes that failure visible. Revisit
-  if evaluation shows the model choosing badly.
-
-The remaining notes from the original discussion, kept because they still apply:
-  caller-supplied filters passed through the tool, with an optional configured default —
-  never the model inventing one.
+- **Who chooses a filter?** **The caller, always — never the model.** Settled 2026-10-27,
+  reversing the earlier "the model chooses from the question" decision. `search_knowledge_base`
+  keeps its `(ctx, query)` signature and is offered no filter parameter, so the model has no
+  way to narrow a search; the filter comes from `ask --meta key=value`, the API route, or the
+  library call. A wrong filter excludes correct evidence silently, and a model choosing one
+  makes that failure invisible — it would look like the corpus had nothing to say.
+- **An absent filter is not an error.** No filter means no constraint: the search is
+  unrestricted and behaves exactly as it does today. This is the common case, so it must not
+  be a special case in the code.
+- **A filter that matches nothing is loud.** Zero matches is a normal empty result, but it is
+  reported as such — a visible notice in the CLI and API saying the filter excluded
+  everything — rather than presented as "the documents do not cover this". The distinction
+  matters: a typo in a tag name must not read as a fact about the corpus.
+- **A filter is per-turn.** `AgentDeps` is rebuilt for every turn, so a filter applies to the
+  question it was given with and does not leak into later turns of the same conversation.
+  No conversation-level state, no stickiness to reason about.
+- **No configured default filter.** Deliberately not part of this decision: a default that
+  silently narrowed every search would be the same silent-exclusion failure the explicit
+  rule exists to prevent. If it is ever wanted, it has to be visible in the answer.
 - **Filter vocabulary.** Equality and `in` cover most of it and map cleanly onto Chroma's
   `where`; ranges and boolean combinations need a typed model rather than a dict from a
   client, or the endpoint becomes a query-language surface.
-- **Types, keys and limits.** Chroma allows strings, numbers and booleans only. Decide
-  whether user keys are namespaced (`meta.department`) to avoid colliding with reserved
-  fields (`title`, `source_path`, `document_id`), and cap key count and value length.
+- **User keys are namespaced, always.** Settled 2026-10-27: every caller-supplied key is
+  stored under a `meta.` prefix — `--meta team=legal` is persisted and filtered as
+  `meta.team`. The prefix is applied by the library, so **a caller never types it**, and a
+  key that already starts with `meta.` is not double-prefixed.
+
+  The reason is that the collision would otherwise be silent. Chunk metadata already owns
+  `document_id`, `title`, `source_path`, `kind`, `ordinal`, `heading_path`, `page`, `slide`,
+  `image_id` and `locator`; a caller posting `--meta title=Q3` would overwrite the field the
+  agent uses to build citations, and nothing would report it. A reserved prefix makes that
+  impossible to express rather than merely unlikely, which is the same reasoning that put
+  `UNIQUE(slug)` in the schema instead of a check-then-write.
+
+  Namespacing is a storage concern, not a user-facing one: `documents()`, the API and the
+  CLI show the caller their own keys back unchanged. The prefix is an implementation detail
+  of how they are kept apart from ours.
+- **Types, keys and limits.** Chroma allows strings, numbers and booleans only; metadata
+  values are restricted to **strings** so that one vocabulary works identically across
+  Chroma, the in-memory store and a future `pgvector` adapter. Cap the key count per
+  document and the value length, and reject rather than truncate — a silently shortened tag
+  is a tag that later fails to match.
 - **Batch uploads.** One metadata map for a whole upload is easy and often wrong; a
   per-file manifest, or one request per file, is the alternative.
 - **Filterable system fields.** File type, page count and ingest time are already known.
