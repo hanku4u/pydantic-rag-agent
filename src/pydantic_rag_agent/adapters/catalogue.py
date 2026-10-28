@@ -55,6 +55,20 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         CREATE INDEX documents_by_content_hash ON documents (content_hash);
         """,
     ),
+    (
+        2,
+        """
+        -- SRC-5: caller-supplied tags, stored as JSON in their namespaced form
+        -- (``{"meta.team": "legal"}``). A JSON column rather than a tags table because the
+        -- catalogue never joins or aggregates them: it records them so a reindex can
+        -- restore them, and hands the whole map back when a document is read.
+        --
+        -- `DEFAULT '{}'` is what makes the migration safe for existing rows: every
+        -- document ingested before SRC-5 has no tags, and "no tags" must not mean NULL,
+        -- or every read would need to special-case it.
+        ALTER TABLE documents ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';
+        """,
+    ),
 )
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]
@@ -168,6 +182,14 @@ class SQLiteCatalogue:
                 if current.content_hash == facts.content_hash:
                     # Unchanged file: hand back the row untouched. Re-ingest must not churn
                     # the tree, and must not burn a new suffix on every run.
+                    #
+                    # Tags are the one exception. They describe the document rather than
+                    # being part of its bytes, so re-ingesting an unchanged file with
+                    # different tags is a deliberate act and must be honoured — otherwise a
+                    # caller could never correct a mistyped tag without editing the file.
+                    # Only the metadata column moves; the slug and the content fields stay.
+                    if current.metadata != facts.metadata:
+                        return self._retag(connection, current, facts.metadata, now)
                     return current
                 # Edited file: the readable name belongs to the document's place in the
                 # corpus, so the slug is kept and only the content fields move.
@@ -190,8 +212,9 @@ class SQLiteCatalogue:
                 """
                 INSERT INTO documents (
                     document_id, slug, source_name, source_path, title, content_hash,
-                    media_type, size_bytes, chunk_count, caption_ids, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    media_type, size_bytes, chunk_count, caption_ids, metadata,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 _insert_values(created),
             )
@@ -239,7 +262,7 @@ class SQLiteCatalogue:
             UPDATE documents SET
                 document_id = ?, source_name = ?, source_path = ?, title = ?,
                 content_hash = ?, media_type = ?, size_bytes = ?, chunk_count = ?,
-                caption_ids = ?, updated_at = ?
+                caption_ids = ?, metadata = ?, updated_at = ?
             WHERE document_id = ?
             """,
             (
@@ -252,9 +275,36 @@ class SQLiteCatalogue:
                 updated.size_bytes,
                 updated.chunk_count,
                 json.dumps(list(updated.caption_ids)),
+                json.dumps(updated.metadata),
                 updated.updated_at.isoformat(),
                 current.document_id,
             ),
+        )
+        return updated
+
+    def _retag(
+        self,
+        connection: sqlite3.Connection,
+        current: CataloguedDocument,
+        metadata: dict[str, str],
+        now: datetime,
+    ) -> CataloguedDocument:
+        """Replace a row's tags without touching anything else.
+
+        Separate from ``_replace`` on purpose: that method rewrites identity and content
+        fields, and re-tagging an unchanged file must not move the ``document_id``, restamp
+        ``source_path`` or reset ``chunk_count``. Only the tag map and ``updated_at`` change.
+        """
+        updated = CataloguedDocument(
+            **{
+                **current.model_dump(exclude={"metadata", "updated_at"}),
+                "metadata": metadata,
+                "updated_at": now,
+            }
+        )
+        connection.execute(
+            "UPDATE documents SET metadata = ?, updated_at = ? WHERE document_id = ?",
+            (json.dumps(metadata), now.isoformat(), current.document_id),
         )
         return updated
 
@@ -332,6 +382,7 @@ def _insert_values(document: CataloguedDocument) -> tuple[object, ...]:
         document.size_bytes,
         document.chunk_count,
         json.dumps(list(document.caption_ids)),
+        json.dumps(document.metadata),
         document.created_at.isoformat(),
         document.updated_at.isoformat(),
     )
@@ -355,6 +406,7 @@ def _row_to_document(row: sqlite3.Row) -> CataloguedDocument:
         size_bytes=int(row["size_bytes"]),
         chunk_count=int(row["chunk_count"]),
         caption_ids=tuple(str(value) for value in json.loads(row["caption_ids"])),
+        metadata={str(key): str(value) for key, value in json.loads(row["metadata"]).items()},
         created_at=datetime.fromisoformat(str(row["created_at"])),
         updated_at=datetime.fromisoformat(str(row["updated_at"])),
     )

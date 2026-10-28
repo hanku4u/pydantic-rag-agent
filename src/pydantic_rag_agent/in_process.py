@@ -19,7 +19,7 @@ Design: docs/decisions/0011-public-facade.md.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 
 from pydantic_ai.exceptions import ModelAPIError
@@ -94,6 +94,7 @@ class InProcessClient:
                 "source_path": document.source_path,
                 "title": document.title,
                 "chunk_count": document.chunk_count,
+                "metadata": dict(document.metadata),
             }
             for document in indexed
         ]
@@ -130,13 +131,17 @@ class InProcessClient:
             return None
         return result.filename, result.data
 
-    def ingest(self, paths: Sequence[Path]) -> dict[str, object]:
-        return self._ingest_paths(paths)
+    def ingest(
+        self, paths: Sequence[Path], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
+        return self._ingest_paths(paths, metadata=metadata)
 
-    def ingest_files(self, files: Sequence[tuple[str, bytes]]) -> dict[str, object]:
+    def ingest_files(
+        self, files: Sequence[tuple[str, bytes]], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
         """Index uploads held in memory, copying each original into the document store."""
         try:
-            report = self._agent.ingest_files_sync(list(files))
+            report = self._agent.ingest_files_sync(list(files), metadata=metadata)
         except ValueError as exc:
             raise ClientError(str(exc), status_code=400) from exc
         except Exception as exc:  # noqa: BLE001 - HTTP maps these too
@@ -182,9 +187,11 @@ class InProcessClient:
             # branch on transport, which is the thing this class exists to prevent.
             yield "error", {"code": type(exc).__name__, "detail": _TURN_FAILED}
 
-    def _ingest_paths(self, paths: Sequence[Path]) -> dict[str, object]:
+    def _ingest_paths(
+        self, paths: Sequence[Path], *, metadata: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
         try:
-            return _ingest_payload(self._agent.ingest_sync(list(paths)))
+            return _ingest_payload(self._agent.ingest_sync(list(paths), metadata=metadata))
         except Exception as exc:  # noqa: BLE001 - HTTP maps these too
             raise _as_client_error(exc) from exc
 

@@ -34,6 +34,11 @@ settings = Settings(
 agent = RagAgent(settings)  # or RagAgent.from_env(".env")
 
 await agent.ingest([Path("docs/")])
+
+# Tags are optional, and are what a later filtered search narrows by. Keys are namespaced
+# for you, so `team` is stored as `meta.team`; a caller never types the prefix.
+await agent.ingest([Path("contracts/")], metadata={"team": "legal", "year": "2026"})
+
 turn = await agent.ask("How long are backups retained?")
 print(turn.text)
 for citation in turn.citations:

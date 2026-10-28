@@ -389,12 +389,36 @@ Downloads keep working in the meantime — the store still reads the old content
 layout — so a citation you kept does not break, it just carries the old locator until that
 document is re-ingested. The old tree can be deleted once the reindex is done.
 
-### Filtering will be chosen by the model
+### Tag documents, and filter by those tags
 
-Once documents carry metadata (SRC-5), `ask` will narrow retrieval by letting the model pick
-the filter from your question. A wrong filter excludes correct evidence **silently** — the
-answer simply omits what it could not see — so `ask --meta key=value` stays as the
-deterministic override for when correctness matters more than convenience.
+Ingest accepts tags, which are what a later search can narrow by:
+
+```bash
+pydantic-rag-agent ingest ./contracts --meta team=legal --meta year=2026
+```
+
+```python
+await agent.ingest([Path("contracts/")], metadata={"team": "legal", "year": "2026"})
+```
+
+Tags are optional everywhere. Ingest without them is unchanged, and it stays the default.
+
+**You never type the `meta.` prefix.** Keys are stored namespaced — `team` is persisted as
+`meta.team` — so a tag cannot collide with a field the system owns, such as `title` or
+`source_path`. Those are what a citation is built from, and overwriting one would corrupt
+citations silently. The prefix is a storage detail: `documents`, the API and the UI all show
+you the key you supplied.
+
+Values are strings, capped at 32 keys per document and 128 characters per key or value.
+Over-long input is **rejected rather than truncated**, because a silently shortened tag is a
+tag that later fails to match for no visible reason.
+
+**Filtering is yours to choose, never the model's.** The retrieval tool is offered no filter
+parameter, so the model cannot narrow a search behind your back. A wrong filter excludes
+correct evidence *silently* — the answer simply omits what it could not see — and a model
+picking one makes that failure invisible. An absent filter means no constraint and is never
+an error; a filter that matches nothing is reported as such rather than presented as a gap in
+your corpus. See [ADR 0019](docs/decisions/0019-caller-supplied-metadata.md).
 
 ## Day-to-day commands
 

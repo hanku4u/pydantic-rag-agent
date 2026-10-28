@@ -13,6 +13,7 @@ import json
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 from factories import (
     FakeS3,
@@ -82,7 +83,7 @@ def history_lengths_model() -> tuple[FunctionModel, list[int]]:
     return FunctionModel(respond, stream_function=stream), lengths
 
 
-def upload(client: TestClient, name: str, content: bytes) -> object:
+def upload(client: TestClient, name: str, content: bytes) -> httpx.Response:
     return client.post(
         "/documents",
         files=[("files", (name, content, "application/octet-stream"))],
@@ -116,6 +117,66 @@ def upload_markdown_should_index_and_list_it(client: TestClient) -> None:
     assert len(documents) == 1
     assert documents[0]["title"] == "Handbook"
     assert documents[0]["chunk_count"] == report["chunks"]
+
+
+def upload_with_tags_should_list_them_namespaced(client: TestClient) -> None:
+    # given: an upload carrying a tag map in the form field
+    response = client.post(
+        "/documents",
+        files=[("files", ("contract.md", DOCUMENT, "text/markdown"))],
+        data={"metadata": json.dumps({"team": "legal", "year": "2026"})},
+    )
+
+    # when: the document list is read back
+    assert response.status_code == 200, response.text
+    documents = client.get("/documents").json()
+
+    # then: the tags are stored under the reserved prefix, which is what a filtered
+    # search will address. Callers type `team`; storage holds `meta.team`.
+    assert documents[0]["metadata"] == {"meta.team": "legal", "meta.year": "2026"}
+
+
+def an_upload_without_tags_should_still_index(client: TestClient) -> None:
+    # given: the common case — no metadata field at all
+    response = upload(client, "untagged.md", DOCUMENT)
+
+    # when / then: it indexes, and reports no tags rather than failing
+    assert response.status_code == 200, response.text
+    documents = client.get("/documents").json()
+    assert documents[0]["metadata"] == {}
+
+
+def an_unusable_tag_map_should_be_a_bad_request(client: TestClient) -> None:
+    # given: a metadata field that is not a JSON object of string tags
+    response = client.post(
+        "/documents",
+        files=[("files", ("bad.md", DOCUMENT, "text/markdown"))],
+        data={"metadata": "not json"},
+    )
+
+    # when / then: refused with a reason, and nothing was indexed — silently ingesting
+    # untagged would leave a later filtered search inexplicably empty.
+    assert response.status_code == 400
+    assert "metadata" in response.json()["detail"]
+    assert client.get("/documents").json() == []
+
+
+def a_non_string_tag_value_should_be_a_bad_request(client: TestClient) -> None:
+    # given: syntactically valid JSON whose value is the wrong type
+    response = client.post(
+        "/documents",
+        files=[("files", ("bad.md", DOCUMENT, "text/markdown"))],
+        data={"metadata": json.dumps({"year": 2026})},
+    )
+
+    # when / then: a 400 that names the offending key and its type, rather than a 500 or a
+    # tag silently coerced to "2026"
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "values must be strings" in detail
+    assert "'year'" in detail
+    assert "int" in detail
+    assert client.get("/documents").json() == []
 
 
 def upload_should_copy_the_original_and_cite_its_locator(client: TestClient) -> None:

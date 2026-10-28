@@ -146,6 +146,17 @@ unchanged document is a no-op rather than a duplicate.
   `page`/`slide`, `heading_path`, `kind` (`text` | `image`), and `image_id` where
   applicable. These are what make citations possible later, so they are not
   optional metadata.
+- **Caller tags (SRC-5)** travel separately, under a `meta.` prefix the library applies, and
+  are flattened onto every chunk alongside the fields above so a filtered search needs no
+  second lookup. They are also recorded in the catalogue: a reindex rebuilds chunks from
+  source files that know nothing about tags, so a tag that lived only on chunks would be
+  lost. Naming and validation live in `domain/metadata.py` — one definition, so storage and
+  filtering cannot disagree about what a key looks like. See
+  [ADR 0019](../decisions/0019-caller-supplied-metadata.md).
+- **A tag change reindexes the document.** The content hash is unchanged, so the skip path
+  would otherwise return early and leave the old tags on every chunk — a filtered search
+  would then miss a document the catalogue says matches. The slug and identity are kept;
+  only the chunks are rebuilt.
 
 ## `IngestReport`
 

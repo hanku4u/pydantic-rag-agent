@@ -104,11 +104,16 @@ Read these before touching anything:
 
 **M7 is complete; 0.4.0 is published on PyPI.** **M8 is in progress:** **CIT-1 is done** —
 a citation downloads the original (`GET /documents/{id}/download`, a control in the
-Streamlit panel, a terminal hyperlink in the CLI; ADR 0017) — and **SRC-4 is done**: an
+Streamlit panel, a terminal hyperlink in the CLI; ADR 0017) — **SRC-4 is done**: an
 original lands at a path derived from its name, and a SQLite catalogue
 (`PRAGENT_CATALOGUE__URL`) records what was ingested and is authoritative for where each
-original lives. Remaining: caller-supplied document metadata with filtered retrieval
-(SRC-5, RET-5). Persistent conversations and `pgvector` remain
+original lives — and **SRC-5 is done**: a caller attaches key-value tags at ingest through
+the CLI (`--meta`), the upload route's `metadata` field, the Streamlit uploader or the
+library, and they are stored under a `meta.` namespace, recorded in the catalogue and
+denormalised onto every chunk ([ADR 0019](docs/decisions/0019-caller-supplied-metadata.md)).
+Remaining: **RET-5**, filtered retrieval, whose decisions are settled in that ADR — the
+filter is caller-supplied only, an absent filter means no constraint, and a filter matching
+nothing says so. Persistent conversations and `pgvector` remain
 deferred with their triggers in [docs/features/README.md](docs/features/README.md#deferred);
 **authentication is not deferred — it is out of scope for this package** (ADR 0018).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the

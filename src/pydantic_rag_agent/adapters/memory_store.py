@@ -113,6 +113,7 @@ class InMemoryVectorStore:
                 source_path=sample[document_id].chunk.source_path,
                 title=sample[document_id].chunk.title,
                 chunk_count=count,
+                metadata=dict(sample[document_id].chunk.metadata),
             )
             for document_id, count in counts.items()
         ]

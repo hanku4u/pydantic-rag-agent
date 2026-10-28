@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, TypeVar
 from urllib.parse import quote
 
-from fastapi import APIRouter, FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic_ai.exceptions import ModelAPIError
 
@@ -98,6 +98,7 @@ def create_router(agent: RagAgent) -> APIRouter:
                 source_path=document.source_path,
                 title=document.title,
                 chunk_count=document.chunk_count,
+                metadata=dict(document.metadata),
             )
             for document in await _mapped(agent.documents)
         ]
@@ -106,15 +107,20 @@ def create_router(agent: RagAgent) -> APIRouter:
     async def upload_documents(
         response: Response,
         files: Annotated[list[UploadFile], File()],
+        metadata: Annotated[str | None, Form()] = None,
     ) -> IngestReportResponse:
         try:
+            # Parsed before the uploads are read, so a malformed tag map costs nothing but
+            # an error response rather than a fully buffered body.
+            tags = _parse_metadata_form(metadata)
             # `await upload.read()` rather than `upload.file.read()`: the latter is a
             # synchronous read on the event loop, and a large PDF would stall every
             # in-flight request, streams included.
             uploads = [(upload.filename or "", await upload.read()) for upload in files]
-            report = await _mapped(lambda: agent.ingest_files(uploads))
+            report = await _mapped(lambda: agent.ingest_files(uploads, metadata=tags))
         except ValueError as exc:
-            # A nameless upload is a bad request, not a document that failed to parse.
+            # A nameless upload or an unusable tag is a bad request, not a document that
+            # failed to parse.
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         payload = _to_ingest_response(report)
@@ -375,6 +381,41 @@ def _content_disposition(filename: str) -> str:
     if not escaped.strip():
         escaped = "document"
     return f"attachment; filename=\"{escaped}\"; filename*=UTF-8''{encoded}"
+
+
+def _parse_metadata_form(raw: str | None) -> dict[str, str] | None:
+    """Turn the upload form's ``metadata`` field into a tag map.
+
+    Absent means no tags, which is the common case and must not be an error. Present but
+    malformed is a 400: a caller who sent something is owed a reason it was rejected, and
+    silently ingesting untagged would make a later filtered search inexplicably empty.
+
+    This checks the **wire format** only — that the field is a JSON object whose values are
+    strings. Tag *semantics* (key charset, length, count, the ``meta.`` namespace) stay in
+    ``domain.metadata``, which remains the single authority for what a usable tag is. The
+    split matters for the message a caller reads: ``{"year": 2026}`` is a malformed request,
+    not an unusable tag, and saying "values must be strings" points at the fix faster than a
+    message about tag validation would.
+    """
+    if raw is None or not raw.strip():
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"metadata must be a JSON object of string tags: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("metadata must be a JSON object of string tags")
+
+    # JSON object keys are strings by definition, so only the values can be the wrong type.
+    # Rejected rather than coerced: `{"year": 2026}` becoming `"2026"` would hand back a tag
+    # the caller never wrote and that a later `year=2026` string filter happens to match.
+    wrong = [
+        (key, type(value).__name__) for key, value in parsed.items() if not isinstance(value, str)
+    ]
+    if wrong:
+        detail = ", ".join(f"{key!r} was {kind}" for key, kind in wrong)
+        raise ValueError(f"metadata values must be strings: {detail}")
+    return dict(parsed)
 
 
 def _to_ingest_response(report: IngestReport) -> IngestReportResponse:
