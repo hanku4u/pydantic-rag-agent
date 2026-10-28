@@ -94,15 +94,15 @@ Accurate as of 2026-10-26.
 | Streamlit UI: chat, ingest sidebar, citations | Done — UI-1…UI-3 |
 | `dev` command: API and UI together | Done — DX-1 |
 | Licence | **MIT** — see [LICENSE](../LICENSE) |
-| Release: workflow and first PyPI publication | Done — PKG-4, PKG-5; **0.1.0 live on PyPI** |
-| Readable document storage and a metadata catalogue | **Planned** — M8, SRC-4 |
+| Release: workflow and first PyPI publication | Done — PKG-4, PKG-5; **0.5.0 live on PyPI** |
+| Readable document storage and a metadata catalogue | Done — SRC-4 (ADR 0018) |
 | Clickable citations that download the original | **Done** — CIT-1 (ADR 0017) |
-| Caller-supplied document metadata and filtered retrieval | **Planned** — M8, SRC-5/RET-5 |
+| Caller-supplied document metadata and filtered retrieval | Done — SRC-5/RET-5 (ADR 0019, 0020) |
 
-**Milestone 7 is complete** and 0.2.0 is published. **Milestone 8 is in progress**:
-citations that open or download the original are done (CIT-1, ADR 0017); what remains is
-readable document storage with a SQLite/PostgreSQL catalogue (SRC-4) and caller-supplied
-metadata with filtered retrieval (SRC-5/RET-5).
+**Milestone 7 is complete.** **Milestone 8 is complete and published as 0.5.0.** Citations
+open or download the original (CIT-1); originals land at readable paths recorded by a SQLite
+catalogue (SRC-4); callers attach tags at ingest (SRC-5) and narrow a search by them
+(RET-5).
 
 **Milestone 7, in detail.** Configuration is a tree of six nodes (CFG-1…3); the
 `RagAgent` façade exists and is the only builder (CORE-1…4); originals are kept locally or

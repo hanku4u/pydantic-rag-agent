@@ -3,13 +3,16 @@
 A retrieval-augmented generation (RAG) agent built on [Pydantic](https://docs.pydantic.dev/)
 and managed with [uv](https://docs.astral.sh/uv/).
 
-> **Status:** M0–M7 are complete and published as **0.4.0**; M8 is in progress. Citations
-> download their originals, and originals are stored under readable paths recorded by a
-> SQLite catalogue ([ADR 0018](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0018-readable-tree-and-catalogue.md))
-> — see [Where originals live](#where-originals-live). Ingestion, retrieval, the agent, the API, the CLI, the
-> Streamlit UI and the OpenAI-compatible endpoint all work; the suite runs offline at 92%
-> branch coverage. OPS-1 (instrumentation) is deliberately out of scope. `main` is the state
-> described in
+> **Status:** M0–M8 are complete and published as **0.5.0**. Citations download their
+> originals, originals are stored under readable paths recorded by a SQLite catalogue
+> ([ADR 0018](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0018-readable-tree-and-catalogue.md)),
+> and documents carry caller-supplied tags that a search can be narrowed by
+> ([ADR 0019](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0019-caller-supplied-metadata.md),
+> [ADR 0020](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/decisions/0020-filtered-retrieval.md)).
+> See [Where originals live](#where-originals-live). Ingestion, retrieval, the agent, the
+> API, the CLI, the Streamlit UI and the OpenAI-compatible endpoint all work; the suite runs
+> offline at 93% coverage. OPS-1 (instrumentation) is deliberately out of scope. `main` is
+> the state described in
 > [`docs/overview.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/overview.md#current-state); the ordered plan behind it is in
 > [`docs/features/`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/features/README.md) and
 > [`docs/roadmap.md`](https://github.com/hanku4u/pydantic-rag-agent/blob/main/docs/roadmap.md).

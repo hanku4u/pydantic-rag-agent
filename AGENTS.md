@@ -102,8 +102,8 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-**M7 is complete; 0.4.0 is published on PyPI.** **M8 is complete too**, pending a release
-that carries **SRC-5** and **RET-5** — both are merged but postdate the 0.4.0 tag. **CIT-1**:
+**M7 is complete.** **M8 is complete and published as 0.5.0**, which carries **SRC-5** and
+**RET-5** — both merged after the 0.4.0 tag. **CIT-1**:
 a citation downloads the original (`GET /documents/{id}/download`, a control in the
 Streamlit panel, a terminal hyperlink in the CLI; ADR 0017). **SRC-4**: an
 original lands at a path derived from its name, and a SQLite catalogue

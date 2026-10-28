@@ -5,7 +5,7 @@ Notable changes, written by hand from the commit history. The format follows
 [Semantic Versioning](https://semver.org/), with the pre-1.0 caveat in
 [docs/development/releasing.md](docs/development/releasing.md).
 
-## [Unreleased]
+## [0.5.0] — 2026-10-28
 
 ### Added
 

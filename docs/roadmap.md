@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** stable — **M0–M8 complete**, and 0.4.0 is published on PyPI. One feature, API-6,
+**Status:** stable — **M0–M8 complete**, and 0.5.0 is published on PyPI. One feature, API-6,
 landed after M7 started. What remains is deferred, each item waiting on a named trigger.
 
 The order in which the backlog gets built, and what "done" means for each stage. The
@@ -111,8 +111,9 @@ must stay green, and nothing in the dependency set demands a wider range yet.
 Three earlier questions are settled. They are recorded rather than deleted, so the reasoning
 survives:
 
-- **When is the first tag?** Answered: 0.4.0 is published on PyPI. PKG-4 and PKG-5 are both
-  done, so the trusted-publisher runbook has been exercised end to end.
+- **When is the first tag?** Answered: 0.4.0 was the first tagged release; 0.5.0 is the
+  current one. PKG-4 and PKG-5 are both done, so the trusted-publisher runbook has been
+  exercised end to end.
 - **Does the first release include session persistence?** It did not. 0.4.0 shipped with
   in-memory history, which is why *persistent conversations* is a deferred item with a
   trigger rather than an unfinished feature. See
