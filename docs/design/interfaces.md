@@ -62,6 +62,30 @@ separate from domain models. The API contract is allowed to differ from the doma
 (it will, at the edges), and coupling them means a domain refactor becomes a breaking
 API change.
 
+### Narrowing a search with tags
+
+Both message endpoints accept an optional `metadata_filter` beside `question`:
+
+```json
+{"question": "What is the retention period?", "metadata_filter": {"team": "legal"}}
+```
+
+- **Keys are the caller's own** — `team`, not `meta.team`. The library applies its
+  `meta.` namespace on the way in; the prefix never appears on the wire or in a message.
+- **Values are strings.** `{"year": 2026}` is a `400`, not a tag quietly coerced to `"2026"`.
+- **Multiple keys are conjunctive.** Every condition must match; a document matching one of
+  two is excluded.
+- **Omitted means unconstrained.** A request without the field is byte-identical to the
+  pre-RET-5 shape, and behaves identically.
+- **A reserved key is a `400`.** `title`, `source_path` and `document_id` name fields the
+  library sets itself. They cannot be tagged at ingest, so they cannot be filtered by.
+- **Matching nothing is a `200`.** The turn still runs; the agent is told the filter excluded
+  every document, so its answer can say so instead of reporting an empty corpus.
+
+The filter is not reachable from the model. `search_knowledge_base(ctx, query)` takes no
+filter argument, so neither a caller's question nor a document's contents can widen or narrow
+the search on the model's initiative.
+
 ### Streaming
 
 Server-Sent Events — the traffic is one-directional text, so SSE needs no extra protocol.
@@ -171,6 +195,7 @@ show.
 | `serve` | Run the API for remote clients and integrations (uvicorn) |
 | `ingest PATH...` | Upload and ingest files or directories |
 | `ask "QUESTION"` | One question, streamed to the terminal |
+| `ask --meta k=v …` | The same, narrowed to documents carrying those tags |
 | `chat` | Interactive multi-turn session in the terminal |
 | `documents` | List ingested documents |
 | `stats` | Show index and model information |
@@ -179,6 +204,10 @@ show.
 `--api-url` is also settable via `PRAGENT_API_URL`. Leaving both unset runs the agent in
 the command's own process; a URL in `.env` is honoured, so an integrated deployment can
 configure it once.
+
+`ask --meta team=legal --meta year=2026` narrows the search to documents tagged with both.
+There is no `--meta` on `chat`: a filter is a property of a question, and a chat session
+would have to decide what a filter set once means for the next ten turns.
 
 ### Terminal rendering
 

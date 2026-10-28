@@ -58,8 +58,9 @@ real value.
 | [0017](0017-citation-download.md) | A citation downloads the original; S3 proxies by default | Accepted | 2026-10-26 |
 | [0018](0018-readable-tree-and-catalogue.md) | Readable slug tree; catalogue as authority; no auth in-package | Accepted | 2026-10-27 |
 | [0019](0019-caller-supplied-metadata.md) | Caller-supplied tags under a `meta.` namespace; caller-chosen filters only | Accepted | 2026-10-28 |
+| [0020](0020-filtered-retrieval.md) | Filtered retrieval: conjunctive, caller-supplied, absent means unconstrained | Accepted | 2026-10-28 |
 
-Next number: **0020**.
+Next number: **0021**.
 
 ## Writing one
 

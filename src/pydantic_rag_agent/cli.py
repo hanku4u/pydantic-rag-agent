@@ -40,6 +40,7 @@ from pydantic_rag_agent.client import (
 )
 from pydantic_rag_agent.domain.metadata import (
     MetadataError,
+    MetadataFilter,
     as_str_map,
     parse_pairs,
     user_metadata,
@@ -187,16 +188,38 @@ def ask(
     question: Annotated[str, typer.Argument(help="What to ask about the documents.")],
     api_url: ApiUrl = None,
     as_json: AsJson = False,
+    meta: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--meta",
+            help=(
+                "Narrow the search to documents tagged key=value. Repeat for more "
+                "conditions; a document must match all of them."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Ask one question and stream the answer."""
     console = Console()
     try:
+        metadata_filter = MetadataFilter.of(parse_pairs(meta or []))
         with _client(api_url) as client:
             conversation_id = client.create_conversation()
             if as_json:
-                typer.echo(json.dumps(client.ask(conversation_id, question), indent=2))
+                answer = client.ask(conversation_id, question, metadata_filter=metadata_filter)
+                typer.echo(json.dumps(answer, indent=2))
                 return
-            _stream_answer(console, client, conversation_id, question, echo_question=True)
+            _stream_answer(
+                console,
+                client,
+                conversation_id,
+                question,
+                echo_question=True,
+                metadata_filter=metadata_filter,
+            )
+    except MetadataError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
     except ClientError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -557,12 +580,15 @@ def _stream_answer(
     question: str,
     *,
     echo_question: bool = False,
+    metadata_filter: MetadataFilter | None = None,
 ) -> dict[str, object]:
     """Render one turn: the question boxed, then a live panel that becomes the answer."""
     if echo_question:
         console.print(_question_panel(question))
 
-    events: Iterator[tuple[str, dict]] = client.stream(conversation_id, question)
+    events: Iterator[tuple[str, dict]] = client.stream(
+        conversation_id, question, metadata_filter=metadata_filter
+    )
 
     answer: list[str] = []
     tools: list[str] = []

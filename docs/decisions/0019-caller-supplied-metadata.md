@@ -143,4 +143,6 @@ wrong.
 - [ADR 0018](0018-readable-tree-and-catalogue.md) — the catalogue this builds on.
 - [ADR 0012](0012-source-documents.md) — originals, locators and why metadata is
   denormalised.
+- [ADR 0020](0020-filtered-retrieval.md) — reading the tags back: filtered retrieval, and the
+  reserved-name rejection this ADR implies at ingest.
 - [Ingestion design](../design/ingestion.md), [retrieval design](../design/retrieval.md).

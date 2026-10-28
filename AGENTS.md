@@ -102,18 +102,24 @@ Read these before touching anything:
 3. [docs/features/README.md](docs/features/README.md) — M7's features with done-when
    criteria: CFG-1…3, SRC-1…3, CORE-1…4, PKG-1…5.
 
-**M7 is complete; 0.4.0 is published on PyPI.** **M8 is in progress:** **CIT-1 is done** —
+**M7 is complete; 0.4.0 is published on PyPI.** **M8 is complete too**, pending a release
+that carries **SRC-5** and **RET-5** — both are merged but postdate the 0.4.0 tag. **CIT-1**:
 a citation downloads the original (`GET /documents/{id}/download`, a control in the
-Streamlit panel, a terminal hyperlink in the CLI; ADR 0017) — **SRC-4 is done**: an
+Streamlit panel, a terminal hyperlink in the CLI; ADR 0017). **SRC-4**: an
 original lands at a path derived from its name, and a SQLite catalogue
 (`PRAGENT_CATALOGUE__URL`) records what was ingested and is authoritative for where each
-original lives — and **SRC-5 is done**: a caller attaches key-value tags at ingest through
+original lives. **SRC-5**: a caller attaches key-value tags at ingest through
 the CLI (`--meta`), the upload route's `metadata` field, the Streamlit uploader or the
 library, and they are stored under a `meta.` namespace, recorded in the catalogue and
 denormalised onto every chunk ([ADR 0019](docs/decisions/0019-caller-supplied-metadata.md)).
-Remaining: **RET-5**, filtered retrieval, whose decisions are settled in that ADR — the
-filter is caller-supplied only, an absent filter means no constraint, and a filter matching
-nothing says so. Persistent conversations and `pgvector` remain
+**RET-5**: a search is narrowed by those tags through `ask --meta`, the library's
+`metadata_filter`, or the API's `metadata_filter` field; conditions are conjunctive, the
+filter is caller-supplied only (the retrieval tool takes no filter parameter, so the model
+cannot narrow a search), and a filter matching nothing says so
+([ADR 0020](docs/decisions/0020-filtered-retrieval.md)).
+
+**The next piece of work is the release**, not a feature. Persistent conversations and
+`pgvector` remain
 deferred with their triggers in [docs/features/README.md](docs/features/README.md#deferred);
 **authentication is not deferred — it is out of scope for this package** (ADR 0018).
 `pgvector` is deferred behind M7 for the same reason: a second store is cheaper once the

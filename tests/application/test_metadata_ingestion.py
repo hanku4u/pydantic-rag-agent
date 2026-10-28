@@ -249,35 +249,62 @@ async def test_uploads_carry_tags_too(
     assert stored.metadata == {"meta.team": "legal"}
 
 
-async def test_a_reserved_name_cannot_reach_the_system_field(
+async def test_a_reserved_name_is_refused_rather_than_namespaced(
     tmp_path: Path,
     store: InMemoryVectorStore,
     catalogue: SQLiteCatalogue,
     documents: LocalDocumentStore,
 ) -> None:
-    """``title=Q3`` must not overwrite the field citations are built from.
+    """``title=Q3`` is rejected outright, and nothing is indexed.
 
-    This is the whole reason for the namespace. The assertion is on the chunk's real
-    ``title`` as well as the tag map: a prefix applied at storage time but forgotten on the
-    chunk would pass a tag-only check while the citation was already corrupted.
+    The namespace alone would have protected the real ``title`` field — ``title`` becomes
+    ``meta.title`` and the citation stays intact. That was the original behaviour, and this
+    test used to assert it. It was changed because a tag a caller can *write* but cannot
+    *filter by* is a trap: RET-5 refuses reserved names as filters, so accepting them at
+    ingest would create a tag that is invisible to the only thing it was created for.
+
+    Refusing both sides keeps one vocabulary. The assertion on the chunk's real ``title``
+    remains, because a test that only checked for an error would pass just as well if the
+    field had already been corrupted before the refusal.
     """
     doc = tmp_path / "quarterly.md"
     doc.write_text("# Actual Heading\n\nReal content.")
 
-    await _ingest(
-        doc,
-        store=store,
-        catalogue=catalogue,
-        documents=documents,
-        metadata={"title": "Q3", "source_path": "/etc/passwd"},
-    )
+    with pytest.raises(MetadataError, match="reserved"):
+        await _ingest(
+            doc,
+            store=store,
+            catalogue=catalogue,
+            documents=documents,
+            metadata={"title": "Q3"},
+        )
 
-    chunks = list(store._records.values())  # noqa: SLF001
-    assert chunks
-    for chunk in chunks:
-        assert chunk.chunk.title != "Q3"
-        assert chunk.chunk.source_path == str(doc)
-        assert chunk.chunk.metadata == {"meta.title": "Q3", "meta.source_path": "/etc/passwd"}
+    # Nothing reached the index, so there is no chunk whose title could have moved.
+    assert store._records == {}  # noqa: SLF001
+
+
+async def test_an_explicitly_prefixed_reserved_name_is_refused_too(
+    tmp_path: Path,
+    store: InMemoryVectorStore,
+    catalogue: SQLiteCatalogue,
+    documents: LocalDocumentStore,
+) -> None:
+    """``meta.title`` is refused as well, so the guard is not bypassable by typing the prefix.
+
+    ``normalise_key`` is idempotent over the prefix, so without this the one form nobody is
+    supposed to type would be the single form that got through.
+    """
+    doc = tmp_path / "quarterly.md"
+    doc.write_text("# Actual Heading\n\nReal content.")
+
+    with pytest.raises(MetadataError, match="reserved"):
+        await _ingest(
+            doc,
+            store=store,
+            catalogue=catalogue,
+            documents=documents,
+            metadata={"meta.title": "Q3"},
+        )
 
 
 async def test_an_invalid_tag_fails_the_ingest_rather_than_storing_it(

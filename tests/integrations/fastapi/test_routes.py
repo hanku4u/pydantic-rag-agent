@@ -83,10 +83,14 @@ def history_lengths_model() -> tuple[FunctionModel, list[int]]:
     return FunctionModel(respond, stream_function=stream), lengths
 
 
-def upload(client: TestClient, name: str, content: bytes) -> httpx.Response:
+def upload(
+    client: TestClient, name: str, content: bytes, metadata: str | None = None
+) -> httpx.Response:
+    form = {"metadata": metadata} if metadata is not None else None
     return client.post(
         "/documents",
         files=[("files", (name, content, "application/octet-stream"))],
+        data=form,
     )
 
 
@@ -579,3 +583,58 @@ def ask_with_an_s3_backed_store_should_cite_an_s3_uri() -> None:
     locator = answer["citations"][0]["locator"]
     assert locator.startswith("s3://acme-docs/documents/")
     assert locator.endswith("/handbook.md")
+
+
+def a_reserved_key_in_the_filter_should_be_a_client_error() -> None:
+    # given: an index holding a document tagged team=legal
+    agent = build_facade(answer=ANSWER)
+    with TestClient(create_app(agent)) as client:
+        upload(client, "handbook.md", DOCUMENT, metadata='{"team": "legal"}')
+        conversation_id = client.post("/conversations").json()["conversation_id"]
+
+        # when: a caller filters by a field the library owns
+        response = client.post(
+            f"/conversations/{conversation_id}/messages",
+            json={"question": "When do backups run?", "metadata_filter": {"title": "Q3"}},
+        )
+
+    # then: refused rather than silently ignored — a 4xx, not a 200 whose filter did nothing
+    assert 400 <= response.status_code < 500
+    assert "reserved" in response.text
+
+
+def a_filter_that_matches_nothing_should_still_answer() -> None:
+    # given: an index holding a legal document
+    agent = build_facade(answer=ANSWER)
+    with TestClient(create_app(agent)) as client:
+        upload(client, "handbook.md", DOCUMENT, metadata='{"team": "legal"}')
+        conversation_id = client.post("/conversations").json()["conversation_id"]
+
+        # when: the filter excludes everything in the corpus
+        response = client.post(
+            f"/conversations/{conversation_id}/messages",
+            json={"question": "When do backups run?", "metadata_filter": {"team": "finance"}},
+        )
+
+    # then: a normal answer, not an error — the filter narrowed the search to nothing, which
+    # is a legitimate outcome the model then has to explain
+    assert response.status_code == 200
+    assert response.json()["answer"] == ANSWER
+
+
+def no_filter_field_should_behave_exactly_as_before() -> None:
+    # given: an index holding a legal document
+    agent = build_facade(answer=ANSWER)
+    with TestClient(create_app(agent)) as client:
+        upload(client, "handbook.md", DOCUMENT, metadata='{"team": "legal"}')
+        conversation_id = client.post("/conversations").json()["conversation_id"]
+
+        # when: the request omits the filter entirely
+        response = client.post(
+            f"/conversations/{conversation_id}/messages",
+            json={"question": "When do backups run?"},
+        )
+
+    # then: unchanged behaviour, and the document is found
+    assert response.status_code == 200
+    assert response.json()["citations"]

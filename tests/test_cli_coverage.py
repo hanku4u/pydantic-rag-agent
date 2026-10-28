@@ -269,7 +269,13 @@ class ChatClient:
     def create_conversation(self) -> str:
         return "conv-1"
 
-    def stream(self, conversation_id: str, question: str) -> Any:
+    def stream(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: object = None,
+    ) -> Any:
         type(self).asked.append(question)
         yield ("token", {"text": "the answer"})
         yield ("done", {"answer": "the answer", "citations": []})

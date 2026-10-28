@@ -413,12 +413,42 @@ Values are strings, capped at 32 keys per document and 128 characters per key or
 Over-long input is **rejected rather than truncated**, because a silently shortened tag is a
 tag that later fails to match for no visible reason.
 
+A key naming a field the system owns — `title`, `source_path`, `document_id` — is refused
+outright, at ingest as well as at search. Storing it as `meta.title` and then refusing to
+filter by it would leave you with a tag you can write and never read.
+
+Search by them with `--meta`, repeated for a conjunction:
+
+```bash
+pydantic-rag-agent ask "what is the retention period?" --meta team=legal --meta year=2026
+```
+
+```python
+from pydantic_rag_agent.domain.metadata import MetadataFilter
+
+await agent.ask(
+    "what is the retention period?",
+    metadata_filter=MetadataFilter.of({"team": "legal", "year": "2026"}),
+)
+```
+
+Over HTTP the message body takes the same map, in your own key names:
+
+```json
+{"question": "what is the retention period?", "metadata_filter": {"team": "legal"}}
+```
+
+Both conditions must match. One condition is a narrower search than none, two are narrower
+still; there is no way to ask for either-or, because "legal or 2026" is nearly the whole
+corpus and narrowing is the point.
+
 **Filtering is yours to choose, never the model's.** The retrieval tool is offered no filter
 parameter, so the model cannot narrow a search behind your back. A wrong filter excludes
 correct evidence *silently* — the answer simply omits what it could not see — and a model
 picking one makes that failure invisible. An absent filter means no constraint and is never
 an error; a filter that matches nothing is reported as such rather than presented as a gap in
-your corpus. See [ADR 0019](docs/decisions/0019-caller-supplied-metadata.md).
+your corpus. See [ADR 0019](docs/decisions/0019-caller-supplied-metadata.md) and
+[ADR 0020](docs/decisions/0020-filtered-retrieval.md).
 
 ## Day-to-day commands
 

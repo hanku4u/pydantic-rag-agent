@@ -27,6 +27,8 @@ from urllib.parse import unquote
 
 import httpx
 
+from pydantic_rag_agent.domain.metadata import MetadataFilter, user_metadata
+
 # Mirrors the loaders, so a directory does not upload a video the server will only
 # reject. The server stays the authority: unsupported files named explicitly are still
 # reported as skipped rather than silently ignored.
@@ -34,6 +36,20 @@ UPLOAD_SUFFIXES = frozenset({".txt", ".md", ".markdown", ".pdf", ".docx", ".pptx
 
 _SSE_EVENT_PREFIX = "event: "
 _SSE_DATA_PREFIX = "data: "
+
+
+def _message_body(question: str, metadata_filter: MetadataFilter | None) -> dict[str, object]:
+    """The JSON body for a message request, with the filter in the caller's own key names.
+
+    Sent in bare form rather than the stored ``meta.``-prefixed one. The wire format is the
+    public surface, and leaking the namespace onto it would invite clients to start typing the
+    prefix — which is exactly what the namespace exists to make unnecessary. The server
+    re-applies it, so the round trip is unchanged.
+    """
+    body: dict[str, object] = {"question": question}
+    if metadata_filter is not None:
+        body["metadata_filter"] = user_metadata(metadata_filter.conditions)
+    return body
 
 
 class ClientError(RuntimeError):
@@ -93,10 +109,20 @@ class KnowledgeClient(Protocol):
 
     def create_conversation(self) -> str: ...
 
-    def ask(self, conversation_id: str, question: str) -> dict[str, object]: ...
+    def ask(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: MetadataFilter | None = None,
+    ) -> dict[str, object]: ...
 
     def stream(
-        self, conversation_id: str, question: str
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: MetadataFilter | None = None,
     ) -> Iterator[tuple[str, dict[str, object]]]:
         """Yield ``(event name, payload)`` pairs as the turn is generated."""
         ...
@@ -189,20 +215,32 @@ class RagClient:
         self._raise_for_status(response)
         return response.json()["conversation_id"]
 
-    def ask(self, conversation_id: str, question: str) -> dict[str, object]:
+    def ask(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: MetadataFilter | None = None,
+    ) -> dict[str, object]:
         response = self._client.post(
             f"/conversations/{conversation_id}/messages",
-            json={"question": question},
+            json=_message_body(question, metadata_filter),
         )
         self._raise_for_status(response)
         return response.json()
 
-    def stream(self, conversation_id: str, question: str) -> Iterator[tuple[str, dict]]:
+    def stream(
+        self,
+        conversation_id: str,
+        question: str,
+        *,
+        metadata_filter: MetadataFilter | None = None,
+    ) -> Iterator[tuple[str, dict]]:
         """Yield ``(event name, payload)`` pairs as the turn is generated."""
         with self._client.stream(
             "POST",
             f"/conversations/{conversation_id}/messages/stream",
-            json={"question": question},
+            json=_message_body(question, metadata_filter),
         ) as response:
             if response.status_code >= 400:
                 # The body has to be read before it can be parsed, and only on the

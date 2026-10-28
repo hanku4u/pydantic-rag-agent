@@ -34,12 +34,22 @@ from pydantic_ai.usage import UsageLimits
 from pydantic_rag_agent.adapters.image_store import sniff_media_type
 from pydantic_rag_agent.application.citations import CitationAudit, audit_citations
 from pydantic_rag_agent.application.retrieval import RetrievalService, SearchResult
+from pydantic_rag_agent.domain.metadata import MetadataFilter
 from pydantic_rag_agent.domain.models import Citation, TurnUsage
 from pydantic_rag_agent.domain.ports import ImageStore
 
 _logger = logging.getLogger(__name__)
 
 NO_RESULTS_MESSAGE = "No relevant documents were found for that query."
+
+# Told to the model when a caller's tag filter is the reason nothing came back. It must be
+# able to say "your filter excluded everything" rather than "the documents don't cover this",
+# because the caller can act on the first and would be misled by the second.
+FILTERED_NO_RESULTS_MESSAGE = (
+    "No documents matched that query under {filter}. This does not mean the corpus lacks "
+    "material on the topic — the tag filter may have excluded it. Tell the user the filter "
+    "excluded everything and suggest widening or dropping it."
+)
 
 # Retrieved text is attacker-controlled: a document can contain anything, and the model
 # reads it as part of the conversation. Two layers defend against that here — this
@@ -75,11 +85,18 @@ class AgentDeps:
 
     A fresh instance per turn on purpose: citations belong to the turn, not to the
     conversation, or a later answer would cite sources it never read.
+
+    ``metadata_filter`` rides here for exactly that reason. It is set when the caller supplies
+    one and left ``None`` otherwise, and because this object is rebuilt per turn the narrowing
+    cannot follow the conversation into the next question. That is what makes "a filter
+    applies to the question it was supplied with" a structural property rather than a rule
+    someone has to remember.
     """
 
     retrieval: RetrievalService
     images: ImageStore
     citations: list[Citation] = field(default_factory=list)
+    metadata_filter: MetadataFilter | None = None
 
 
 async def search_knowledge_base(ctx: RunContext[AgentDeps], query: str) -> str:
@@ -89,10 +106,16 @@ async def search_knowledge_base(ctx: RunContext[AgentDeps], query: str) -> str:
         query: What to look for, in natural language. Include specific nouns
             from the question; vague queries retrieve vague passages.
     """
-    result = await ctx.deps.retrieval.search(query)
+    result = await ctx.deps.retrieval.search(query, metadata_filter=ctx.deps.metadata_filter)
     if result.is_empty:
         # The model is told explicitly rather than handed an empty string, which
         # is exactly the input that invites an answer from thin air.
+        if result.excluded_by_filter:
+            # Distinct from NO_RESULTS_MESSAGE on purpose: "nothing in the corpus" and
+            # "your filter excluded everything" lead a reader to opposite next steps, and a
+            # model told only the first will confidently report the documents are silent on a
+            # topic they actually cover.
+            return FILTERED_NO_RESULTS_MESSAGE.format(filter=result.filter_description)
         return NO_RESULTS_MESSAGE
 
     ctx.deps.citations.extend(result.citations)
