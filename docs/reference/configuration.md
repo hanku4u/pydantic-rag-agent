@@ -292,12 +292,24 @@ see it is required without any real value being committed.
 
 ## Open questions
 
-1. Is a `max_file_size` setting needed, and what happens when it is exceeded — reject or
-   truncate?
-2. Is the score floor per-embedding-model? The current number is measured for one pair.
-3. Is `PRAGENT_PROVIDER__MODEL` validated at startup by a cheap probe, or only on first
-   use?
-4. Should data paths be absolute-resolved at startup so a `cd` cannot move the index?
+1. **Is a `max_file_size` setting needed?** Yes, eventually — see the same question in
+   [ingestion](../design/ingestion.md#open-questions), where it is the sharper problem
+   because the upload route buffers the body. Rejecting is the only acceptable behaviour;
+   truncating a document would index half of it under a citation that claims the whole.
+2. **Should data paths be absolute-resolved at startup so a `cd` cannot move the index?**
+   They are not. `vector_store.chroma_path` and `storage.documents.local_path` default to
+   `./data/…` and are resolved at use, so a process started from a different directory
+   addresses a different — or empty — index. Resolving against the `.env` location at load
+   would fix it; nobody has been bitten yet, and the default deployment runs from one
+   directory.
+3. **Is `PRAGENT_PROVIDER__MODEL` validated at startup by a cheap probe, or only on first
+   use?** Only on first use. `check_index()` validates the *embedding* configuration (and
+   does so on startup in the standalone app, because a mismatched index returns plausible
+   wrong answers), but a bad chat model id surfaces when the first question is asked. A
+   probe would spend a request to learn what the first question reveals anyway.
+4. ~~**Is the score floor per-embedding-model?**~~ Yes, and it is measured rather than
+   guessed: 0.59 for this corpus and embedding model. Re-measure if either changes. See
+   [Evaluation](../development/evaluation.md).
 
 ## Related
 

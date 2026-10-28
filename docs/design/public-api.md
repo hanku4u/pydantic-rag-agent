@@ -274,12 +274,19 @@ not in `__all__` and carry no promise.
 
 ## Open questions
 
-1. **Can a conversation survive a process restart?** Not today: history is in memory, and
-   the docs say so rather than implying otherwise. A database-backed store is the next
-   deferred item.
-2. **Should `delete_document` raise instead of returning zero?** Zero is reported for now,
-   because "nothing to delete" is not exceptional and an interface can choose its own
-   status code from it.
+1. **Can a conversation survive a process restart?** Not today. History lives in
+   `InMemoryConversationStore`, bounded by `agent.max_conversations`, and the docs say so
+   rather than implying otherwise. A database-backed store is a deferred item whose trigger
+   is "multi-worker deployment, or users complaining about lost history" — see
+   [features](../features/README.md#deferred).
+2. **Should `delete_document` raise instead of returning zero?** No. Zero means "no such
+   document", which is not exceptional; the caller decides whether that is worth reporting,
+   and an interface can choose its own status code from a count. Deleting is idempotent by
+   design, so a retried request is not an error.
+3. **Does `delete_document` remove the stored original?** No, and deliberately. Losing the
+   only copy as a side effect of tidying an index is the destructive convenience
+   [ADR 0012](../decisions/0012-source-documents.md) refuses; purging would need an
+   explicit flag.
 
 ## Related
 

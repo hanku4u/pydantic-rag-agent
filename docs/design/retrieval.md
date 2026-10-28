@@ -122,14 +122,26 @@ Each belongs in [Roadmap](../roadmap.md) with a trigger condition, not in the co
 
 ## Open questions
 
-1. Which similarity metric, and does Chroma's default (cosine) suffice?
-2. ~~Fixed floor or per-model floor?~~ Measured at 0.59 for this corpus and embedding
-   model, and per-model by nature — re-measure if either changes. See
-   [Evaluation](../development/evaluation.md).
-3. Should `top_k` be the agent's choice (a tool parameter) or fixed by config? Letting
-   the model choose invites it to ask for 50.
-4. Should results be deduplicated by document so one verbose document cannot fill the
-   whole context?
+1. **Should results be deduplicated by document so one verbose document cannot fill the
+   whole context?** No, and deliberately. `top_k` counts chunks, and a document split into
+   five sections is five places the answer might be; collapsing them would trade a real
+   recall win for variety, on a corpus where recall is already 1.00. MMR is deferred with
+   "summarisation becomes a goal" as its trigger — the point at which variety starts to
+   matter.
+
+Three questions are settled:
+
+- **Which similarity metric?** Cosine, set explicitly (`hnsw:space: cosine`) rather than
+  left to Chroma's default, and converted to a similarity score (`1 - distance`) at the
+  adapter boundary so nothing outside it reasons in distances. See
+  [ADR 0003](../decisions/0003-vector-store-and-embeddings.md).
+- ~~**Fixed floor or per-model floor?**~~ Measured at 0.59 for this corpus and embedding
+  model, and per-model by nature — re-measure if either changes. See
+  [Evaluation](../development/evaluation.md).
+- **Should `top_k` be the agent's choice, or fixed by config?** Fixed by config.
+  `search_knowledge_base(ctx, query)` takes no `top_k`; a model that can ask for 50 will.
+  The same reasoning keeps the metadata filter out of the tool signature (RET-5,
+  [ADR 0020](../decisions/0020-filtered-retrieval.md)).
 
 ## Related
 

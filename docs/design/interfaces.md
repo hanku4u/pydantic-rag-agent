@@ -304,16 +304,30 @@ does **not** hold message history — the server owns that. See
 
 ## Open questions
 
-1. Is there any authentication? A localhost-only tool may not need it; anything
-   broader needs it before it is exposed.
-2. Does ingestion upload file bytes, or accept a server-side path? Paths are faster
-   and safer for huge corpora, but only work when client and server share a
-   filesystem.
-3. Is there a maximum upload size, and where is it enforced?
-4. Should the API expose the raw retrieved chunks for debugging?
-5. Is a plain or `--json` output mode needed for scripting and pipes? Rich output is
-   actively hostile to `| grep`, so this should be answered before people start
-   scripting against the CLI.
+1. **Is there a maximum upload size, and where is it enforced?** No limit exists anywhere,
+   so the answer is "nowhere". `await upload.read()` buffers the whole body before any
+   loader sees it. This is the sharpest open item in the package: the route is reachable by
+   anyone who can reach the port, and authentication is out of scope (ADR 0018), so a large
+   body is an unauthenticated memory cost. A reverse proxy's own body limit is the
+   immediate mitigation; an in-app cap is not built.
+2. **Should the API expose the raw retrieved chunks for debugging?** No. `answer` carries
+   citations with locators and scores, which is what a debugging caller needs; raw chunks
+   would be a second representation of the corpus, with its own leaking and staleness
+   questions, for a need the citations already meet.
+3. **Does ingestion upload bytes, or accept a server-side path?** Bytes. A path parameter
+   would only work when client and server share a filesystem, which contradicts the point
+   of a remote API, and it would let a caller name any file the server can read.
+
+Two questions are settled:
+
+- **Is there any authentication?** No, and not because it was overlooked. It is out of
+  scope for the package rather than deferred — a RAG library cannot guess a host's auth
+  model, and a half-answer hosts disable is worse than a stated boundary. Anything
+  reachable with `serve --host 0.0.0.0` is reachable by anyone who can reach the port. See
+  [ADR 0018](../decisions/0018-readable-tree-and-catalogue.md).
+- ~~**Is a plain or `--json` output mode needed for scripting and pipes?**~~ Yes. `--json`
+  exists on the commands that report data (`ingest`, `documents`, `stats`, `ask`), and
+  errors go to stderr so a pipe consumer reads only the payload.
 
 ## Related
 

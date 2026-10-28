@@ -124,13 +124,23 @@ renamed or dropped method at definition time rather than at a call site.
 
 ## Open questions
 
-1. Coverage threshold in CI, or reported only? A threshold on a young codebase pushes
-   people to test trivia.
-2. Are the Chroma-store tests part of the default run, or a separate marker? They are
-   slow and filesystem-bound.
-3. How is vision captioning faked — a fixed caption per hash, or a small recorded
-   fixture set?
-4. ~~Does EVAL-1 live in `tests/`, or as a separate harness?~~ Resolved: a separate
+1. **Are the Chroma-store tests part of the default run, or a separate marker?** Part of
+   the default run. Each test builds its own store at a `tmp_path`, so the filesystem cost
+   is a temporary directory per test rather than a shared index — measured at 1.5 seconds
+   for the Chroma suites, which does not justify a marker someone can forget to pass.
+2. **Coverage threshold in CI, or reported only?** A threshold, `fail_under = 85`, and the
+   concern that a threshold on a young codebase pushes people to test trivia has not
+   materialised: the suite sits at 93%, so the gate has never been the thing driving a test.
+   It earns its place by catching a genuinely uncovered branch, which is how the CLI's error
+   paths were found.
+3. **How is vision captioning faked — a fixed caption per hash, or a recorded fixture set?**
+   A fixed caption plus a call counter (`FakeCaptioner` in `tests/factories.py`). The count
+   is the point: captioning is the one part of ingestion that costs money, so "did we
+   caption this twice?" is an assertion, and a per-hash caption would answer a different
+   question. Determinism matters more than realism here — what is under test is whether the
+   pipeline calls the captioner once and carries the text through, not what a real model
+   would say.
+4. ~~**Does EVAL-1 live in `tests/`, or as a separate harness?**~~ Resolved: a separate
    harness, `scripts/evaluate_retrieval.py`, deliberately outside CI because it needs a
    paid API. See [Evaluation](evaluation.md).
 

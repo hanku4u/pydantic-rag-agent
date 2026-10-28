@@ -140,13 +140,28 @@ contents or credentials.
 
 ## Open questions
 
-1. Exact instruction wording — worth iterating against a small evaluation set rather
-   than taste.
-2. Is `top_k` a tool parameter or fixed by config? A model that can ask for 50 will.
-3. Does `view_image` get registered only when the configured model supports vision?
-   Registering unconditionally invites a guaranteed failure at call time.
-4. What happens when the model answers with no tool calls at all — is a
-   zero-retrieval answer allowed, or is it forced to search first?
+1. **Does `view_image` get registered only when the configured model supports vision?**
+   It is registered unconditionally today. The concern was a guaranteed failure at call
+   time; in practice an unknown `image_id` and an undisplayable format both return a
+   message rather than raising, so the model can recover. A non-vision model that calls it
+   still receives `BinaryContent` it cannot read, which is a wasted turn rather than a
+   crash. Gating it on a config flag would be stricter; nothing yet forces that.
+2. **What happens when the model answers with no tool calls at all?** The instructions say
+   to search before answering, but nothing enforces it — there is no `tool_choice` pin and
+   no post-hoc check, so a direct answer passes through. Allowing it is deliberate: a forced
+   first search costs a retrieval turn on a question the model can already answer, and the
+   instruction already tells it not to answer from general knowledge. The cost is that a
+   zero-retrieval answer cannot be told from a retrieval miss without reading the trace,
+   which is why citations, not tool calls, are the thing to audit. There is no test that
+   exercises the no-tool-call path end to end; the nearest is
+   `tests/adapters/test_compaction.py`, which covers a turn whose tool return went missing.
+3. **Exact instruction wording** remains iterative. It is worth tuning against a small
+   evaluation set rather than taste, and the committed one is the current best, not a
+   final answer.
+4. ~~**Is `top_k` a tool parameter or fixed by config?**~~ Fixed by config.
+   `search_knowledge_base(ctx, query)` takes no `top_k`; a model that can ask for 50 will.
+   The metadata filter follows the same rule (RET-5,
+   [ADR 0020](../decisions/0020-filtered-retrieval.md)).
 
 ## Capabilities
 

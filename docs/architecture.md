@@ -186,11 +186,25 @@ protocol is in the wrong place.
 
 ## Open questions
 
-1. Where does the image store live — filesystem only, or is it also a protocol?
-2. Does `application/conversations.py` own history, or is that infrastructure?
-3. Single-worker or multi-worker deployment? This decides whether in-memory history
-   and embedded Chroma are acceptable.
-4. Is background ingestion needed, or is a synchronous request sufficient?
+1. **Single-worker or multi-worker deployment?** This is the one question here that is
+   genuinely undecided, and it decides two others: in-memory conversation history and
+   embedded Chroma are both per-process, so a second worker gives a user two different
+   agents. Nothing forces the answer yet — *persistent conversations* is deferred with
+   "multi-worker deployment" as its trigger.
+
+Three questions have shipped answers:
+
+- **Where does the image store live?** Filesystem only, behind
+  `domain/ports.ImageStore`; `adapters/image_store.FileImageStore` is the only
+  implementation. It is a protocol so a host can supply its own, but there is no remote
+  adapter and no plan for one.
+- **Does conversation history belong to the application layer?** No. It lives in
+  `adapters/conversations.InMemoryConversationStore`, reached through the runtime. The
+  application layer does not own storage; that is the same boundary that keeps `chromadb`
+  out of everything but its adapter.
+- **Is background ingestion needed?** No. Ingestion is synchronous and returns a report.
+  A batch large enough to need a queue is the corpus that would also outgrow embedded
+  Chroma, and that is the `pgvector` trigger.
 
 ## Related
 

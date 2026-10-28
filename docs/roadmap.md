@@ -104,15 +104,22 @@ persistent conversations are the three most likely to be pulled forward.
 
 ## Open questions
 
-1. **When is the first tag?** PKG-4 can be written now; PKG-5 needs a PyPI trusted
-   publisher registered and someone other than the author to follow the runbook.
-2. **Does the first release include session persistence?** Not built. A chat UI can use
-   the stateless endpoint today; resuming a conversation needs the design in
-   [ADR 0014](decisions/0014-openai-compatible-endpoint.md) to be extended.
-3. **What is the readable path derived from?** Source relative path, title, or a
-   caller-supplied collection? SRC-4 cannot start without this answer.
-4. **Which Python versions are supported?** CI tests 3.11 only, and the classifiers say
-   so. A matrix is a deliberate decision, not an omission.
+**Which Python versions are supported?** CI tests 3.11 only, and the classifiers say so. A
+matrix is a deliberate decision, not an omission: every extra version is another CI job that
+must stay green, and nothing in the dependency set demands a wider range yet.
+
+Three earlier questions are settled. They are recorded rather than deleted, so the reasoning
+survives:
+
+- **When is the first tag?** Answered: 0.4.0 is published on PyPI. PKG-4 and PKG-5 are both
+  done, so the trusted-publisher runbook has been exercised end to end.
+- **Does the first release include session persistence?** It did not. 0.4.0 shipped with
+  in-memory history, which is why *persistent conversations* is a deferred item with a
+  trigger rather than an unfinished feature. See
+  [features](features/README.md#deferred).
+- **What is the readable path derived from?** The source's own name (SRC-4). The slug is a
+  path component only; `document_id` stays `sha256(payload)`, so renaming a file cannot
+  silently repoint a citation. See [ADR 0018](decisions/0018-readable-tree-and-catalogue.md).
 
 ## Related
 

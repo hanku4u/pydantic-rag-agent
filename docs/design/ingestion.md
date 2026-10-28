@@ -109,10 +109,20 @@ unchanged document is a no-op rather than a duplicate.
 
 **Open questions**
 
-1. Do tables become their own chunk, or stay inline with the surrounding prose?
-2. Do code blocks and lists get their own splitting rules?
-3. Is the exact token count needed, or is a cheap `len(text) / 4` estimate good
-   enough? Exact counting needs `tiktoken`, which we already have transitively.
+1. **Do tables become their own chunk, or stay inline with the surrounding prose?** Inline
+   today: the chunker splits on blank lines and packs paragraphs to a token budget, so a
+   table is whatever the loader emitted between blank lines — it can be split mid-table if
+   it exceeds the budget. Keeping it whole would need the chunker to see element kinds,
+   which means the loader has to report them. No document in the corpus has a table large
+   enough to expose this, which is the only reason it has not bitten.
+2. **Do code blocks and lists get their own splitting rules?** No, same as tables: they are
+   text between blank lines. A fenced block with blank lines inside is split at those blank
+   lines, which for prose-shaped code is harmless and for sparse code is not. Worth doing
+   when someone indexes a codebase, not before.
+3. ~~**Is the exact token count needed, or is a cheap estimate good enough?**~~ Exact, via
+   `tiktoken` (`count_tokens` in `application/chunking.py`). An estimate would make the
+   budget approximate, and a chunk that overshoots the window fails at embed time rather
+   than at chunk time.
 
 ## 4. Embed and index
 
@@ -175,10 +185,18 @@ Ingestion of a folder is a batch operation and its result must be inspectable:
 
 ## Open questions
 
-1. Is there a maximum file size, and does it fail or truncate when exceeded?
-2. Should ingestion be cancellable mid-batch? With hosted embeddings, an accidental
-   `ingest .` on a large tree is a billable event.
-3. Is there a dry-run mode that reports what *would* be indexed?
+1. **Is there a maximum file size, and does it fail or truncate when exceeded?** No cap
+   exists. The upload route reads each file fully into memory (`await upload.read()`) with
+   no limit, which is a real gap: a large body is a memory cost before any loader sees it.
+   A local `ingest` is bounded by the disk you gave it, so the exposure is the HTTP route.
+   Not yet a backlog feature — recorded here so it is not rediscovered as a surprise.
+2. **Should ingestion be cancellable mid-batch?** Not implemented. With hosted embeddings
+   an accidental `ingest .` on a large tree is a billable event, and Ctrl-C stops the process
+   but not the money already spent. Worth doing before the first user with a large corpus.
+3. **Is there a dry-run mode that reports what *would* be indexed?** No. `--json` reports
+   what *was* indexed, after the fact. A dry run would need the loaders to run without the
+   embedder, which is most of the cost anyway; it is cheaper to ingest into a throwaway
+   catalogue (`PRAGENT_CATALOGUE__URL`) and read the report.
 
 ## Related
 
