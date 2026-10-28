@@ -32,6 +32,25 @@ from pydantic_rag_agent.domain.metadata import MetadataError, user_metadata
 DIMENSIONS = 8
 
 
+@pytest.fixture(autouse=True)
+def _settings_env(
+    clean_settings_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Give every test in this module a private catalogue and a settings environment.
+
+    Two separate leaks are closed here, and both only showed up off this machine:
+
+    * ``clean_settings_env`` supplies a dummy credential and clears inherited settings
+      variables. Without it ``build_settings()`` rejects the empty environment — which
+      passed locally only because an exported ``OPENROUTER_API_KEY`` from a smoke run
+      happened to be in the shell, and failed on a clean CI runner.
+    * ``RagAgent(build_settings())`` with no catalogue passed builds one from settings,
+      which defaults to ``./data/catalogue.db``. That is a real file shared by every test
+      in the run, so a slug claimed by one test suppresses another's ingest.
+    """
+    monkeypatch.setenv("PRAGENT_CATALOGUE__URL", f"sqlite:///{tmp_path / 'catalogue.db'}")
+
+
 @pytest.fixture
 def catalogue(tmp_path: Path) -> SQLiteCatalogue:
     return SQLiteCatalogue(f"sqlite:///{tmp_path / 'catalogue.db'}")
